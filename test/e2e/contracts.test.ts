@@ -135,8 +135,32 @@ describe('published pricing matches the code', () => {
 
   test('billing honestly reports whether it can take real money', async () => {
     const p = await json('/v1/billing/plans');
-    assert.equal(p.provider.live, false, 'no live credentials are configured in this build');
-    assert.equal(p.provider.test_mode, true);
-    assert.match(p.provider.note, /no card is charged/i);
+    const { live, test_mode, note, setup_incomplete } = p.provider;
+
+    // The invariant is honesty in whichever state is configured, not one
+    // particular state — this must hold on an operator's machine too.
+    assert.equal(typeof note, 'string');
+    assert.ok(note.length > 20, 'the provider state must be explained, not just flagged');
+    assert.notEqual(live, test_mode, 'live and test_mode must never agree');
+
+    if (setup_incomplete) {
+      assert.equal(live, false, 'an incomplete setup is never live');
+      assert.match(note, new RegExp(setup_incomplete),
+        'the note must name the missing variable');
+    } else if (live) {
+      assert.match(note, /never reach Ratchet/i,
+        'a live provider must state that card details do not reach us');
+    } else {
+      assert.match(note, /no (real )?(card|money)/i,
+        'a non-live provider must state plainly that no money moves');
+    }
+  });
+
+  test('the test-mode default is what this build ships with', async () => {
+    // The suite forces the test adapter (see test/helpers.ts), so this asserts
+    // the shipped default rather than whatever the operator has configured.
+    const p = await json('/v1/billing/plans');
+    assert.equal(p.provider.name, 'test');
+    assert.equal(p.provider.live, false);
   });
 });

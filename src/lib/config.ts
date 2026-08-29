@@ -70,10 +70,14 @@ export const config = {
     gcIntervalMs: int('GC_INTERVAL_MS', 300000),
   },
 
+  // Read live from the environment rather than captured at import. Payment
+  // configuration is the one thing an operator changes and then expects to
+  // take effect on restart without wondering whether a module cached it, and
+  // it lets the three provider states be tested without a fresh module graph.
   billing: {
-    provider: process.env.BILLING_PROVIDER ?? 'test',
-    stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? '',
-    stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+    get provider() { return process.env.BILLING_PROVIDER ?? 'test'; },
+    get stripeSecretKey() { return process.env.STRIPE_SECRET_KEY ?? ''; },
+    get stripeWebhookSecret() { return process.env.STRIPE_WEBHOOK_SECRET ?? ''; },
   },
 
   // Console sign-in link lifetime.

@@ -8,6 +8,14 @@ process.env.WEBHOOK_ALLOW_PRIVATE_NETWORK ??= 'true';
 process.env.RATE_LIMIT_PER_MINUTE ??= '100000';
 process.env.LOG_LEVEL = 'silent';
 
+// Neutralise payment configuration. dotenv does not override variables that are
+// already set, so setting these first keeps the suite hermetic: it must behave
+// identically whether or not the operator has real Stripe keys in their .env.
+// A test that needs a different provider state sets it before importing this.
+process.env.BILLING_PROVIDER ??= 'test';
+process.env.STRIPE_SECRET_KEY ??= '';
+process.env.STRIPE_WEBHOOK_SECRET ??= '';
+
 const { migrate } = await import('../src/db/migrate.js');
 const { getPool, closePool } = await import('../src/db/pool.js');
 const { createWorkspace, createApiKey, SCOPES } = await import('../src/domain/auth.js');

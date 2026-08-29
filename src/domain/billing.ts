@@ -41,31 +41,146 @@ export function packById(id: string): CreditPack | undefined {
   return CREDIT_PACKS.find((p) => p.id === id);
 }
 
-export const stripeConfigured = (): boolean =>
-  config.billing.provider === 'stripe'
-  && config.billing.stripeSecretKey.length > 0
-  && config.billing.stripeWebhookSecret.length > 0;
+/** Stripe is the selected provider and we can call its API. */
+export const stripeSelected = (): boolean =>
+  config.billing.provider === 'stripe' && config.billing.stripeSecretKey.length > 0;
 
 /**
- * Start a credit purchase. In test mode this returns a session id that can be
- * settled locally via the test-settlement endpoint; no card is charged and no
- * external request is made.
+ * Fully configured: we can both take a payment AND receive the signed
+ * confirmation that lets us credit it.
+ *
+ * Both halves are required before checkout is allowed. Selling without the
+ * webhook secret would let a customer pay and never receive credit, which is
+ * strictly worse than declining to sell — so this is a deliberate hard gate,
+ * not an oversight.
+ */
+export const stripeConfigured = (): boolean =>
+  stripeSelected() && config.billing.stripeWebhookSecret.length > 0;
+
+/** What is still missing, for an actionable error rather than a silent fallback. */
+export function stripeSetupGap(): string | null {
+  if (config.billing.provider !== 'stripe') return null;
+  if (config.billing.stripeSecretKey.length === 0) return 'STRIPE_SECRET_KEY';
+  if (config.billing.stripeWebhookSecret.length === 0) return 'STRIPE_WEBHOOK_SECRET';
+  return null;
+}
+
+/**
+ * Whether the key in use is a Stripe test-mode key. Surfaced to callers so a
+ * UI can never imply a real charge when none is possible.
+ */
+export const stripeIsTestKey = (): boolean =>
+  config.billing.stripeSecretKey.startsWith('sk_test_');
+
+const STRIPE_API = 'https://api.stripe.com/v1';
+
+export class StripeError extends Error {
+  constructor(readonly status: number, readonly stripeCode: string | undefined, msg: string) {
+    super(msg);
+    this.name = 'StripeError';
+  }
+}
+
+/**
+ * Minimal Stripe form-encoded POST. Stripe's API is form-encoded with bracket
+ * notation for nested values, so a flat key/value map is all that is needed —
+ * no SDK, and no dependency that has to be tracked for advisories.
+ *
+ * The host is a hard-coded constant, never caller-derived, so none of the SSRF
+ * machinery in src/lib/ssrf.ts applies here.
+ */
+async function stripePost(
+  path: string, params: Record<string, string>, idempotencyKey: string,
+): Promise<any> {
+  const body = new URLSearchParams(params).toString();
+  const res = await fetch(`${STRIPE_API}${path}`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${config.billing.stripeSecretKey}`,
+      'content-type': 'application/x-www-form-urlencoded',
+      // Stripe deduplicates on this, so a retried request cannot create a
+      // second session (and, for charges, cannot double-charge).
+      'idempotency-key': idempotencyKey,
+      'stripe-version': '2024-06-20',
+    },
+    body,
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  const text = await res.text();
+  let data: any;
+  try { data = JSON.parse(text); } catch { data = {}; }
+
+  if (!res.ok) {
+    const err = data?.error ?? {};
+    // Stripe's message is safe to surface: it describes the caller's request,
+    // never our credentials.
+    throw new StripeError(res.status, err.code,
+      err.message ?? `Stripe returned ${res.status}`);
+  }
+  return data;
+}
+
+/**
+ * Start a credit purchase.
+ *
+ * With Stripe configured this creates a real Checkout Session and returns the
+ * hosted URL. Card details are entered on Stripe's own page and never reach
+ * Ratchet. Credit is applied only when the signed `checkout.session.completed`
+ * webhook arrives — never here, and never on the client's say-so, because the
+ * browser returning to a success URL is not proof that payment settled.
+ *
+ * Without Stripe configured, the test adapter returns a session id that can be
+ * settled locally; no card is charged and no external request is made.
  */
 export async function startCheckout(
   workspaceId: string, pack: CreditPack,
 ): Promise<CheckoutSession> {
-  if (stripeConfigured()) {
-    // Deliberately not implemented against the live API in this build: doing so
-    // untested against real credentials would be exactly the kind of unverified
-    // claim this project refuses to make. See docs/handoff/KNOWN_LIMITATIONS.md.
+  const gap = stripeSetupGap();
+  if (gap) {
     throw new BillingUnavailable(
-      'Stripe credentials are present but the live checkout call is not enabled in this build.');
+      `Stripe is selected but ${gap} is not set. Checkout is disabled until it is: taking a `
+      + 'payment we cannot confirm would leave the customer charged and uncredited.');
   }
+  if (!stripeConfigured()) {
+    return {
+      provider: 'test',
+      sessionId: `cs_test_${workspaceId}_${pack.id}_${Date.now()}`,
+      url: null,
+      testMode: true,
+    };
+  }
+
+  // Stripe works in the currency's smallest unit; our micros are 1e-6 USD.
+  const amountCents = Math.round(pack.priceMicros / 10_000);
+  const base = config.publicUrl.replace(/\/$/, '');
+
+  const session = await stripePost('/checkout/sessions', {
+    mode: 'payment',
+    'line_items[0][quantity]': '1',
+    'line_items[0][price_data][currency]': 'usd',
+    'line_items[0][price_data][unit_amount]': String(amountCents),
+    'line_items[0][price_data][product_data][name]': `Ratchet credit — ${pack.label}`,
+    'line_items[0][price_data][product_data][description]':
+      'Prepaid credit for gated effects. Drawn down only past your plan allowance.',
+    success_url: `${base}/console?checkout=success`,
+    cancel_url: `${base}/console?checkout=cancelled`,
+    client_reference_id: workspaceId,
+    // The webhook reads both of these. Without them a completed payment cannot
+    // be attributed, so they are not optional.
+    'metadata[workspace_id]': workspaceId,
+    'metadata[pack_id]': pack.id,
+    'payment_intent_data[metadata][workspace_id]': workspaceId,
+    'payment_intent_data[metadata][pack_id]': pack.id,
+  // One session per workspace+pack per minute; a double-clicked button reuses
+  // the same session rather than creating a second one.
+  }, `checkout:${workspaceId}:${pack.id}:${Math.floor(Date.now() / 60_000)}`);
+
   return {
-    provider: 'test',
-    sessionId: `cs_test_${workspaceId}_${pack.id}_${Date.now()}`,
-    url: null,
-    testMode: true,
+    provider: 'stripe',
+    sessionId: session.id,
+    url: session.url ?? null,
+    testMode: stripeIsTestKey(),
   };
 }
 

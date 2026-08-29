@@ -1,14 +1,55 @@
 import type { FastifyInstance } from 'fastify';
 import { getPool } from '../../db/pool.js';
-import { errors } from '../../lib/errors.js';
+import { errors, ApiError } from '../../lib/errors.js';
 import { wsOf, actorOf } from '../plugins/auth.js';
 import { audit } from '../../domain/audit.js';
 import { CREDIT_PACKS, packById, startCheckout, settleTestCheckout,
          verifyStripeSignature, applyPaymentEvent, stripeConfigured,
-         BillingUnavailable } from '../../domain/billing.js';
+         stripeIsTestKey, stripeSetupGap, BillingUnavailable, StripeError } from '../../domain/billing.js';
 import { PLANS } from '../../domain/plans.js';
 import { config } from '../../lib/config.js';
 import { errorResponses } from '../schemas.js';
+
+function providerStatus() {
+  const gap = stripeSetupGap();
+  if (gap) {
+    return {
+      name: 'stripe',
+      live: false,
+      test_mode: true,
+      setup_incomplete: gap,
+      note: `Stripe is selected but ${gap} is not set. Checkout is disabled until it is — `
+          + 'taking a payment that cannot be confirmed would leave a customer charged '
+          + 'and uncredited.',
+    };
+  }
+  if (!stripeConfigured()) {
+    return {
+      name: 'test',
+      live: false,
+      test_mode: true,
+      note: 'Running the built-in test adapter: no card is charged and no external '
+          + 'request is made. Credit is applied through a local settlement endpoint.',
+    };
+  }
+  if (stripeIsTestKey()) {
+    return {
+      name: 'stripe',
+      live: false,
+      test_mode: true,
+      note: 'Stripe test mode. Real Checkout Sessions are created and the signed webhook '
+          + 'path runs end to end, but no card is charged and no real money moves. '
+          + 'Use Stripe\'s test cards, e.g. 4242 4242 4242 4242.',
+    };
+  }
+  return {
+    name: 'stripe',
+    live: true,
+    test_mode: false,
+    note: 'Live payments are enabled. Card details are entered on Stripe\'s own page '
+        + 'and never reach Ratchet.',
+  };
+}
 
 export default async function billingRoutes(app: FastifyInstance) {
   app.get('/billing/plans', {
@@ -40,14 +81,10 @@ export default async function billingRoutes(app: FastifyInstance) {
       id: c.id, label: c.label,
       price_micros: c.priceMicros, credit_micros: c.creditMicros,
     })),
-    provider: {
-      name: config.billing.provider,
-      live: stripeConfigured(),
-      test_mode: !stripeConfigured(),
-      note: stripeConfigured()
-        ? 'A live payment provider is configured.'
-        : 'Running the built-in test adapter: no card is charged and no external request is made.',
-    },
+    // Three distinct states, reported precisely. A Stripe *test* key is not
+    // "live" — it creates real Checkout Sessions but moves no real money, and
+    // calling that live would be the kind of claim this service refuses to make.
+    provider: providerStatus(),
   }));
 
   app.post('/billing/checkout', {
@@ -76,8 +113,15 @@ export default async function billingRoutes(app: FastifyInstance) {
       };
     } catch (err) {
       if (err instanceof BillingUnavailable) {
-        throw new (await import('../../lib/errors.js')).ApiError(
-          503, 'billing_unavailable', err.message);
+        throw new ApiError(503, 'billing_unavailable', err.message);
+      }
+      if (err instanceof StripeError) {
+        // Stripe's own message describes the request, not our credentials, so
+        // it is safe to pass through — and far more useful than "internal error".
+        req.log.error({ status: err.status, code: err.stripeCode }, 'stripe checkout failed');
+        throw new ApiError(502, 'payment_provider_error',
+          `The payment provider rejected the request: ${err.message}`,
+          { provider: 'stripe', provider_code: err.stripeCode ?? null });
       }
       throw err;
     }
@@ -114,8 +158,7 @@ export default async function billingRoutes(app: FastifyInstance) {
       return { applied: r.applied, credit_micros: r.balanceMicros, test_mode: true };
     } catch (err) {
       if (err instanceof BillingUnavailable) {
-        throw new (await import('../../lib/errors.js')).ApiError(
-          503, 'billing_unavailable', err.message);
+        throw new ApiError(503, 'billing_unavailable', err.message);
       }
       throw err;
     }
