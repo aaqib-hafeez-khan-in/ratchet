@@ -163,6 +163,8 @@ Full detail: [`docs/handoff/ARCHITECTURE.md`](docs/handoff/ARCHITECTURE.md).
 | `npm start` / `start:worker` | Run the compiled build |
 | `npm run mcp:stdio` | MCP server over stdio |
 | `npm run openapi` | Write the OpenAPI document to disk |
+| `npm run stripe:check` | Report payment configuration and verify it against Stripe |
+| `npm run stripe:listen` | Forward Stripe events to a local instance and print a webhook secret |
 | `npm run audit` | Production dependency audit |
 
 ---
@@ -235,10 +237,28 @@ Overage draws from prepaid credit, so a runaway agent stops at your balance rath
 an invoice. Cost model and assumptions:
 [`docs/handoff/PRICING_AND_UNIT_ECONOMICS.md`](docs/handoff/PRICING_AND_UNIT_ECONOMICS.md).
 
-**This build ships with the test billing adapter.** The full credit ledger, entitlement, and
-idempotency path executes and is tested, but no card is charged and no external request is made.
-Every response says `test_mode: true`. See
-[`docs/handoff/KNOWN_LIMITATIONS.md`](docs/handoff/KNOWN_LIMITATIONS.md).
+### Payments
+
+Stripe is fully wired: `startCheckout` creates real Checkout Sessions, and the signed
+`checkout.session.completed` webhook credits the ledger. Card details are entered on Stripe's own
+page and never reach Ratchet, and credit is applied **only** on the signed webhook — never on the
+browser returning to a success URL.
+
+Both `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are required before checkout opens. A key
+alone selects Stripe but keeps checkout closed: taking a payment that cannot be confirmed would
+leave a customer charged and uncredited. Run `npm run stripe:check` to see exactly what is
+configured (it prints no secret values).
+
+For local development, get a webhook secret without a public URL:
+
+```bash
+npm run stripe:listen     # prints whsec_… ; put it in .env and restart
+```
+
+With no Stripe credentials at all, the built-in test adapter runs instead: no card is charged and
+no external request is made. Verified so far in **Stripe test mode only** — see
+[`docs/handoff/KNOWN_LIMITATIONS.md`](docs/handoff/KNOWN_LIMITATIONS.md) before going live,
+particularly regarding refunds.
 
 ---
 

@@ -13,10 +13,10 @@ Everything below was run on this machine against real Postgres 16. No number is 
 | Layer | Suites | Tests | Passed | Failed | Duration |
 |---|---|---|---|---|---|
 | TypeScript (strict, `noUncheckedIndexedAccess`) | — | — | clean | 0 errors | — |
-| Unit | 5 | 18 | 18 | 0 | 0.10 s |
-| Integration (real Postgres) | 15 | 63 | 63 | 0 | 1.06 s |
-| End-to-end (real HTTP + MCP) | 12 | 42 | 42 | 0 | 1.61 s |
-| **Total** | **32** | **123** | **123** | **0** | **~2.8 s** |
+| Unit | 6 | 25 | 25 | 0 | 0.10 s |
+| Integration (real Postgres) | 18 | 73 | 73 | 0 | 1.3 s |
+| End-to-end (real HTTP + MCP) | 16 | 54 | 54 | 0 | 1.7 s |
+| **Total** | **40** | **152** | **152** | **0** | **~3.1 s** |
 
 No coverage tool is configured, so **no coverage percentage is claimed.** What is claimed is the
 list below: each item corresponds to named, passing tests.

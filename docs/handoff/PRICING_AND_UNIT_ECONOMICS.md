@@ -135,13 +135,13 @@ withheld to manufacture one.
 
 ## Billing status in this build
 
-The **test adapter** is active. The credit ledger, entitlement checks, overage arithmetic, period
-rollover, and idempotency are fully implemented and tested. No card is charged and no external
-request is made. Every response carries `test_mode: true`, and the pricing page says so in plain
-language.
+Stripe is implemented and verified in **test mode**. A real Checkout Session was created against
+Stripe's API, a real `checkout.session.completed` event credited $10.00 through the signed webhook,
+signed replays of that event were correctly suppressed, forged and stale signatures were refused,
+and the credited balance was then spent on a gated effect at exactly the plan's overage rate.
 
-Enabling live payments requires `BILLING_PROVIDER=stripe`, `STRIPE_SECRET_KEY`,
-`STRIPE_WEBHOOK_SECRET`, and implementing the single checkout-session call in
-`src/domain/billing.ts::startCheckout`. The receiving half — signature verification with a replay
-window, event deduplication, and credit application — is already written and tested.
-See KNOWN_LIMITATIONS.
+Not yet exercised with a live-mode key, and refunds are not handled — a dashboard refund will not
+claw back credit until `charge.refunded` is implemented. Both are recorded in KNOWN_LIMITATIONS.
+
+Without Stripe credentials, the built-in test adapter runs instead: the same ledger, entitlement,
+and idempotency logic, with no network call and no charge.

@@ -4,29 +4,38 @@ What is not done, why, and what it would take. Nothing here is hidden elsewhere 
 
 ---
 
-## 1. Live payments are not enabled
+## 1. Payments are wired but have only been exercised in Stripe test mode
 
-**State.** `BILLING_PROVIDER=test` is active. The test adapter performs no network I/O and issues
-no charge. Every affected response carries `test_mode: true`, and the pricing page says so.
+**State.** The full Stripe path is implemented and verified: `startCheckout` creates real
+Checkout Sessions via Stripe's API, and the signed `checkout.session.completed` webhook credits
+the workspace ledger.
 
-**What is genuinely implemented and tested:** webhook signature verification over the raw body
-with a 300-second replay window (tested against tampering, wrong secrets, stale timestamps,
-malformed headers, and a missing secret), provider event-id deduplication, the append-only credit
-ledger, concurrent-replay safety, plan entitlement, overage arithmetic, and monthly rollover.
+**Verified against Stripe's real API with a test key:** a Checkout Session was created and
+returned a `checkout.stripe.com` URL; a real `checkout.session.completed` event triggered through
+the Stripe CLI was delivered to the endpoint and credited $10.00; two validly signed replays of
+that event returned `applied: false` and left the balance and the single ledger row untouched;
+tampered bodies, wrong-secret signatures, stale timestamps, and missing headers were all refused
+with `400`; and the credited balance was then spent on a gated effect past the free allowance,
+drawing exactly the plan's 200-micro overage rate.
 
-**What is not:** the single outbound call that creates a checkout session.
-`startCheckout` throws `BillingUnavailable` when Stripe credentials are present, rather than
-running an untested code path against real money.
+**Not yet exercised:** a live-mode key. Nothing in the code path differs between test and live
+keys — Stripe's API is identical and the key is passed through unchanged — but that is reasoning,
+not evidence, and it is recorded here as such. Before switching to `sk_live_`, run one real
+low-value purchase end to end and confirm the ledger.
 
-**To enable:** set `BILLING_PROVIDER=stripe`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`; point
-a Stripe webhook at `POST /v1/billing/webhook/stripe` for `checkout.session.completed`; implement
-the session creation in `src/domain/billing.ts::startCheckout`, setting `workspace_id` and
-`pack_id` in session metadata — the receiving half already reads them.
+**Also not exercised:** the hosted Checkout page itself was not driven through a browser, because
+that means typing card details into a form. The session URL is produced and valid; completing it
+by hand takes one click with Stripe's `4242 4242 4242 4242` test card.
 
-**Why it was left this way.** Writing a live payment call that has never been executed and calling
-it production-ready is precisely the unverified claim this project refuses to make.
+**Deliberate gate.** A secret key alone selects Stripe but does **not** open checkout. Both the
+key and the webhook secret are required, because taking a payment that cannot be confirmed would
+leave a customer charged and uncredited. The API response and `npm run stripe:check` name the
+missing variable rather than silently falling back to the test adapter.
 
----
+**Refunds, disputes, and subscriptions are not implemented.** Only one-time credit purchases are.
+A refund issued in the Stripe dashboard does **not** claw back credit — that requires handling
+`charge.refunded` and writing a compensating ledger entry. Do this before taking live payments
+from anyone who might ask for one.
 
 ## 2. Rate limits are per-process
 

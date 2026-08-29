@@ -141,19 +141,39 @@ exists to prevent — a billing state must never create a safety incident.
 
 ---
 
-## D10 — Ship the test billing adapter, not a half-wired Stripe integration
+## D10 — Stripe implemented only once it could actually be verified
 
-**Decided.** `BILLING_PROVIDER=test` performs no network I/O and issues no charge. Signature
-verification, event idempotency, the ledger, and entitlement are fully implemented and tested. The
-live checkout call is explicitly not enabled and says so.
+**Originally decided.** With no payment credentials, `startCheckout` threw rather than shipping an
+untested live call described as production-ready.
 
-**Why.** No payment credentials were available. Writing an untested live call and calling it
-production-ready is exactly the false claim the brief prohibits. Every response carries
-`test_mode: true`, and the pricing page states it in plain language.
+**Superseded** once a test key was supplied. The call is now implemented and verified against
+Stripe's real API: a Checkout Session was created, a real `checkout.session.completed` event
+credited a workspace, signed replays were suppressed, forgeries were refused, and the credit was
+then spent at the plan's overage rate.
 
-**What is genuinely done:** webhook signature verification with a replay window (tested against
-tampering, wrong secrets, and stale timestamps), event-id deduplication, the append-only ledger,
-concurrent-replay safety, and plan entitlement.
+**The rule that produced both decisions is the same one:** implement it when it can be verified,
+and say precisely how far the verification went. It has been exercised in test mode only, which is
+what the docs now claim — no more.
+
+**Built without an SDK.** Stripe's API is form-encoded; `fetch` plus `URLSearchParams` covers it in
+about forty lines. Adding `stripe-node` would have meant a large dependency tree to track for
+advisories, in a service whose selling point is a small auditable surface. An `Idempotency-Key`
+header is sent on every call, so a retried request cannot create a second session.
+
+---
+
+## D23 — A secret key alone does not open checkout
+
+**Decided.** Both `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` must be present. With only the
+key, Stripe is *selected* but checkout is refused, and the missing variable is named.
+
+**Why.** Credit is applied only when the signed webhook arrives. With a key but no webhook secret,
+a customer could pay and never be credited — worse than declining to sell, and invisible until
+someone complains. The earlier behaviour silently fell back to the test adapter, which was worse
+still: it looked like it worked.
+
+**Also:** credit is never applied on the browser reaching the success URL. A returning browser is
+not proof that payment settled, and treating it as such is a standard way to give away product.
 
 ---
 
