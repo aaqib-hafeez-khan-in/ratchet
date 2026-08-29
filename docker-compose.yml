@@ -8,7 +8,10 @@ services:
       POSTGRES_USER: ratchet
       POSTGRES_PASSWORD: ratchet
       POSTGRES_DB: ratchet
-    ports: ["5433:5432"]
+    # Published on 5434, not 5433, so this does not collide with the dev
+    # database from scripts/dev-db.sh. api and worker reach it over the compose
+    # network regardless; the host port is only for inspection.
+    ports: ["${DB_HOST_PORT:-5434}:5432"]
     volumes: ["ratchet-data:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ratchet"]

@@ -1,0 +1,58 @@
+# Ratchet on Fly.io.
+#
+# Chosen because this service needs two different runtimes: a stateless control
+# plane that can scale to zero replicas and back, and a worker that must keep
+# running to expire leases on a timer whether or not a request arrives. Purely
+# serverless hosts (Vercel, Netlify functions) cannot run the second one, which
+# is why they are the wrong shape here despite being easier.
+#
+# Both processes ship from one image. `fly deploy` deploys both.
+
+app = "ratchet"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[processes]
+  app    = "node dist/api/server.js"
+  # The worker must not race the API's boot migration.
+  worker = "node dist/worker/main.js"
+
+[env]
+  NODE_ENV = "production"
+  PORT     = "8787"
+  HOST     = "0.0.0.0"
+
+# Only the control plane serves HTTP. The worker has no inbound surface at all.
+[http_service]
+  internal_port       = 8787
+  force_https         = true
+  auto_stop_machines  = "suspend"
+  auto_start_machines = true
+  # Never scale the control plane to zero: a cold start in front of every side
+  # effect turns a 2ms gate into a multi-second one.
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type       = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+[[http_service.checks]]
+  grace_period  = "10s"
+  interval      = "15s"
+  method        = "GET"
+  timeout       = "4s"
+  path          = "/readyz"
+
+[[vm]]
+  size      = "shared-cpu-1x"
+  memory    = "512mb"
+  processes = ["app"]
+
+[[vm]]
+  size      = "shared-cpu-1x"
+  memory    = "256mb"
+  processes = ["worker"]

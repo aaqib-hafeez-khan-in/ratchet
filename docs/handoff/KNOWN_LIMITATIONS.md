@@ -121,17 +121,26 @@ again. Both paths are tested and produce identical results.
 
 ---
 
-## 7. No deployment has been performed
+## 7. Not yet deployed (the path is built and rehearsed)
 
 No hosting or DNS credentials were available. The build is verified: `npm run build` produces a
 working `dist/`, the compiled artifact was smoke-tested in production mode, a multi-stage
 `Dockerfile` runs non-root under tini with a healthcheck, and `docker-compose.yml` brings up
 database, control plane, and worker together.
 
-**To deploy:** any container platform. Set `DATABASE_URL`, `AUTH_SECRET` (32+ random characters),
-`PUBLIC_URL`, `NODE_ENV=production`. Run `node dist/api/server.js` for the control plane (scale
-freely) and `node dist/worker/main.js` for the worker (at least one, always on). Migrations run on
-API boot behind an advisory lock.
+**Rehearsed, not assumed:** the production images were built and the full stack — database,
+control plane, worker — was run under `docker compose`, and the complete workflow was driven
+through it: signup, gate, report, replay, MCP tool listing, a crashed lease swept to
+`indeterminate` by the worker container, the next caller correctly `blocked`, and the analytics
+flusher writing from inside the container. That rehearsal found and fixed a real defect: compose
+published the database on port 5433, colliding with the dev database.
+
+**To deploy:** `npm run deploy:fly` (idempotent; creates app, managed Postgres, secrets, both
+process groups, then verifies). `npm run deploy:preflight` gates it. Any container platform works;
+only `fly.toml` is Fly-specific.
+
+**What still requires the owner:** a hosting account. Every provider needs an interactive browser
+login, so this is the one step that cannot be automated from here.
 
 ---
 

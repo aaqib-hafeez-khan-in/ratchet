@@ -156,6 +156,42 @@ Full detail: [`docs/handoff/ARCHITECTURE.md`](docs/handoff/ARCHITECTURE.md).
 
 ---
 
+## Deploying
+
+The control plane is stateless and can scale freely. **The worker cannot** — it expires leases on a
+timer whether or not a request arrives, so it must be a long-running process. That single
+constraint rules out purely serverless hosts (Vercel, Netlify functions) despite their being
+easier, and is why `fly.toml` runs both process groups from one image.
+
+```bash
+brew install flyctl && fly auth login   # once, needs your browser
+npm run deploy:fly
+```
+
+The script is idempotent: it creates the app, provisions managed Postgres, generates `AUTH_SECRET`
+once (never rotating it, since that would invalidate every API key), deploys both processes, and
+verifies readiness. It refuses to proceed unless preflight passes:
+
+```bash
+npm run deploy:preflight
+```
+
+Preflight runs the full suite and production build, then checks that `AUTH_SECRET` is strong and
+not the dev default, `PUBLIC_URL` is set (otherwise the manifest would advertise `localhost`),
+`RATE_LIMIT_OVERRIDE` is unset, private-network webhooks are off, CORS carries no wildcard, and —
+if Stripe is selected — that both the key and the webhook secret are present. It prints no secret
+values.
+
+Any container platform works; only `fly.toml` is Fly-specific. Set `DATABASE_URL`, `AUTH_SECRET`,
+`PUBLIC_URL`, `NODE_ENV=production`, then run `node dist/api/server.js` (scale freely) and
+`node dist/worker/main.js` (at least one, always on).
+
+To rehearse the exact production containers locally:
+
+```bash
+AUTH_SECRET=$(openssl rand -base64 32) docker compose up --build
+```
+
 ## Commands
 
 | Command | What it does |
@@ -172,6 +208,9 @@ Full detail: [`docs/handoff/ARCHITECTURE.md`](docs/handoff/ARCHITECTURE.md).
 | `npm start` / `start:worker` | Run the compiled build |
 | `npm run mcp:stdio` | MCP server over stdio |
 | `npm run openapi` | Write the OpenAPI document to disk |
+| `npm run deploy:preflight` | Verify the build and configuration are safe to deploy |
+| `npm run deploy:fly` | Deploy control plane, worker, and database to Fly.io |
+| `npm run metrics` | Operating metrics against the pricing-review thresholds |
 | `npm run stripe:check` | Report payment configuration and verify it against Stripe |
 | `npm run stripe:listen` | Forward Stripe events to a local instance and print a webhook secret |
 | `npm run audit` | Production dependency audit |

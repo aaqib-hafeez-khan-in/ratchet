@@ -29,7 +29,9 @@
     "stripe:listen": "stripe listen --forward-to localhost:8787/v1/billing/webhook/stripe --events checkout.session.completed",
     "stripe:trigger": "stripe trigger checkout.session.completed",
     "stripe:check": "tsx scripts/check-stripe.ts",
-    "metrics": "tsx scripts/metrics.ts"
+    "metrics": "tsx scripts/metrics.ts",
+    "deploy:preflight": "bash scripts/deploy-preflight.sh",
+    "deploy:fly": "bash scripts/deploy-fly.sh"
   },
   "dependencies": {
     "@fastify/cookie": "11.1.2",
