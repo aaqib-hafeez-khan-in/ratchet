@@ -49,7 +49,20 @@ export const config = {
   // Empty in production means "same-origin only".
   corsOrigins: list('CORS_ORIGINS'),
 
+  /**
+   * Limit for UNAUTHENTICATED requests (signup, health, docs), keyed by IP.
+   * Authenticated requests are limited by their workspace's plan instead.
+   */
   rateLimitPerMinute: int('RATE_LIMIT_PER_MINUTE', 600),
+
+  /**
+   * Overrides every rate limit, plan limits included. Exists so test suites can
+   * exercise volume without tripping the free-plan ceiling. Refused in
+   * production by assertProductionSafety — a deployment that silently ignored
+   * its own published limits would be the defect this override exists to test.
+   */
+  rateLimitOverride: process.env.RATE_LIMIT_OVERRIDE
+    ? int('RATE_LIMIT_OVERRIDE', 0) : null as number | null,
 
   maxRequestBytes: int('MAX_REQUEST_BYTES', 65536),
   maxResultBytes: int('MAX_RESULT_BYTES', 32768),
@@ -105,6 +118,9 @@ export function assertProductionSafety(): string[] {
   }
   if (config.webhook.allowPrivateNetwork) {
     problems.push('WEBHOOK_ALLOW_PRIVATE_NETWORK must be off in production.');
+  }
+  if (config.rateLimitOverride !== null) {
+    problems.push('RATE_LIMIT_OVERRIDE is a test-only affordance and must be unset in production.');
   }
   if (config.corsOrigins.includes('*')) {
     problems.push('CORS_ORIGINS must not contain "*" in production.');

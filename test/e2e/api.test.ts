@@ -7,6 +7,7 @@ process.env.WEBHOOK_ALLOW_PRIVATE_NETWORK = 'false';
 const { setupDb, closePool } = await import('../helpers.js');
 
 const { buildApp } = await import('../../src/api/app.js');
+const { PLANS } = await import('../../src/domain/plans.js');
 type App = Awaited<ReturnType<typeof buildApp>>;
 
 let app: App;
@@ -99,7 +100,8 @@ describe('the full agent onboarding path', () => {
     const ws = j(await app.inject({ url: '/v1/workspace', headers: { cookie } }));
     assert.equal(ws.plan.id, 'free');
     assert.ok(ws.usage.effects_this_period >= 1);
-    assert.equal(ws.usage.included_remaining, 5000 - ws.usage.effects_this_period);
+    assert.equal(ws.usage.included_remaining,
+      PLANS.free.includedEffects - ws.usage.effects_this_period);
     assert.ok(ws.external_spend_today.workspace_micros >= 480);
 
     const audit = j(await app.inject({ url: '/v1/audit', headers: { cookie } }));
@@ -258,7 +260,7 @@ describe('operational endpoints', () => {
     const p = j(await app.inject({ url: '/v1/billing/plans' }));
     assert.equal(p.meter.unit, 'gated_effect');
     assert.ok(p.meter.free_operations.length >= 4);
-    assert.equal(p.plans.length, 3);
+    assert.equal(p.plans.length, Object.keys(PLANS).length);
     assert.equal(p.provider.test_mode, true,
       'with no live credentials the response must say so plainly');
   });

@@ -18,11 +18,18 @@ export interface CreditPack {
   id: string; label: string; priceMicros: number; creditMicros: number;
 }
 
-/** Packs are priced at parity — $1 paid is $1 of credit. Margin is in the meter. */
+/**
+ * Packs are priced at parity — $1 paid is $1 of credit. Margin lives in the
+ * meter, not in a spread on the top-up.
+ *
+ * The smallest pack is $25 because card processing (2.9% + $0.30) costs 5.9% of
+ * a $10 top-up and only 3.9% of a $25 one. A pack small enough to lose 6% to
+ * fees is a pack that should not exist.
+ */
 export const CREDIT_PACKS: CreditPack[] = [
-  { id: 'pack_10', label: '$10 credit', priceMicros: 10_000_000, creditMicros: 10_000_000 },
-  { id: 'pack_50', label: '$50 credit', priceMicros: 50_000_000, creditMicros: 50_000_000 },
-  { id: 'pack_200', label: '$200 credit', priceMicros: 200_000_000, creditMicros: 200_000_000 },
+  { id: 'pack_25', label: '$25 credit', priceMicros: 25_000_000, creditMicros: 25_000_000 },
+  { id: 'pack_100', label: '$100 credit', priceMicros: 100_000_000, creditMicros: 100_000_000 },
+  { id: 'pack_500', label: '$500 credit', priceMicros: 500_000_000, creditMicros: 500_000_000 },
 ];
 
 export interface CheckoutSession {

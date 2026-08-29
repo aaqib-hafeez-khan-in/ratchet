@@ -6,6 +6,9 @@ process.env.DATABASE_URL ??= 'postgres://ratchet:ratchet@127.0.0.1:5433/ratchet_
 process.env.AUTH_SECRET ??= 'test-secret-that-is-long-enough-to-pass-checks';
 process.env.WEBHOOK_ALLOW_PRIVATE_NETWORK ??= 'true';
 process.env.RATE_LIMIT_PER_MINUTE ??= '100000';
+// Most suites exercise behaviour, not throttling. plan-limits.test.ts and
+// limits.test.ts set this to '' first so they measure the real limits.
+process.env.RATE_LIMIT_OVERRIDE ??= '100000';
 process.env.LOG_LEVEL = 'silent';
 
 // Neutralise payment configuration. dotenv does not override variables that are

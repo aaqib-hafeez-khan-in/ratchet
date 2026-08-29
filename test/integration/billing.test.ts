@@ -138,8 +138,8 @@ describe('credit ledger', () => {
 describe('test-mode checkout', () => {
   test('settling applies credit exactly once', async () => {
     await setBalance(ws.workspaceId, 0);
-    const pack = packById('pack_10')!;
-    const sid = `cs_test_${ws.workspaceId}_pack_10_1`;
+    const pack = packById('pack_25')!;
+    const sid = `cs_test_${ws.workspaceId}_pack_25_1`;
 
     const a = await settleTestCheckout(ws.workspaceId, sid, pack);
     assert.equal(a.applied, true);
@@ -156,7 +156,7 @@ describe('test-mode checkout', () => {
     await assert.rejects(() => begin('spend-1'), (e: any) => e.code === 'insufficient_credit');
 
     await settleTestCheckout(ws.workspaceId,
-      `cs_test_${ws.workspaceId}_pack_10_2`, packById('pack_10')!);
+      `cs_test_${ws.workspaceId}_pack_25_2`, packById('pack_25')!);
 
     const r = await begin('spend-1');
     assert.equal(r.decision, 'execute', 'topped-up credit must unblock the meter');
@@ -165,7 +165,7 @@ describe('test-mode checkout', () => {
 
 describe('plan entitlements', () => {
   test('a plan upgrade raises the included allowance', async () => {
-    await setPlan(ws.workspaceId, 'starter');
+    await setPlan(ws.workspaceId, 'pro');
     await setPeriodDecisions(ws.workspaceId, PLANS.free.includedEffects + 10);
     await setBalance(ws.workspaceId, 0);
     const r = await begin('plan-1');

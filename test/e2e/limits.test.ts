@@ -2,6 +2,8 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.RATE_LIMIT_PER_MINUTE = '5';
+// Empty (not deleted) so helpers' `??=` cannot re-enable it.
+process.env.RATE_LIMIT_OVERRIDE = '';
 const { setupDb, closePool } = await import('../helpers.js');
 const { buildApp } = await import('../../src/api/app.js');
 const { createWorkspace } = await import('../../src/domain/auth.js');
@@ -23,10 +25,14 @@ const hit = (key: string) =>
   app.inject({ url: '/v1/effects', headers: { authorization: `Bearer ${key}` } });
 
 describe('rate limiting', () => {
-  test('a key is throttled once it exceeds its window', async () => {
+  test('an authenticated key is throttled at its PLAN limit', async () => {
+    // RATE_LIMIT_PER_MINUTE governs unauthenticated traffic only; an
+    // authenticated request is limited by the plan its workspace is on.
+    const { PLANS } = await import('../../src/domain/plans.js');
+    const limit = PLANS.free.rateLimitPerMinute;
     const codes: number[] = [];
-    for (let i = 0; i < 8; i++) codes.push((await hit(keyA)).statusCode);
-    assert.equal(codes.filter((c) => c === 200).length, 5);
+    for (let i = 0; i < limit + 5; i++) codes.push((await hit(keyA)).statusCode);
+    assert.equal(codes.filter((c) => c === 200).length, limit);
     assert.ok(codes.includes(429), 'the limit must actually be enforced');
   });
 

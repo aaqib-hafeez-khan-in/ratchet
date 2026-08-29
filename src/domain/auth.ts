@@ -60,6 +60,29 @@ export async function createApiKey(
   return { id, prefix, plaintext };
 }
 
+/**
+ * Per-key rate limit cache.
+ *
+ * The rate limiter runs as an onRequest hook before any route guard, so it
+ * cannot wait on a database lookup without putting a query in front of every
+ * request. Successful authentications publish the key's plan limit here, and
+ * the limiter reads it synchronously. A cold or expired entry falls back to the
+ * free-plan limit, so an unknown key is under-served rather than over-served.
+ */
+const planLimitCache = new Map<string, { limit: number; at: number }>();
+const PLAN_CACHE_TTL_MS = 60_000;
+
+export function cachedPlanLimit(prefix: string): number | null {
+  const hit = planLimitCache.get(prefix);
+  if (!hit || Date.now() - hit.at > PLAN_CACHE_TTL_MS) return null;
+  return hit.limit;
+}
+
+/** Drops a key's cached limit, so a plan change takes effect immediately. */
+export function forgetPlanLimit(prefix: string): void {
+  planLimitCache.delete(prefix);
+}
+
 export interface AuthContext {
   workspaceId: string;
   keyId: string;
@@ -98,6 +121,8 @@ export async function authenticate(token: string): Promise<AuthContext> {
   if (row.status === 'suspended') {
     throw errors.forbidden('This workspace is suspended.');
   }
+
+  planLimitCache.set(prefix!, { limit: planFor(row.plan).rateLimitPerMinute, at: Date.now() });
 
   // Best-effort usage stamp, coarsened to once a minute. Writing on every
   // request would take an exclusive row lock that contends with the KEY SHARE

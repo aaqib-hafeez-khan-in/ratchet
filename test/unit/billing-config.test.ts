@@ -45,7 +45,7 @@ describe('payment provider configuration states', () => {
   test('checkout refuses, with an actionable reason, while the gap remains', async () => {
     setEnv('stripe', 'sk_test_abc');
     await assert.rejects(
-      () => startCheckout('ws_1', packById('pack_10')!),
+      () => startCheckout('ws_1', packById('pack_25')!),
       (err: Error) => {
         assert.ok(err instanceof BillingUnavailable);
         assert.match(err.message, /STRIPE_WEBHOOK_SECRET/);
@@ -80,7 +80,7 @@ describe('payment provider configuration states', () => {
     setEnv('stripe', 'sk_test_abc', 'whsec_abc');
     const { settleTestCheckout } = await import('../../src/domain/billing.js');
     await assert.rejects(
-      () => settleTestCheckout('ws_1', 'cs_test_ws_1_pack_10_1', packById('pack_10')!),
+      () => settleTestCheckout('ws_1', 'cs_test_ws_1_pack_10_1', packById('pack_25')!),
       (e: Error) => e instanceof BillingUnavailable,
       'local settlement must not be able to mint credit when Stripe is wired',
     );
@@ -91,12 +91,12 @@ describe('checkout session parameters', () => {
   test('metadata the webhook depends on is always present', async () => {
     setEnv('stripe', 'sk_test_abc', 'whsec_abc');
     const { buildCheckoutParams } = await import('../../src/domain/billing.js');
-    const p = buildCheckoutParams('ws_meta', packById('pack_10')!);
+    const p = buildCheckoutParams('ws_meta', packById('pack_25')!);
 
     // Without these a completed payment cannot be attributed to a workspace,
     // so the money would arrive with nowhere to credit it.
     assert.equal(p['metadata[workspace_id]'], 'ws_meta');
-    assert.equal(p['metadata[pack_id]'], 'pack_10');
+    assert.equal(p['metadata[pack_id]'], 'pack_25');
     assert.equal(p['payment_intent_data[metadata][workspace_id]'], 'ws_meta');
     assert.equal(p.client_reference_id, 'ws_meta');
   });
@@ -104,7 +104,7 @@ describe('checkout session parameters', () => {
   test('the amount charged matches the pack, in cents', async () => {
     setEnv('stripe', 'sk_test_abc', 'whsec_abc');
     const { buildCheckoutParams } = await import('../../src/domain/billing.js');
-    for (const [id, cents] of [['pack_10', '1000'], ['pack_50', '5000'], ['pack_200', '20000']]) {
+    for (const [id, cents] of [['pack_25', '2500'], ['pack_100', '10000'], ['pack_500', '50000']]) {
       const p = buildCheckoutParams('ws_1', packById(id!)!);
       assert.equal(p['line_items[0][price_data][unit_amount]'], cents,
         `${id} must charge ${cents} cents`);
@@ -116,7 +116,7 @@ describe('checkout session parameters', () => {
     setEnv('stripe', 'sk_test_abc', 'whsec_abc');
     delete process.env.STRIPE_AUTOMATIC_TAX;
     const { buildCheckoutParams } = await import('../../src/domain/billing.js');
-    const p = buildCheckoutParams('ws_1', packById('pack_10')!);
+    const p = buildCheckoutParams('ws_1', packById('pack_25')!);
     // Enabling tax without a configured origin address makes Stripe reject
     // every checkout, so the default must be off.
     assert.equal('automatic_tax[enabled]' in p, false);
@@ -127,12 +127,12 @@ describe('checkout session parameters', () => {
     setEnv('stripe', 'sk_test_abc', 'whsec_abc');
     process.env.STRIPE_AUTOMATIC_TAX = 'true';
     const { buildCheckoutParams } = await import('../../src/domain/billing.js');
-    const p = buildCheckoutParams('ws_1', packById('pack_10')!);
+    const p = buildCheckoutParams('ws_1', packById('pack_25')!);
     assert.equal(p['automatic_tax[enabled]'], 'true');
     assert.equal(p.billing_address_collection, 'required',
       'Stripe cannot determine a jurisdiction without an address');
     // Tax rides on top; the credited face value must not change.
-    assert.equal(p['line_items[0][price_data][unit_amount]'], '1000');
+    assert.equal(p['line_items[0][price_data][unit_amount]'], '2500');
     delete process.env.STRIPE_AUTOMATIC_TAX;
   });
 });

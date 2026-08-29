@@ -115,6 +115,15 @@ A key that changes on every attempt makes every retry look like new work.
 
 ---
 
+## When Ratchet is unreachable
+
+Ratchet sits in your critical path, so decide this before integrating: on an outage your agent
+either **acts without the gate** (fail-open) or **refuses to act** (fail-closed). Use fail-closed
+for anything you would have to apologise for; fail-open where the vendor deduplicates anyway.
+
+Full contract, client patterns, and the honest availability posture:
+[`docs/FAILURE_MODES.md`](docs/FAILURE_MODES.md).
+
 ## Architecture
 
 ```
@@ -229,9 +238,18 @@ all free. You are never charged for the retry behaviour the product exists to ab
 
 | Plan | Price | Included effects/mo | Overage |
 |---|---|---|---|
-| Free | $0 | 5,000 | $0.20 / 1,000 |
-| Starter | $19/mo | 100,000 | $0.15 / 1,000 |
-| Scale | $99/mo | 1,000,000 | $0.10 / 1,000 |
+| Free | $0 | 1,000 | $1.50 / 1,000, prepaid credit only |
+| Pro | $29/mo | 25,000 | $1.50 / 1,000 |
+| Custom | contact | above 250,000 | negotiated |
+
+Free stops at its allowance unless you load prepaid credit; there is no automatic overage and no
+invoice. Past roughly 19,300 effects a month, Pro is cheaper than paying credit on Free, so the
+upgrade is arithmetic rather than a wall.
+
+Two plans, not three: three tiers assert knowledge of three customer segments, and there is no
+usage history yet to support one. See
+[`docs/handoff/PRICING_AND_DISTRIBUTION_REVIEW.md`](docs/handoff/PRICING_AND_DISTRIBUTION_REVIEW.md)
+for the reasoning, including why the previous ladder priced a 20x usage range at one number.
 
 Overage draws from prepaid credit, so a runaway agent stops at your balance rather than generating
 an invoice. Cost model and assumptions:

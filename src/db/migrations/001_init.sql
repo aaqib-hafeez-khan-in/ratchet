@@ -13,6 +13,9 @@ CREATE TABLE workspaces (
   owner_email       TEXT NOT NULL,
   plan              TEXT NOT NULL DEFAULT 'free'
                       CHECK (plan IN ('free', 'starter', 'scale')),
+                      -- Superseded by 002_plan_rename.sql, which collapses
+                      -- starter/scale into a single 'pro' plan. Left as-is so
+                      -- migrations replay in order on a fresh database.
   -- Prepaid credit balance in micro-USD; may be negative only via admin action.
   credit_micros     BIGINT NOT NULL DEFAULT 0,
   -- Rolling monthly allowance bookkeeping.
