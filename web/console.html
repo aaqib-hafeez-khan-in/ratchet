@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Console — Ratchet</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><text y='16' font-size='16'>⚙️</text></svg>">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+
+<!-- Shown when there is no session. -->
+<section id="signup-view" hidden>
+  <div class="wrap narrow">
+    <p class="eyebrow">Get started</p>
+    <h1>Create a workspace</h1>
+    <p class="lede">One step. You get an API key immediately and 5,000 gated effects a month.</p>
+
+    <form id="signup-form" class="card" style="max-width:460px;margin-top:1.5rem">
+      <div id="signup-error"></div>
+      <div class="field">
+        <label for="ws-name">Workspace name</label>
+        <input id="ws-name" name="name" required maxlength="100" autocomplete="organization"
+               placeholder="Acme Agents">
+      </div>
+      <div class="field">
+        <label for="ws-email">Email</label>
+        <input id="ws-email" name="email" type="email" required maxlength="254"
+               autocomplete="email" placeholder="ops@acme.example">
+        <p class="hint">Identifies the workspace owner. No mail is sent by this build.</p>
+      </div>
+      <button class="btn" type="submit" id="signup-btn">Create workspace</button>
+    </form>
+
+    <p class="small faint" style="margin-top:1.25rem">
+      Already have a key? Append <code>?key=rk_...</code> to this URL to open the console with it,
+      or call the API directly — the console is optional.
+    </p>
+  </div>
+</section>
+
+<!-- Shown once, immediately after signup. -->
+<section id="key-view" hidden>
+  <div class="wrap narrow">
+    <h1>Save your API key</h1>
+    <div class="notice good">This is the only time it will be shown. It is stored as a keyed
+      hash and cannot be recovered.</div>
+    <div class="secret" id="new-key"></div>
+    <div class="actions">
+      <button class="btn" id="copy-key">Copy key</button>
+      <button class="btn secondary" id="key-done">I've saved it</button>
+    </div>
+    <hr class="rule">
+    <h3>Try it right now</h3>
+    <pre><code id="try-code"></code></pre>
+  </div>
+</section>
+
+<!-- The console proper. -->
+<section id="console-view" hidden style="padding-top:2.5rem">
+  <div class="wrap">
+    <div style="display:flex;align-items:baseline;gap:1rem;flex-wrap:wrap">
+      <h1 style="font-size:1.6rem;margin:0" id="ws-title">Workspace</h1>
+      <span class="faint small mono" id="ws-id"></span>
+      <button class="btn secondary small" id="sign-out" style="margin-left:auto">Sign out</button>
+    </div>
+
+    <div class="grid three" style="margin-top:1.5rem">
+      <div class="card">
+        <h3 class="faint small" style="font-weight:600">Plan</h3>
+        <p style="font-size:1.5rem;font-weight:640;margin:0.1rem 0" id="stat-plan">—</p>
+        <p class="small faint" style="margin:0" id="stat-plan-note"></p>
+      </div>
+      <div class="card">
+        <h3 class="faint small" style="font-weight:600">Included effects left</h3>
+        <p style="font-size:1.5rem;font-weight:640;margin:0.1rem 0" id="stat-remaining">—</p>
+        <p class="small faint" style="margin:0" id="stat-used"></p>
+      </div>
+      <div class="card">
+        <h3 class="faint small" style="font-weight:600">Prepaid credit</h3>
+        <p style="font-size:1.5rem;font-weight:640;margin:0.1rem 0" id="stat-credit">—</p>
+        <p class="small faint" style="margin:0" id="stat-spend"></p>
+      </div>
+    </div>
+
+    <div id="alerts" style="margin-top:1.25rem"></div>
+
+    <div id="panel-tabs" class="tabs" role="tablist" style="margin-top:2rem">
+      <button class="tab" role="tab" data-tab="effects">Effects</button>
+      <button class="tab" role="tab" data-tab="attention">Needs attention</button>
+      <button class="tab" role="tab" data-tab="policies">Policies</button>
+      <button class="tab" role="tab" data-tab="keys">API keys</button>
+      <button class="tab" role="tab" data-tab="webhooks">Webhooks</button>
+      <button class="tab" role="tab" data-tab="billing">Billing</button>
+      <button class="tab" role="tab" data-tab="audit">Audit</button>
+      <button class="tab" role="tab" data-tab="integrate">Integrate</button>
+    </div>
+
+    <div id="panel" class="card" style="padding:0;overflow:hidden">
+      <p class="loading" style="padding:1.25rem">Loading…</p>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer class="site"></footer>
+<script type="module" src="/assets/console.js"></script>
+</body>
+</html>

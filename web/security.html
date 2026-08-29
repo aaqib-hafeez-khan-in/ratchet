@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security — Ratchet</title>
+<meta name="description" content="What Ratchet stores, what it never stores, the threat model, and the controls that are actually implemented and tested.">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><text y='16' font-size='16'>⚙️</text></svg>">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+<section>
+  <div class="wrap narrow">
+    <p class="eyebrow">Security posture</p>
+    <h1>What we hold, and what we refuse to.</h1>
+    <p class="lede">
+      Ratchet sits in front of your most consequential actions. The smaller its blast radius,
+      the better it does that job — so it is designed to know as little as possible.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Data boundaries</h2>
+    <div class="grid two" style="margin-top:1.25rem">
+      <div class="card">
+        <h3 style="color:var(--ok)">What Ratchet stores</h3>
+        <ul class="checks">
+          <li>A SHA-256 fingerprint of your payload — never the payload</li>
+          <li>Effect type, idempotency key, state, attempt count, timestamps</li>
+          <li>The result you explicitly choose to record for replay</li>
+          <li>Optional <code>agent_id</code>, <code>run_id</code>, and a small
+              <code>request_summary</code> you control</li>
+          <li>Declared costs, in micro-USD</li>
+          <li>An HMAC of each API key secret, keyed by a server-side secret</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--stop)">What Ratchet never has</h3>
+        <ul class="checks">
+          <li>Your vendor credentials, API keys, or tokens</li>
+          <li>The content of the actions it gates</li>
+          <li>Network access to your systems — the gate is inbound only</li>
+          <li>The ability to perform, retry, proxy, or modify any side effect</li>
+          <li>Custody of any funds, yours or your customers'</li>
+        </ul>
+      </div>
+    </div>
+    <p class="small faint" style="margin-top:1.25rem">
+      Because only a fingerprint is stored, Ratchet can tell that a key was reused with different
+      arguments — a real class of bug — without ever being able to reconstruct those arguments.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Implemented controls</h2>
+    <p class="dim small">Each of these has a test in the suite. Nothing here is aspirational.</p>
+    <div class="grid two" style="margin-top:1.25rem">
+      <div class="card">
+        <h3>Identity and access</h3>
+        <ul class="checks">
+          <li>Keys stored as HMAC-SHA256, peppered with a server secret — a database leak alone
+              yields no usable key</li>
+          <li>Constant-time comparison, run even for unknown prefixes so timing reveals nothing</li>
+          <li>Least-privilege scopes; a gating agent needs only <code>effects:begin</code>
+              and <code>effects:report</code></li>
+          <li>Immediate revocation, and per-key daily spend ceilings</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Tenant isolation</h3>
+        <ul class="checks">
+          <li>Every query is scoped by workspace; there is no unscoped read path</li>
+          <li>A cross-tenant lookup returns <code>404</code>, never a hint that the record exists</li>
+          <li>A valid lease token from another workspace is still rejected</li>
+          <li>The same idempotency key in two workspaces is two independent effects</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Outbound requests (SSRF)</h3>
+        <ul class="checks">
+          <li>Webhook destinations must be https, DNS hostnames, on port 80 or 443</li>
+          <li>Private, loopback, link-local, CGNAT, and cloud-metadata ranges are blocked —
+              IPv4, IPv6, and IPv4-mapped forms</li>
+          <li>DNS is re-resolved on every attempt and the socket is <em>pinned</em> to the checked
+              address, closing the rebinding window</li>
+          <li>A host resolving to any private address is refused outright, not filtered</li>
+          <li>Redirects are never followed; response bodies are capped and discarded</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Integrity of state</h3>
+        <ul class="checks">
+          <li>A database-level unique constraint is what enforces at-most-once — not application logic</li>
+          <li>Fencing tokens: a stalled worker cannot overwrite a newer attempt</li>
+          <li>Budget reservations lock every scope before validating any, so parallel workers
+              cannot collectively exceed a ceiling</li>
+          <li>Credit movements are an append-only ledger, deduplicated by event id</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Prompt injection</h3>
+        <ul class="checks">
+          <li>Agent-supplied text is treated strictly as data. Nothing in a payload, summary,
+              or result is ever interpreted as an instruction by Ratchet</li>
+          <li>Effect types are pattern-constrained; results are size-capped</li>
+          <li>Decisions come from stored policy and database state — never from request content</li>
+          <li>An injected payload cannot widen a key's scopes, raise a budget, or change a policy</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Transport and abuse</h3>
+        <ul class="checks">
+          <li>Per-key rate limiting, so tenants cannot exhaust each other</li>
+          <li>Same-origin CORS by default; credentials are never granted to a wildcard origin</li>
+          <li>Unknown request fields are rejected rather than silently dropped</li>
+          <li>Secrets redacted from logs; internal detail never crosses the error boundary</li>
+          <li>Payment webhooks verified by HMAC over the raw body, with a replay window</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>Retention and deletion</h2>
+    <p class="dim">
+      Effect records expire on a per-effect-type schedule you configure, bounded by your plan.
+      Expired records are deleted by the worker — a leased effect is never collected, so live work
+      cannot disappear. Deleting a workspace cascades to its keys, effects, policies, ledger,
+      webhooks, and audit trail.
+    </p>
+    <h2 style="margin-top:2rem">Reporting a vulnerability</h2>
+    <p class="dim">
+      Security reports are welcome and will not be met with legal threats. Include reproduction
+      steps and give a reasonable window before disclosure. Contact details belong in the deployed
+      instance's configuration — this build ships no contact address rather than a fake one.
+    </p>
+    <h2 style="margin-top:2rem">What we do not claim</h2>
+    <p class="dim">
+      No third-party audit has been performed. There is no SOC 2 report, no penetration test, and
+      no compliance certification. The controls above are implemented and covered by automated
+      tests; that is a different and lesser thing than independent verification, and we will not
+      blur the two.
+    </p>
+  </div>
+</section>
+</main>
+<footer class="site"></footer>
+<script type="module" src="/assets/security.js"></script>
+</body>
+</html>

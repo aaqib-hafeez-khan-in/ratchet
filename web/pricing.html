@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pricing — Ratchet</title>
+<meta name="description" content="One meter: a gated effect. Duplicate suppression, retries, reports, and reads are free. 5,000 gated effects a month on the free plan.">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><text y='16' font-size='16'>⚙️</text></svg>">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Pricing</p>
+    <h1>One meter. No surprises.</h1>
+    <p class="lede">
+      You pay for a <strong>gated effect</strong>: the first time you ask about a given
+      idempotency key. Everything after that — duplicate suppression, in-flight checks,
+      retries, reports, lookups, policy changes, webhooks — is free.
+    </p>
+    <p class="dim" style="max-width:64ch">
+      That is deliberate. Charging per API call would bill you most on the day your agent
+      misbehaves, which is precisely the day the product is doing its job.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div id="plans" class="grid three"><p class="loading">Loading plans…</p></div>
+    <p class="small faint" style="margin-top:1.5rem">
+      Overage is drawn from prepaid credit at the rate shown, so a runaway agent stops at your
+      balance rather than generating an invoice. Credit is sold at parity: $10 paid is $10 of credit.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>What counts, and what doesn't</h2>
+    <div class="grid two" style="margin-top:1.25rem">
+      <div class="card">
+        <h3 style="color:var(--warn)">Metered</h3>
+        <ul class="checks">
+          <li>A <code>begin</code> call that creates a new effect record</li>
+        </ul>
+        <p class="small faint" style="margin:0">That's the whole list.</p>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--ok)">Free</h3>
+        <ul class="checks">
+          <li>Every repeat <code>begin</code> for the same key — duplicate, in-flight, blocked</li>
+          <li>Retries after a failure, however many the policy allows</li>
+          <li>Reporting an outcome</li>
+          <li>Lookups, listings, and effect reads</li>
+          <li>Policy reads and writes</li>
+          <li>Webhook deliveries and retries</li>
+          <li>Resolving an indeterminate effect</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>Cost controls that bind before the bill does</h2>
+    <ul class="checks">
+      <li><strong>Prepaid, never postpaid.</strong> Overage draws down a balance you chose to load.
+        At zero, new effects are refused with a <code>402</code> — existing ones still replay.</li>
+      <li><strong>Daily external-spend ceilings</strong> per API key, per effect type, and per
+        workspace. These bound your spend at <em>third parties</em>, not with us.</li>
+      <li><strong>Per-effect cost ceilings.</strong> An effect declaring more than the configured
+        maximum is refused before it runs.</li>
+      <li><strong>Rate limits per key</strong>, so one misbehaving agent cannot exhaust the
+        throughput of another.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>Billing status</h2>
+    <div id="provider" class="card"><p class="loading">Checking…</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>Ready?</h2>
+    <p class="dim">The free plan is a real plan. Full API, full MCP surface, all policy modes,
+      webhooks, and the complete audit trail.</p>
+    <div class="actions"><a class="btn" href="/console">Create a workspace</a>
+      <a class="btn secondary" href="/docs">Read the docs</a></div>
+  </div>
+</section>
+</main>
+<footer class="site"></footer>
+<script type="module" src="/assets/pricing.js"></script>
+</body>
+</html>

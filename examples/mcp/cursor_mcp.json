@@ -1,0 +1,15 @@
+{
+  "_comment": [
+    "Cursor MCP configuration. Save as .cursor/mcp.json in the project,",
+    "or ~/.cursor/mcp.json for every project.",
+    "The HTTP transport needs no local database access — preferred for Cursor."
+  ],
+  "mcpServers": {
+    "ratchet": {
+      "url": "https://your-ratchet-host/mcp",
+      "headers": {
+        "Authorization": "Bearer rk_live_replace_me"
+      }
+    }
+  }
+}

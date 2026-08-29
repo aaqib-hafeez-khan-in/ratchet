@@ -1,0 +1,46 @@
+# Reproducible local stack: database, control plane, and worker.
+#   docker compose up --build
+# Then open http://localhost:8787
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ratchet
+      POSTGRES_PASSWORD: ratchet
+      POSTGRES_DB: ratchet
+    ports: ["5433:5432"]
+    volumes: ["ratchet-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ratchet"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    command: ["node", "dist/api/server.js"]
+    environment:
+      DATABASE_URL: postgres://ratchet:ratchet@db:5432/ratchet
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET to 32+ random characters}
+      PUBLIC_URL: http://localhost:8787
+      PORT: "8787"
+      NODE_ENV: production
+    ports: ["8787:8787"]
+    depends_on:
+      db: { condition: service_healthy }
+
+  worker:
+    build: .
+    command: ["node", "dist/worker/main.js"]
+    environment:
+      DATABASE_URL: postgres://ratchet:ratchet@db:5432/ratchet
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET to 32+ random characters}
+      NODE_ENV: production
+      # The API runs migrations on boot; the worker must not race it.
+      MIGRATE_ON_BOOT: "false"
+    depends_on:
+      db: { condition: service_healthy }
+      api: { condition: service_started }
+
+volumes:
+  ratchet-data:

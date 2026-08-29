@@ -1,0 +1,79 @@
+import type { EffectView, ReportResult } from '../domain/effects.js';
+import type { BeginResult, Policy } from '../domain/types.js';
+
+/** The wire format is snake_case; the domain is camelCase. One place converts. */
+
+export function beginOut(r: BeginResult) {
+  return {
+    decision: r.decision,
+    effect_id: r.effectId,
+    effect_type: r.effectType,
+    idempotency_key: r.idempotencyKey,
+    state: r.state,
+    attempt: r.attempt,
+    ...(r.leaseToken ? { lease_token: r.leaseToken } : {}),
+    ...(r.leaseExpiresAt ? { lease_expires_at: r.leaseExpiresAt } : {}),
+    ...(r.decision === 'duplicate' ? { result: r.result ?? null } : {}),
+    ...(r.retryAfterSeconds ? { retry_after_seconds: r.retryAfterSeconds } : {}),
+    ...(r.reason ? { reason: r.reason } : {}),
+    ...(r.priorAttempt ? {
+      prior_attempt: {
+        attempt: r.priorAttempt.attempt,
+        state: r.priorAttempt.state,
+        started_at: r.priorAttempt.startedAt,
+        last_known_at: r.priorAttempt.lastKnownAt,
+        on_indeterminate: r.priorAttempt.onIndeterminate,
+      },
+    } : {}),
+    billing: {
+      metered: r.billing.metered,
+      included_remaining: r.billing.decisionsRemaining,
+    },
+  };
+}
+
+export function effectOut(e: EffectView) {
+  return {
+    effect_id: e.effectId,
+    effect_type: e.effectType,
+    idempotency_key: e.idempotencyKey,
+    state: e.state,
+    attempt: e.attempt,
+    result: e.result ?? null,
+    failure_reason: e.failureReason,
+    denial_reason: e.denialReason,
+    agent_id: e.agentId,
+    run_id: e.runId,
+    estimated_cost_micros: e.estimatedCostMicros,
+    actual_cost_micros: e.actualCostMicros,
+    lease_expires_at: e.leaseExpiresAt,
+    approval_state: e.approvalState,
+    created_at: e.createdAt,
+    updated_at: e.updatedAt,
+    settled_at: e.settledAt,
+  };
+}
+
+export function reportOut(r: ReportResult) {
+  return {
+    effect_id: r.effectId,
+    state: r.state,
+    attempt: r.attempt,
+    settled_at: r.settledAt,
+    actual_cost_micros: r.actualCostMicros,
+  };
+}
+
+export function policyOut(p: Policy) {
+  return {
+    effect_type: p.effectType,
+    mode: p.mode,
+    on_indeterminate: p.onIndeterminate,
+    lease_seconds: p.leaseSeconds,
+    max_attempts: p.maxAttempts,
+    max_cost_micros: p.maxCostMicros,
+    daily_budget_micros: p.dailyBudgetMicros,
+    retention_days: p.retentionDays,
+    is_default: p.isDefault,
+  };
+}

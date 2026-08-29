@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ratchet — the effect gate for AI agents</title>
+<meta name="description" content="Agents retry. Ratchet makes sure the real-world action behind the retry happens at most once — with a durable record, a spend ceiling, and an honest answer when the outcome is unknown.">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><text y='16' font-size='16'>⚙️</text></svg>">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Execution control for autonomous agents</p>
+    <h1>Your agent retried.<br>Did the email send twice?</h1>
+    <p class="lede">
+      Ratchet is a gate you call <em>before</em> a side effect. It answers durably — go, stop,
+      or “we genuinely don't know” — so the same real-world action is attempted at most once,
+      across every process, machine, and model provider you run.
+    </p>
+    <div class="actions">
+      <a class="btn" href="/console">Get an API key</a>
+      <a class="btn secondary" href="/docs">Read the docs</a>
+    </div>
+    <p class="small faint" style="margin-top:1rem">
+      5,000 gated effects a month, free. No card. Integration takes one HTTP call.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>The problem is not that agents fail. It's that they retry.</h2>
+    <p class="dim" style="max-width:64ch">
+      An LLM's control flow is non-deterministic. Network calls fail ambiguously. Processes die
+      mid-action. So the same logical action gets attempted zero, one, or several times — and
+      nothing in your stack knows which.
+    </p>
+    <div class="grid three" style="margin-top:2rem">
+      <div class="card">
+        <h3>The timeout that wasn't</h3>
+        <p class="small dim" style="margin:0">
+          Your agent posts a charge. The connection drops before the response. Did it go through?
+          The agent guesses, retries, and the customer is billed twice.
+        </p>
+      </div>
+      <div class="card">
+        <h3>The helpful second try</h3>
+        <p class="small dim" style="margin:0">
+          A supervisor loop notices a subtask “didn't finish” and re-runs it. The subtask had
+          already sent the announcement to 4,000 people.
+        </p>
+      </div>
+      <div class="card">
+        <h3>The parallel worker</h3>
+        <p class="small dim" style="margin:0">
+          Two agents pick up the same queue item a second apart. Both check “has this been done?”
+          in their own memory. Both see no, and both act.
+        </p>
+      </div>
+    </div>
+    <p class="small faint" style="margin-top:1.5rem;max-width:64ch">
+      Vendor idempotency keys help for the handful of vendors that offer them. They do nothing for
+      SMTP, Slack, git, internal APIs, or the other twenty tools your agent touches — and nothing
+      at all across separate processes.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Ask before you act</h2>
+    <p class="dim">One call before the action, one call after. Ratchet holds the durable record.</p>
+
+    <div class="grid two" style="margin-top:1.75rem;align-items:start">
+      <div>
+        <pre><code id="flow-code"></code></pre>
+        <p class="small faint" style="margin-top:-0.4rem">
+          Ratchet never performs the action. It has no access to your vendors, your credentials,
+          or your payload — only a hash of it.
+        </p>
+      </div>
+      <div>
+        <h3 style="margin-bottom:0.9rem">Six answers. Only one means go.</h3>
+        <div class="table-scroll">
+          <table>
+            <tbody>
+              <tr><td><span class="pill go">execute</span></td>
+                  <td class="small">You hold the lease. Perform the action, then report.</td></tr>
+              <tr><td><span class="pill stop">duplicate</span></td>
+                  <td class="small">Already done. Replay the recorded result. Don't act.</td></tr>
+              <tr><td><span class="pill wait">in_flight</span></td>
+                  <td class="small">Another process holds a live lease. Back off.</td></tr>
+              <tr><td><span class="pill unk">blocked</span></td>
+                  <td class="small">A prior attempt's outcome is unknown. Verify first.</td></tr>
+              <tr><td><span class="pill wait">approval_required</span></td>
+                  <td class="small">An operator must approve this one.</td></tr>
+              <tr><td><span class="pill stop">denied</span></td>
+                  <td class="small">Policy or budget refused it.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">The part that makes it worth paying for</p>
+    <h2>When we don't know, we say so.</h2>
+    <p class="dim" style="max-width:64ch">
+      If your process dies between “go” and “done”, most systems quietly let the next caller
+      retry. Ratchet won't. The lease expires and the effect becomes
+      <strong>indeterminate</strong> — a known unknown, surfaced instead of buried.
+    </p>
+
+    <div class="grid three" style="margin-top:2rem">
+      <div class="card">
+        <h3><span class="pill unk">block</span></h3>
+        <p class="small dim">
+          The default, and the right choice for anything irreversible. No automatic retry.
+          A human or a verifying agent resolves it after checking what really happened.
+        </p>
+      </div>
+      <div class="card">
+        <h3><span class="pill go">retry</span></h3>
+        <p class="small dim">
+          For actions where the vendor is genuinely idempotent, or a duplicate is harmless.
+          You opt in per effect type — never by default, because we can't know that for you.
+        </p>
+      </div>
+      <div class="card">
+        <h3><span class="pill wait">probe</span></h3>
+        <p class="small dim">
+          The caller must verify the outcome at the vendor and record evidence before anything
+          else may proceed. For charges, transfers, and anything you'd have to apologise for.
+        </p>
+      </div>
+    </div>
+
+    <p class="small faint" style="margin-top:1.75rem;max-width:64ch">
+      Exactly-once delivery is not achievable in a distributed system, and we won't claim it.
+      What Ratchet guarantees is at-most-once <em>initiation</em>, a recorded outcome that later
+      callers replay, and an explicit state for the case nobody else admits exists.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Also, while we're holding the gate</h2>
+    <div class="grid two" style="margin-top:1.5rem">
+      <div class="card">
+        <h3>Spend ceilings that actually bind</h3>
+        <p class="small dim">
+          Declare what an action costs you. Ratchet reserves it against per-key, per-effect-type,
+          and per-workspace daily budgets — atomically, so twenty parallel workers cannot
+          collectively blow a limit that each of them individually respects.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Approval gates without a human in every loop</h3>
+        <p class="small dim">
+          Mark an effect type <code>require_approval</code> and only that type pauses. Everything
+          else keeps running unattended. Configure once; no per-call babysitting.
+        </p>
+      </div>
+      <div class="card">
+        <h3>An audit trail you didn't have to build</h3>
+        <p class="small dim">
+          Every decision, lease, outcome, and resolution is recorded with the agent and run that
+          caused it. When someone asks “did we email them twice?”, there is an answer.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Fencing tokens, not just locks</h3>
+        <p class="small dim">
+          A stalled worker that wakes up after its lease expired cannot overwrite the newer
+          attempt's result. It's told its lease was superseded, which is what it needed to know.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Works with whatever you're building on</h2>
+    <p class="dim">Plain HTTP, or MCP over stdio and streamable HTTP. No SDK required.</p>
+    <div id="int-tabs" class="tabs" role="tablist" style="margin-top:1.25rem">
+      <button class="tab" role="tab" data-tab="curl">curl</button>
+      <button class="tab" role="tab" data-tab="python">Python</button>
+      <button class="tab" role="tab" data-tab="ts">TypeScript</button>
+      <button class="tab" role="tab" data-tab="mcp">MCP client</button>
+    </div>
+    <pre><code id="int-code"></code></pre>
+    <p class="small faint">
+      Verified against Claude Code / Claude Desktop, Cursor, and any MCP client that speaks stdio
+      or streamable HTTP. The REST API is provider-neutral — nothing about it assumes a model vendor.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>Priced on what you're protecting</h2>
+    <p class="dim">
+      One meter: a <strong>gated effect</strong> — the first time you ask about a given
+      idempotency key. Duplicate suppression, in-flight checks, retries, reports, and reads are
+      all free. You are never charged for the retry behaviour the product exists to absorb.
+    </p>
+    <div class="actions">
+      <a class="btn secondary" href="/pricing">See the plans</a>
+      <a class="btn" href="/console">Start free</a>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer class="site"></footer>
+
+<script type="module" src="/assets/home.js"></script>
+</body>
+</html>

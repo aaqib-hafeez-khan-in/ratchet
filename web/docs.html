@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Docs — Ratchet</title>
+<meta name="description" content="Integrate Ratchet in one HTTP call. The decision table, idempotency key design, policy modes, and copy-paste examples for REST and MCP.">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><text y='16' font-size='16'>⚙️</text></svg>">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+<section>
+  <div class="wrap narrow">
+    <p class="eyebrow">Documentation</p>
+    <h1>Integrate in one call</h1>
+    <p class="lede">
+      Ratchet has one important endpoint. Everything else exists to support it.
+    </p>
+    <p class="small faint">
+      Machine-readable: <a href="/openapi.json">OpenAPI</a> ·
+      <a href="/llms.txt">llms.txt</a> ·
+      <a href="/.well-known/agent-manifest.json">capability manifest</a> ·
+      <a href="/mcp/info">MCP tool schemas</a>
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>1. Get a key</h2>
+    <p class="dim">One request creates a workspace, seeds starter policies, and returns a key.
+      The key is shown once and stored only as a keyed hash.</p>
+    <pre><code id="c-signup"></code></pre>
+    <p class="small faint">Or use the <a href="/console">console</a> if you'd rather click.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>2. Ask before you act</h2>
+    <pre><code id="c-begin"></code></pre>
+    <h3 style="margin-top:1.5rem">Branch on <code>decision</code>. This is the whole contract.</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Decision</th><th>Meaning</th><th>What you must do</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill go">execute</span></td>
+              <td class="small">You hold the lease.</td>
+              <td class="small">Perform the action, then report.</td></tr>
+          <tr><td><span class="pill stop">duplicate</span></td>
+              <td class="small">Already completed.</td>
+              <td class="small">Use <code>result</code>. Do not act.</td></tr>
+          <tr><td><span class="pill wait">in_flight</span></td>
+              <td class="small">Someone else holds a live lease.</td>
+              <td class="small">Wait <code>retry_after_seconds</code>, ask again.</td></tr>
+          <tr><td><span class="pill unk">blocked</span></td>
+              <td class="small">A prior attempt's outcome is unknown.</td>
+              <td class="small">Verify at the vendor, then resolve.</td></tr>
+          <tr><td><span class="pill wait">approval_required</span></td>
+              <td class="small">Operator decision pending.</td>
+              <td class="small">Poll, or wait for the webhook.</td></tr>
+          <tr><td><span class="pill stop">denied</span></td>
+              <td class="small">Policy, budget, or rejection.</td>
+              <td class="small">Report the reason. Do not work around it.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>3. Report what happened</h2>
+    <pre><code id="c-report"></code></pre>
+    <div class="notice">
+      <strong>The one rule that matters.</strong> Report <code>failed</code> only when you know
+      the action did <em>not</em> reach the outside world. If you are unsure — a timeout, a dropped
+      connection, an ambiguous error — report nothing. The lease lapses and Ratchet records an
+      honest <code>indeterminate</code>. A false <code>failed</code> is worse than silence,
+      because it licenses a duplicate.
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>Designing idempotency keys</h2>
+    <p class="dim">The key is the entire mechanism. Derive it from the work, deterministically,
+      so a retry of the same logical action produces the same key.</p>
+    <div class="grid two">
+      <div class="card">
+        <h3 style="color:var(--ok)">Good</h3>
+        <ul class="plain small mono">
+          <li>welcome-email:user_123</li>
+          <li>invoice:2026-08:acct_88123</li>
+          <li>pr:acme/api:feature-auth</li>
+          <li>refund:order_551:full</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--stop)">Broken</h3>
+        <ul class="plain small mono">
+          <li>uuid4()</li>
+          <li>"send-" + Date.now()</li>
+          <li>str(random.random())</li>
+          <li>f"job-{attempt_number}"</li>
+        </ul>
+        <p class="small faint" style="margin:0.75rem 0 0">
+          A key that changes on every attempt makes every retry look like new work. The gate
+          can only recognise a duplicate if the duplicate says the same thing.</p>
+      </div>
+    </div>
+    <p class="small faint">
+      Reusing one key for genuinely different arguments is rejected with
+      <code>idempotency_key_reuse</code> — that collision would otherwise hide a real, distinct
+      action behind an unrelated record.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>Policy: what happens when things go wrong</h2>
+    <p class="dim">Configured per effect type. The default for an unconfigured type is the safe one.</p>
+    <pre><code id="c-policy"></code></pre>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Field</th><th>Values</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">mode</td><td class="mono small">allow · require_approval · deny</td>
+              <td class="small">Whether the type may run at all, and whether a human gates it.</td></tr>
+          <tr><td class="mono">on_indeterminate</td><td class="mono small">block · retry · probe</td>
+              <td class="small"><strong>The important one.</strong> What a later caller may do when
+                a prior attempt's outcome is unknown. Defaults to <code>block</code>.</td></tr>
+          <tr><td class="mono">lease_seconds</td><td class="mono small">5–3600</td>
+              <td class="small">How long a holder has to report before the effect goes indeterminate.</td></tr>
+          <tr><td class="mono">max_attempts</td><td class="mono small">1–50</td>
+              <td class="small">Ceiling on attempts for one key. Exceeding it denies the effect.</td></tr>
+          <tr><td class="mono">max_cost_micros</td><td class="mono small">integer · null</td>
+              <td class="small">Refuse a single effect declaring more than this.</td></tr>
+          <tr><td class="mono">daily_budget_micros</td><td class="mono small">integer · null</td>
+              <td class="small">Daily external-spend ceiling for this type.</td></tr>
+          <tr><td class="mono">retention_days</td><td class="mono small">1–400</td>
+              <td class="small">How long records and replayable results are kept.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small faint">
+      Choose <code>retry</code> only when the underlying vendor is genuinely idempotent, or a
+      duplicate is truly harmless. Ratchet will not assume that for you.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>Recovering an indeterminate effect</h2>
+    <p class="dim">Check the vendor, then record what you found. This is what unblocks the key.</p>
+    <pre><code id="c-resolve"></code></pre>
+    <p class="small faint">
+      Subscribe to <code>effect.indeterminate</code> to be told the moment one appears, or poll
+      <code>GET /v1/effects?state=indeterminate</code>.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>MCP</h2>
+    <p class="dim">Seven tools over stdio or streamable HTTP, backed by the same code as the REST API.</p>
+    <div id="mcp-tools"><p class="loading">Loading tool list…</p></div>
+    <h3 style="margin-top:1.75rem">Connecting</h3>
+    <div id="mcp-tabs" class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="stdio">stdio</button>
+      <button class="tab" role="tab" data-tab="http">Streamable HTTP</button>
+    </div>
+    <pre><code id="c-mcp"></code></pre>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>Errors</h2>
+    <p class="dim">Every failure returns <code>{"error": {"code", "message", "detail"}}</code>.
+      Branch on <code>code</code>; it is stable.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Status</th><th>Code</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td>400</td><td class="mono small">invalid_request</td><td class="small">Schema validation failed. <code>detail.validation</code> says where.</td></tr>
+          <tr><td>401</td><td class="mono small">unauthorized</td><td class="small">Missing, malformed, or revoked key.</td></tr>
+          <tr><td>402</td><td class="mono small">insufficient_credit</td><td class="small">Allowance exhausted and balance too low. Replays still work.</td></tr>
+          <tr><td>403</td><td class="mono small">forbidden</td><td class="small">Missing scope. <code>detail.required</code> names it.</td></tr>
+          <tr><td>403</td><td class="mono small">budget_exceeded</td><td class="small">A daily spend ceiling would be breached.</td></tr>
+          <tr><td>403</td><td class="mono small">cost_ceiling_exceeded</td><td class="small">Declared cost exceeds the per-effect maximum.</td></tr>
+          <tr><td>404</td><td class="mono small">not_found</td><td class="small">No such record in this workspace.</td></tr>
+          <tr><td>409</td><td class="mono small">idempotency_key_reuse</td><td class="small">Same key, different payload.</td></tr>
+          <tr><td>409</td><td class="mono small">lease_lost</td><td class="small">Your lease was superseded. Do not assume your work counted.</td></tr>
+          <tr><td>409</td><td class="mono small">invalid_state</td><td class="small">The transition is not legal from the current state.</td></tr>
+          <tr><td>413</td><td class="mono small">payload_too_large</td><td class="small">Store large outputs elsewhere; record a reference.</td></tr>
+          <tr><td>429</td><td class="mono small">rate_limited</td><td class="small"><code>detail.retry_after_seconds</code> says how long to wait.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+</main>
+<footer class="site"></footer>
+<script type="module" src="/assets/docs.js"></script>
+</body>
+</html>

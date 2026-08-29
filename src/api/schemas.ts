@@ -1,0 +1,165 @@
+/**
+ * JSON Schemas shared by route definitions. Fastify validates requests and
+ * serializes responses against these, and @fastify/swagger derives the OpenAPI
+ * document from the same objects — so the published spec cannot drift from the
+ * implementation.
+ */
+
+export const errorSchema = {
+  type: 'object',
+  required: ['error'],
+  properties: {
+    error: {
+      type: 'object',
+      required: ['code', 'message'],
+      properties: {
+        code: { type: 'string', description: 'Stable machine-readable error code.' },
+        message: { type: 'string' },
+        detail: { type: 'object', additionalProperties: true },
+      },
+    },
+  },
+} as const;
+
+export const errorResponses = {
+  400: { ...errorSchema, description: 'Invalid request.' },
+  401: { ...errorSchema, description: 'Missing or invalid API key.' },
+  402: { ...errorSchema, description: 'Insufficient prepaid credit.' },
+  403: { ...errorSchema, description: 'Scope, policy, or budget refusal.' },
+  404: { ...errorSchema, description: 'Not found.' },
+  409: { ...errorSchema, description: 'Conflicting state or idempotency-key reuse.' },
+  413: { ...errorSchema, description: 'Payload too large.' },
+  429: { ...errorSchema, description: 'Rate limit exceeded.' },
+} as const;
+
+export const beginBody = {
+  type: 'object',
+  required: ['effect_type', 'idempotency_key'],
+  additionalProperties: false,
+  properties: {
+    effect_type: {
+      type: 'string', minLength: 1, maxLength: 64, pattern: '^[a-z0-9]([a-z0-9._-]{0,62}[a-z0-9])?$',
+      description: 'Namespaced kind of side effect, e.g. "email.send" or "payment.charge". Policy is configured per type.',
+    },
+    idempotency_key: {
+      type: 'string', minLength: 1, maxLength: 255,
+      description: 'Stable identifier for this logical action. Derive it from the work itself (e.g. a hash of recipient + template + period), never from a random value or a timestamp.',
+    },
+    payload: {
+      description: 'The action being gated. Only a fingerprint is stored; the raw value is never persisted. Reusing a key with a different payload is rejected.',
+    },
+    estimated_cost_micros: {
+      type: 'integer', minimum: 0, maximum: 1_000_000_000, default: 0,
+      description: 'Declared external cost of this effect in micro-USD (1e-6 USD). Used only for budget ceilings; Ratchet never collects it.',
+    },
+    agent_id: { type: 'string', maxLength: 128, description: 'Which agent is acting. For operator visibility.' },
+    run_id: { type: 'string', maxLength: 128, description: 'Groups effects belonging to one agent run.' },
+    request_summary: {
+      type: 'object', additionalProperties: true,
+      description: 'Small, non-sensitive metadata shown in the console. Redact secrets before sending.',
+    },
+    lease_seconds: {
+      type: 'integer', minimum: 5, maximum: 3600,
+      description: 'Requested lease length. Clamped to the policy maximum for this effect type.',
+    },
+  },
+} as const;
+
+export const beginResponse = {
+  type: 'object',
+  required: ['decision', 'effect_id', 'effect_type', 'idempotency_key', 'state', 'attempt'],
+  properties: {
+    decision: {
+      type: 'string',
+      enum: ['execute', 'duplicate', 'in_flight', 'blocked', 'approval_required', 'denied'],
+      description:
+        'execute: you hold the lease, perform the effect. ' +
+        'duplicate: already done, replay `result`, do NOT perform it. ' +
+        'in_flight: another caller holds a live lease. ' +
+        'blocked: a prior attempt\'s real-world outcome is unknown. ' +
+        'approval_required: an operator must approve first. ' +
+        'denied: policy, budget, or a rejected approval refused it.',
+    },
+    effect_id: { type: 'string' },
+    effect_type: { type: 'string' },
+    idempotency_key: { type: 'string' },
+    state: { type: 'string', enum: ['awaiting_approval', 'pending', 'succeeded', 'failed', 'indeterminate', 'denied', 'cancelled'] },
+    attempt: { type: 'integer' },
+    lease_token: { type: 'string', description: 'Present only when decision is "execute". Required to report the outcome.' },
+    lease_expires_at: { type: 'string', format: 'date-time' },
+    result: { description: 'Present when decision is "duplicate": the recorded outcome to replay.' },
+    retry_after_seconds: { type: 'integer' },
+    reason: { type: 'string' },
+    prior_attempt: {
+      type: 'object',
+      properties: {
+        attempt: { type: 'integer' },
+        state: { type: 'string' },
+        started_at: { type: 'string', format: 'date-time' },
+        last_known_at: { type: 'string', format: 'date-time' },
+        on_indeterminate: { type: 'string', enum: ['block', 'retry', 'probe'] },
+      },
+    },
+    billing: {
+      type: 'object',
+      properties: {
+        metered: { type: 'boolean', description: 'True only when this call created a new gated effect.' },
+        included_remaining: { type: ['integer', 'null'] },
+      },
+    },
+  },
+} as const;
+
+export const reportBody = {
+  type: 'object',
+  required: ['lease_token', 'outcome'],
+  additionalProperties: false,
+  properties: {
+    lease_token: { type: 'string', minLength: 8, maxLength: 128 },
+    outcome: {
+      type: 'string', enum: ['succeeded', 'failed'],
+      description: 'Report "failed" ONLY when you know the side effect did not reach the outside world. If you are unsure, report nothing and let the lease lapse — that records an honest `indeterminate`.',
+    },
+    result: { description: 'Recorded and replayed verbatim to future duplicate callers.' },
+    failure_reason: { type: 'string', maxLength: 1024 },
+    actual_cost_micros: { type: 'integer', minimum: 0, maximum: 1_000_000_000 },
+  },
+} as const;
+
+export const effectView = {
+  type: 'object',
+  properties: {
+    effect_id: { type: 'string' },
+    effect_type: { type: 'string' },
+    idempotency_key: { type: 'string' },
+    state: { type: 'string' },
+    attempt: { type: 'integer' },
+    result: {},
+    failure_reason: { type: ['string', 'null'] },
+    denial_reason: { type: ['string', 'null'] },
+    agent_id: { type: ['string', 'null'] },
+    run_id: { type: ['string', 'null'] },
+    estimated_cost_micros: { type: 'integer' },
+    actual_cost_micros: { type: 'integer' },
+    lease_expires_at: { type: ['string', 'null'] },
+    approval_state: { type: ['string', 'null'] },
+    created_at: { type: 'string' },
+    updated_at: { type: 'string' },
+    settled_at: { type: ['string', 'null'] },
+  },
+} as const;
+
+export const policySchema = {
+  type: 'object',
+  properties: {
+    effect_type: { type: 'string' },
+    mode: { type: 'string', enum: ['allow', 'require_approval', 'deny'] },
+    on_indeterminate: { type: 'string', enum: ['block', 'retry', 'probe'] },
+    lease_seconds: { type: 'integer' },
+    max_attempts: { type: 'integer' },
+    max_cost_micros: { type: ['integer', 'null'] },
+    daily_budget_micros: { type: ['integer', 'null'] },
+    retention_days: { type: 'integer' },
+    is_default: { type: 'boolean' },
+  },
+} as const;

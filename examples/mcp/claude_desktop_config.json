@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "Claude Desktop / Claude Code MCP configuration for Ratchet (stdio transport).",
+    "Put the API key in `env`, never in `args` — arguments are visible in process listings.",
+    "macOS path:   ~/Library/Application Support/Claude/claude_desktop_config.json",
+    "Claude Code:  .mcp.json in the project root, or `claude mcp add`."
+  ],
+  "mcpServers": {
+    "ratchet": {
+      "command": "node",
+      "args": ["/absolute/path/to/ratchet/dist/mcp/stdio.js"],
+      "env": {
+        "RATCHET_API_KEY": "rk_live_replace_me",
+        "DATABASE_URL": "postgres://user:password@host:5432/ratchet",
+        "AUTH_SECRET": "the-same-auth-secret-the-api-uses"
+      }
+    }
+  }
+}
