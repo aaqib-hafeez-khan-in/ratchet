@@ -86,3 +86,53 @@ describe('payment provider configuration states', () => {
     );
   });
 });
+
+describe('checkout session parameters', () => {
+  test('metadata the webhook depends on is always present', async () => {
+    setEnv('stripe', 'sk_test_abc', 'whsec_abc');
+    const { buildCheckoutParams } = await import('../../src/domain/billing.js');
+    const p = buildCheckoutParams('ws_meta', packById('pack_10')!);
+
+    // Without these a completed payment cannot be attributed to a workspace,
+    // so the money would arrive with nowhere to credit it.
+    assert.equal(p['metadata[workspace_id]'], 'ws_meta');
+    assert.equal(p['metadata[pack_id]'], 'pack_10');
+    assert.equal(p['payment_intent_data[metadata][workspace_id]'], 'ws_meta');
+    assert.equal(p.client_reference_id, 'ws_meta');
+  });
+
+  test('the amount charged matches the pack, in cents', async () => {
+    setEnv('stripe', 'sk_test_abc', 'whsec_abc');
+    const { buildCheckoutParams } = await import('../../src/domain/billing.js');
+    for (const [id, cents] of [['pack_10', '1000'], ['pack_50', '5000'], ['pack_200', '20000']]) {
+      const p = buildCheckoutParams('ws_1', packById(id!)!);
+      assert.equal(p['line_items[0][price_data][unit_amount]'], cents,
+        `${id} must charge ${cents} cents`);
+      assert.equal(p['line_items[0][price_data][currency]'], 'usd');
+    }
+  });
+
+  test('tax is off unless explicitly enabled', async () => {
+    setEnv('stripe', 'sk_test_abc', 'whsec_abc');
+    delete process.env.STRIPE_AUTOMATIC_TAX;
+    const { buildCheckoutParams } = await import('../../src/domain/billing.js');
+    const p = buildCheckoutParams('ws_1', packById('pack_10')!);
+    // Enabling tax without a configured origin address makes Stripe reject
+    // every checkout, so the default must be off.
+    assert.equal('automatic_tax[enabled]' in p, false);
+    assert.equal('billing_address_collection' in p, false);
+  });
+
+  test('enabling tax also collects the address Stripe needs to compute it', async () => {
+    setEnv('stripe', 'sk_test_abc', 'whsec_abc');
+    process.env.STRIPE_AUTOMATIC_TAX = 'true';
+    const { buildCheckoutParams } = await import('../../src/domain/billing.js');
+    const p = buildCheckoutParams('ws_1', packById('pack_10')!);
+    assert.equal(p['automatic_tax[enabled]'], 'true');
+    assert.equal(p.billing_address_collection, 'required',
+      'Stripe cannot determine a jurisdiction without an address');
+    // Tax rides on top; the credited face value must not change.
+    assert.equal(p['line_items[0][price_data][unit_amount]'], '1000');
+    delete process.env.STRIPE_AUTOMATIC_TAX;
+  });
+});

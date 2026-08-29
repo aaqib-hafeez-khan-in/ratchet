@@ -37,6 +37,26 @@ A refund issued in the Stripe dashboard does **not** claw back credit — that r
 `charge.refunded` and writing a compensating ledger entry. Do this before taking live payments
 from anyone who might ask for one.
 
+## 1b. Sales tax and VAT are not collected by default
+
+**State.** Credit purchases charge the pack price with no tax added. Stripe Tax support is
+implemented but **off** unless `STRIPE_AUTOMATIC_TAX=true`.
+
+**Why off by default.** Enabling it without a head-office address and tax registrations configured
+in the Stripe dashboard makes Stripe reject *every* checkout — verified against the real API,
+which returns "You must have a valid head office address to enable automatic tax calculation".
+A default that breaks payments the moment credentials appear would be worse than no support.
+
+**To enable:** configure origin address and registrations at
+`dashboard.stripe.com/settings/tax`, then set `STRIPE_AUTOMATIC_TAX=true`. Checkout then also
+collects a billing address, which Stripe needs to determine jurisdiction. Tax is added on top of
+the pack price; the credit granted is always the pack's face value, so paying $10.80 for $10 of
+credit is correct — the $0.80 is tax, not product.
+
+**Whether you must:** a business decision, not a technical one. Selling prepaid credit can create
+sales-tax or VAT obligations depending on where you and your customers are. This project does not
+give tax advice and does not assume an answer.
+
 ## 2. Rate limits are per-process
 
 `@fastify/rate-limit` uses an in-memory store, so an N-instance deployment allows roughly N× the

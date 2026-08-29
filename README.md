@@ -255,6 +255,13 @@ For local development, get a webhook secret without a public URL:
 npm run stripe:listen     # prints whsec_… ; put it in .env and restart
 ```
 
+Most of Stripe's onboarding checklist does not apply. Ratchet builds line items inline and never
+reads your Stripe catalog, so there is **no product to create**; it does not use Stripe Invoicing;
+and it creates Checkout Sessions through the API, not the no-code builder. What does matter before
+live payments: **verify your account** (Stripe's KYC), create a **webhook endpoint** pointing at
+your deployed `/v1/billing/webhook/stripe` and use *that* endpoint's signing secret in production,
+and decide whether you need **tax collection** (`STRIPE_AUTOMATIC_TAX`, off by default).
+
 With no Stripe credentials at all, the built-in test adapter runs instead: no card is charged and
 no external request is made. Verified so far in **Stripe test mode only** — see
 [`docs/handoff/KNOWN_LIMITATIONS.md`](docs/handoff/KNOWN_LIMITATIONS.md) before going live,

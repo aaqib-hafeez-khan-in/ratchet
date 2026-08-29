@@ -78,6 +78,16 @@ export const config = {
     get provider() { return process.env.BILLING_PROVIDER ?? 'test'; },
     get stripeSecretKey() { return process.env.STRIPE_SECRET_KEY ?? ''; },
     get stripeWebhookSecret() { return process.env.STRIPE_WEBHOOK_SECRET ?? ''; },
+    /**
+     * Enables Stripe Tax on credit purchases. Off by default: turning it on
+     * without a configured origin address and tax registrations makes Stripe
+     * reject every checkout, so this must be a deliberate act after the
+     * dashboard side is set up.
+     */
+    get stripeAutomaticTax() {
+      const v = process.env.STRIPE_AUTOMATIC_TAX;
+      return v === '1' || v?.toLowerCase() === 'true';
+    },
   },
 
   // Console sign-in link lifetime.

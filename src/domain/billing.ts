@@ -122,6 +122,51 @@ async function stripePost(
 }
 
 /**
+ * Build the Checkout Session parameters. Pure and exported so the tax and
+ * metadata wiring can be asserted without touching the network — the metadata
+ * in particular is load-bearing: without it a completed payment cannot be
+ * attributed to a workspace.
+ */
+export function buildCheckoutParams(
+  workspaceId: string, pack: CreditPack,
+): Record<string, string> {
+  // Stripe works in the currency's smallest unit; our micros are 1e-6 USD.
+  const amountCents = Math.round(pack.priceMicros / 10_000);
+  const base = config.publicUrl.replace(/\/$/, '');
+
+  // Tax is added on top of the pack price; the credit granted is always the
+  // pack's face value, never the taxed total. Paying $10.80 for $10 of credit
+  // is correct — the $0.80 is tax, not something the customer bought from us.
+  const tax: Record<string, string> = config.billing.stripeAutomaticTax
+    ? {
+        'automatic_tax[enabled]': 'true',
+        // Stripe cannot determine a jurisdiction without an address.
+        billing_address_collection: 'required',
+      }
+    : {};
+
+  return {
+    mode: 'payment',
+    ...tax,
+    'line_items[0][quantity]': '1',
+    'line_items[0][price_data][currency]': 'usd',
+    'line_items[0][price_data][unit_amount]': String(amountCents),
+    'line_items[0][price_data][product_data][name]': `Ratchet credit — ${pack.label}`,
+    'line_items[0][price_data][product_data][description]':
+      'Prepaid credit for gated effects. Drawn down only past your plan allowance.',
+    success_url: `${base}/console?checkout=success`,
+    cancel_url: `${base}/console?checkout=cancelled`,
+    client_reference_id: workspaceId,
+    // The webhook reads both of these. Without them a completed payment cannot
+    // be attributed, so they are not optional.
+    'metadata[workspace_id]': workspaceId,
+    'metadata[pack_id]': pack.id,
+    'payment_intent_data[metadata][workspace_id]': workspaceId,
+    'payment_intent_data[metadata][pack_id]': pack.id,
+  };
+}
+
+/**
  * Start a credit purchase.
  *
  * With Stripe configured this creates a real Checkout Session and returns the
@@ -151,30 +196,13 @@ export async function startCheckout(
     };
   }
 
-  // Stripe works in the currency's smallest unit; our micros are 1e-6 USD.
-  const amountCents = Math.round(pack.priceMicros / 10_000);
-  const base = config.publicUrl.replace(/\/$/, '');
-
-  const session = await stripePost('/checkout/sessions', {
-    mode: 'payment',
-    'line_items[0][quantity]': '1',
-    'line_items[0][price_data][currency]': 'usd',
-    'line_items[0][price_data][unit_amount]': String(amountCents),
-    'line_items[0][price_data][product_data][name]': `Ratchet credit — ${pack.label}`,
-    'line_items[0][price_data][product_data][description]':
-      'Prepaid credit for gated effects. Drawn down only past your plan allowance.',
-    success_url: `${base}/console?checkout=success`,
-    cancel_url: `${base}/console?checkout=cancelled`,
-    client_reference_id: workspaceId,
-    // The webhook reads both of these. Without them a completed payment cannot
-    // be attributed, so they are not optional.
-    'metadata[workspace_id]': workspaceId,
-    'metadata[pack_id]': pack.id,
-    'payment_intent_data[metadata][workspace_id]': workspaceId,
-    'payment_intent_data[metadata][pack_id]': pack.id,
-  // One session per workspace+pack per minute; a double-clicked button reuses
-  // the same session rather than creating a second one.
-  }, `checkout:${workspaceId}:${pack.id}:${Math.floor(Date.now() / 60_000)}`);
+  const session = await stripePost(
+    '/checkout/sessions',
+    buildCheckoutParams(workspaceId, pack),
+    // One session per workspace+pack per minute; a double-clicked button
+    // reuses the same session rather than creating a second one.
+    `checkout:${workspaceId}:${pack.id}:${Math.floor(Date.now() / 60_000)}`,
+  );
 
   return {
     provider: 'stripe',
