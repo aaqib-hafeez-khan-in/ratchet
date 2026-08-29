@@ -12,6 +12,7 @@ import { config, assertProductionSafety } from '../lib/config.js';
 import { closePool, getPool } from '../db/pool.js';
 import { sweepExpiredLeases, collectExpiredEffects, collectStaleRecords } from './reaper.js';
 import { deliverDue } from './webhooks.js';
+import { startActivityFlusher, stopActivityFlusher } from '../domain/activity.js';
 
 const problems = assertProductionSafety();
 if (problems.length > 0) {
@@ -55,6 +56,8 @@ async function main() {
     webhookPollIntervalMs: config.worker.webhookPollIntervalMs,
   });
 
+  startActivityFlusher();
+
   loop('lease-sweep', config.worker.leaseSweepIntervalMs, () => sweepExpiredLeases());
   loop('webhook-delivery', config.worker.webhookPollIntervalMs, () => deliverDue());
   loop('retention-gc', config.worker.gcIntervalMs, async () => {
@@ -69,6 +72,7 @@ for (const sig of ['SIGINT', 'SIGTERM'] as const) {
     log('info', `${sig} received, stopping`);
     running = false;
     for (const t of timers) clearInterval(t);
+    await stopActivityFlusher();
     await closePool();
     process.exit(0);
   });

@@ -5,7 +5,8 @@ import { wsOf, actorOf } from '../plugins/auth.js';
 import { audit } from '../../domain/audit.js';
 import { CREDIT_PACKS, packById, startCheckout, settleTestCheckout,
          verifyStripeSignature, applyPaymentEvent, stripeConfigured,
-         stripeIsTestKey, stripeSetupGap, BillingUnavailable, StripeError } from '../../domain/billing.js';
+         stripeIsTestKey, stripeSetupGap, reverseCredit,
+         BillingUnavailable, StripeError } from '../../domain/billing.js';
 import { PLANS } from '../../domain/plans.js';
 import { config } from '../../lib/config.js';
 import { errorResponses } from '../schemas.js';
@@ -194,18 +195,50 @@ export default async function billingRoutes(app: FastifyInstance) {
       reply.code(400);
       return { error: { code: 'invalid_request', message: 'Body is not valid JSON.' } };
     }
-    if (event.type !== 'checkout.session.completed') return { received: true, ignored: event.type };
+    const obj = event.data?.object ?? {};
 
-    const session = event.data?.object ?? {};
-    const workspaceId = session.metadata?.workspace_id;
-    const packId = session.metadata?.pack_id;
-    const pack = packId ? packById(packId) : undefined;
-    if (!workspaceId || !pack) {
-      reply.code(400);
-      return { error: { code: 'invalid_request', message: 'Event is missing workspace_id or pack_id metadata.' } };
+    // ---- money in -------------------------------------------------------
+    if (event.type === 'checkout.session.completed') {
+      const workspaceId = obj.metadata?.workspace_id;
+      const packId = obj.metadata?.pack_id;
+      const pack = packId ? packById(packId) : undefined;
+      if (!workspaceId || !pack) {
+        reply.code(400);
+        return { error: { code: 'invalid_request',
+                          message: 'Event is missing workspace_id or pack_id metadata.' } };
+      }
+      // The payment intent is the durable link a later refund uses to find
+      // this credit, so it is recorded now rather than reconstructed later.
+      const paymentRef = typeof obj.payment_intent === 'string' ? obj.payment_intent : null;
+      const r = await applyPaymentEvent(event.id, 'stripe', workspaceId, pack.creditMicros,
+        { pack: pack.id, provider: 'stripe' }, paymentRef);
+      return { received: true, applied: r.applied };
     }
-    const r = await applyPaymentEvent(event.id, 'stripe', workspaceId, pack.creditMicros,
-      { pack: pack.id, provider: 'stripe' });
-    return { received: true, applied: r.applied };
+
+    // ---- money back out --------------------------------------------------
+    // A refund returns the customer's money; without this the credit would stay
+    // and they would keep the product too.
+    if (event.type === 'charge.refunded' || event.type === 'charge.dispute.created') {
+      const isDispute = event.type === 'charge.dispute.created';
+      const paymentRef = isDispute
+        ? (typeof obj.payment_intent === 'string' ? obj.payment_intent : null)
+        : (typeof obj.payment_intent === 'string' ? obj.payment_intent : null);
+      if (!paymentRef) return { received: true, ignored: 'no payment_intent on event' };
+
+      // Stripe amounts are in the currency's smallest unit; ours are micro-USD.
+      const cents = isDispute ? (obj.amount ?? 0) : (obj.amount_refunded ?? 0);
+      const r = await reverseCredit({
+        eventId: event.id,
+        provider: 'stripe',
+        paymentReference: paymentRef,
+        amountMicros: cents * 10_000,
+        reason: isDispute ? 'dispute' : 'refund',
+        detail: { chargeId: obj.id ?? null },
+      });
+      return { received: true, reversed: r.applied,
+               ...(r.applied ? {} : { note: 'no matching credit for this payment' }) };
+    }
+
+    return { received: true, ignored: event.type };
   });
 }

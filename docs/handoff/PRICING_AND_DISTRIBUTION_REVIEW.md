@@ -38,7 +38,7 @@ against source, tests, or a live run.
 | MCP tool/manifest consistency | **Verified and tested** | Contract test asserts manifest = `/mcp/info` = `tools/list` |
 | OpenAPI accuracy | **Verified and tested** | Every documented path probed for reachability |
 | **Remote MCP OAuth / DCR** | **Not present** | Static bearer only — see §6.2 |
-| Latency measurement | **Verified, single machine** | 2.11 ms new / 0.22 ms duplicate; no network hop |
+| Latency measurement | **Verified, single machine** | 2.14 ms new / 1.58 ms duplicate; no network hop. Earlier figures were invalid — see VALIDATION_REPORT correction |
 | **Deployment** | **Not present** | `PUBLIC_URL=http://localhost:8787` |
 | **Product analytics** | **Not present** | No instrumentation; activation and retention are unmeasurable |
 | **Failure-mode contract** | **Not present** | Nothing documents what an agent should do when the service is unreachable |
@@ -194,9 +194,9 @@ This is correct and should not change:
 - `estimated_cost_micros` is caller-supplied and therefore unusable for billing — a client could
   understate it. Its exclusion from metering is correct. [V]
 - Metering only newly-created effects means retries, duplicates, and reports are free, so the
-  customer is never billed more on the day their agent misbehaves. That is both fair and
-  cost-aligned: the duplicate path is **10× cheaper to serve** than the billed path
-  (0.22 ms vs 2.11 ms). [V]
+  customer is never billed more on the day their agent misbehaves. The duplicate path is also
+  cheaper to serve — **1.58 ms against 2.14 ms**, about 26% — so price and cost point the same
+  way, though less dramatically than an earlier, invalid measurement suggested. [V]
 
 Alternatives considered and rejected: execution time (we execute nothing), worker compute (none),
 callback deliveries (a fraction of effects, and free to serve), seats (agents are not seats),

@@ -61,8 +61,15 @@ export const config = {
    * production by assertProductionSafety — a deployment that silently ignored
    * its own published limits would be the defect this override exists to test.
    */
-  rateLimitOverride: process.env.RATE_LIMIT_OVERRIDE
-    ? int('RATE_LIMIT_OVERRIDE', 0) : null as number | null,
+  // A getter, not a captured value: ES module imports are hoisted, so a script
+  // that sets this before its import statements would otherwise be read too
+  // late and silently ignored.
+  get rateLimitOverride(): number | null {
+    const raw = process.env.RATE_LIMIT_OVERRIDE;
+    if (!raw) return null;
+    const n = Number.parseInt(raw, 10);
+    return Number.isFinite(n) ? n : null;
+  },
 
   maxRequestBytes: int('MAX_REQUEST_BYTES', 65536),
   maxResultBytes: int('MAX_RESULT_BYTES', 32768),

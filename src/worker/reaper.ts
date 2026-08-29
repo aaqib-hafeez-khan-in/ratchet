@@ -1,6 +1,7 @@
 import { withTx, getPool } from '../db/pool.js';
 import { enqueueEvent } from '../domain/events.js';
 import { adjustSpend } from '../domain/budget.js';
+import { recordActivityTx, recordMilestoneTx } from '../domain/activity.js';
 
 /**
  * The lease reaper. This is the one piece of the system that genuinely needs a
@@ -61,6 +62,9 @@ export async function sweepExpiredLeases(batchSize = 50): Promise<number> {
         effectId: r.id, effectType: r.effect_type, idempotencyKey: r.idempotency_key,
         attempt: r.attempt, agentId: r.agent_id, runId: r.run_id,
       });
+      await recordActivityTx(tx, r.workspace_id, 'effects_indeterminate');
+      await recordMilestoneTx(tx, r.workspace_id, 'first_indeterminate',
+        { effectType: r.effect_type });
     }
     return rows.length;
   });

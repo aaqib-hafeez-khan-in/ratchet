@@ -280,6 +280,7 @@ export function verifyStripeSignature(
 export async function applyPaymentEvent(
   eventId: string, provider: string, workspaceId: string,
   creditMicros: number, detail: Record<string, unknown>,
+  paymentReference?: string | null,
 ): Promise<{ applied: boolean; balanceMicros: number }> {
   return withTx(async (tx) => {
     const seen = await tx.query('SELECT id FROM processed_payment_events WHERE id = $1', [eventId]);
@@ -292,7 +293,86 @@ export async function applyPaymentEvent(
       'INSERT INTO processed_payment_events (id, provider, workspace_id) VALUES ($1,$2,$3)',
       [eventId, provider, workspaceId],
     );
-    return addCredit(tx, workspaceId, creditMicros, `payment:${eventId}`, detail);
+    const r = await addCredit(tx, workspaceId, creditMicros, `payment:${eventId}`, detail);
+    if (paymentReference) {
+      await tx.query(
+        'UPDATE ledger_entries SET payment_reference = $2 WHERE workspace_id = $1 AND dedupe_key = $3',
+        [workspaceId, paymentReference, `payment:${eventId}`]);
+    }
+    return r;
+  });
+}
+
+/**
+ * Reverse credit after a refund or a dispute.
+ *
+ * A refund returns the customer's money; leaving the credit in place would let
+ * them keep the product too. The reversal is a compensating ledger entry, never
+ * an edit of the original — the ledger stays append-only and continues to
+ * explain the balance.
+ *
+ * The balance is allowed to go negative. If the credit was already spent, the
+ * account genuinely owes it, and clamping at zero would silently discard that
+ * fact. A negative balance blocks new gated effects through the existing
+ * insufficient-credit path, which is the correct consequence.
+ */
+export async function reverseCredit(args: {
+  eventId: string;
+  provider: string;
+  paymentReference: string;
+  amountMicros: number;
+  reason: 'refund' | 'dispute';
+  detail?: Record<string, unknown>;
+}): Promise<{ applied: boolean; workspaceId: string | null; balanceMicros: number | null }> {
+  return withTx(async (tx) => {
+    // Idempotent on the provider's event id, exactly like crediting.
+    const seen = await tx.query('SELECT id FROM processed_payment_events WHERE id = $1',
+      [args.eventId]);
+    if (seen.rows[0]) return { applied: false, workspaceId: null, balanceMicros: null };
+
+    // Find the credit this payment created.
+    const { rows } = await tx.query<{ workspace_id: string; delta_micros: number }>(
+      `SELECT workspace_id, delta_micros FROM ledger_entries
+        WHERE payment_reference = $1 AND kind = 'topup'
+        ORDER BY id LIMIT 1`,
+      [args.paymentReference],
+    );
+    const original = rows[0];
+    if (!original) {
+      // A charge we never credited — someone else's payment, or a mode we do
+      // not handle. Acknowledge without inventing a reversal.
+      return { applied: false, workspaceId: null, balanceMicros: null };
+    }
+
+    await tx.query(
+      'INSERT INTO processed_payment_events (id, provider, workspace_id) VALUES ($1,$2,$3)',
+      [args.eventId, args.provider, original.workspace_id]);
+
+    // Never reverse more than was credited, even on a strange provider payload.
+    const amount = Math.min(args.amountMicros, original.delta_micros);
+
+    const updated = await tx.query<{ credit_micros: number }>(
+      `UPDATE workspaces SET credit_micros = credit_micros - $2, updated_at = now()
+        WHERE id = $1 RETURNING credit_micros`,
+      [original.workspace_id, amount]);
+    const balance = updated.rows[0]?.credit_micros ?? 0;
+
+    await tx.query(
+      `INSERT INTO ledger_entries
+         (workspace_id, kind, delta_micros, balance_after, dedupe_key, detail, payment_reference)
+       VALUES ($1,'adjustment',$2,$3,$4,$5,$6)
+       ON CONFLICT (workspace_id, dedupe_key) DO NOTHING`,
+      [original.workspace_id, -amount, balance, `reversal:${args.eventId}`,
+       JSON.stringify({ reason: args.reason, provider: args.provider, ...(args.detail ?? {}) }),
+       args.paymentReference]);
+
+    await tx.query(
+      `INSERT INTO audit_events (workspace_id, action, actor, subject_id, detail)
+       VALUES ($1,$2,'system',$3,$4)`,
+      [original.workspace_id, `billing.${args.reason}`, args.paymentReference,
+       JSON.stringify({ reversedMicros: amount, balanceAfter: balance })]);
+
+    return { applied: true, workspaceId: original.workspace_id, balanceMicros: balance };
   });
 }
 

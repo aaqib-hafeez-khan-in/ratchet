@@ -43,7 +43,10 @@ export const PLANS: Record<PlanId, Plan> = {
     includedEffects: 1_000,
     // Free is a hard stop: no automatic overage without prepaid credit.
     overageMicrosPerEffect: 1_500,
-    rateLimitPerMinute: 60,
+    // 120/min, not 60. The monthly volume cap is what bounds a free workspace;
+    // a tight per-minute limit only throttles the burst someone makes while
+    // integrating, which is precisely when the product must feel good.
+    rateLimitPerMinute: 120,
     maxRetentionDays: 7,
     // Three, not two: a default key plus separate dev and prod keys is a
     // legitimate free-tier need, and keys cost nothing to serve.

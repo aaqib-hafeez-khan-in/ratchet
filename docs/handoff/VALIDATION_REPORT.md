@@ -138,12 +138,12 @@ blocked inline page scripts. They were moved to external modules rather than wea
 network round-trip. 50 warm-up calls discarded.
 
 ```
-begin (new effect)         n=500  mean=2.11ms  p50=2.07  p95=2.34  p99=3.14  max=6.44
-begin (duplicate replay)   n=500  mean=0.22ms  p50=0.22  p95=0.25  p99=0.32  max=0.72
-report outcome             n=500  mean=0.36ms  p50=0.23  p95=1.37  p99=1.54  max=2.19
+begin (new effect)         n=500  mean=2.14ms  p50=2.08  p95=2.39  p99=2.94  max=6.59
+begin (duplicate replay)   n=500  mean=1.58ms  p50=1.56  p95=1.75  p99=2.13  max=3.22
+report outcome             n=500  mean=1.38ms  p50=1.35  p95=1.58  p99=2.27  max=2.70
 
-200 concurrent callers on ONE key:       19ms total
-200 concurrent callers on DISTINCT keys: 16ms total
+200 concurrent callers on ONE key:       107ms total
+200 concurrent callers on DISTINCT keys: 251ms total
 ```
 
 `npx tsx scripts/bench-budget.ts` — with a daily budget configured, so reservation runs:
@@ -152,9 +152,9 @@ report outcome             n=500  mean=0.36ms  p50=0.23  p95=1.37  p99=1.54  max
 begin (new, budget enforced)  n=400  mean=3.41ms  p50=3.36  p95=3.64  p99=4.27
 ```
 
-The duplicate path — the one that runs most often and is never billed — is roughly **10× cheaper
-than the billable path**. An early measurement showed 2.96 ms for new effects; short-circuiting
-budget reservation when no cost is declared removed six queries and brought it to 2.11 ms.
+Budget enforcement adds roughly 1.3 ms, because reserving spend locks and reads three scope rows
+before validating any of them — the cost of the guarantee that concurrent callers cannot
+collectively exceed a ceiling.
 
 **No service-level objective is claimed.** These are single-machine, in-process numbers with no
 network hop, no TLS, and no managed-database latency. They establish that the synchronous path is

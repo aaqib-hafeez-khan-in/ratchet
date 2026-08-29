@@ -216,6 +216,9 @@ export async function createWorkspace(
     }
     const key = await createApiKey(tx, id, 'default', [...SCOPES], null);
     await tx.query(
+      `INSERT INTO workspace_milestones (workspace_id, milestone) VALUES ($1,'workspace_created')
+       ON CONFLICT DO NOTHING`, [id]);
+    await tx.query(
       `INSERT INTO audit_events (workspace_id, action, actor, subject_id, detail)
        VALUES ($1,'workspace.created',$2,$3,$4)`,
       [id, `console:${email.toLowerCase()}`, id, JSON.stringify({ name })],

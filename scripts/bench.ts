@@ -4,6 +4,10 @@
  *
  *   npx tsx scripts/bench.ts [iterations]
  */
+// Measure the gate, not the rate limiter: without this the numbers below are
+// the latency of 429 responses once the plan limit is reached.
+process.env.RATE_LIMIT_OVERRIDE = '1000000';
+
 import { buildApp } from '../src/api/app.js';
 import { createWorkspace } from '../src/domain/auth.js';
 import { closePool } from '../src/db/pool.js';
@@ -37,6 +41,17 @@ for (let i = 0; i < 50; i++) {
     payload: { effect_type: 'bench.warm', idempotency_key: `warm-${i}` } });
 }
 
+/**
+ * A throttled run silently measures the latency of 429 responses instead of the
+ * gate, which is exactly what happened to the first published numbers. Count
+ * accepted responses and refuse to report if any were rejected.
+ */
+let rejected = 0;
+const check = (r: { statusCode: number }) => {
+  if (r.statusCode === 429) rejected++;
+  return r;
+};
+
 const newEffect: number[] = [];
 const duplicate: number[] = [];
 const reports: number[] = [];
@@ -46,24 +61,33 @@ for (let i = 0; i < N; i++) {
   const payload = { effect_type: 'bench.op', idempotency_key: `bench-${i}`, payload: { i } };
   let body: any;
   newEffect.push(await timed(async () => {
-    const r = await app.inject({ method: 'POST', url: '/v1/effects/begin', headers, payload });
+    const r = check(await app.inject({ method: 'POST', url: '/v1/effects/begin', headers, payload }));
     body = JSON.parse(r.payload);
   }));
   ids.push({ id: body.effect_id, tok: body.lease_token });
 }
 
 for (const { id, tok } of ids) {
-  reports.push(await timed(() => app.inject({
+  reports.push(await timed(async () => check(await app.inject({
     method: 'POST', url: `/v1/effects/${id}/report`, headers,
     payload: { lease_token: tok, outcome: 'succeeded', result: { ok: true } },
-  })));
+  }))));
 }
 
 for (let i = 0; i < N; i++) {
-  duplicate.push(await timed(() => app.inject({
+  duplicate.push(await timed(async () => check(await app.inject({
     method: 'POST', url: '/v1/effects/begin', headers,
     payload: { effect_type: 'bench.op', idempotency_key: `bench-${i}`, payload: { i } },
-  })));
+  }))));
+}
+
+if (rejected > 0) {
+  console.error(`\nABORT: ${rejected} request(s) were rate limited.`);
+  console.error('These numbers would be the latency of 429 responses, not of the gate.');
+  console.error('Set RATE_LIMIT_OVERRIDE before importing the app.');
+  await app.close();
+  await closePool();
+  process.exit(1);
 }
 
 console.log(`\nRatchet gate latency — ${process.platform}/${process.arch}, node ${process.version}`);

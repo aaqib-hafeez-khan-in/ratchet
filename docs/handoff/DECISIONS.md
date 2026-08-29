@@ -79,7 +79,8 @@ the exclusive lock first removes the cycle.
 
 The pre-check matters commercially as well as technically: duplicates, in-flight checks, and
 retries skip the lock entirely — which is exactly the set of calls that are never billed. The hot
-path is both the free path and the fast path (0.22 ms versus 2.11 ms measured).
+path is both the free path and the cheaper path (1.58 ms versus 2.14 ms measured — an earlier
+"0.22 ms" figure was timing rate-limit rejections and has been corrected).
 
 **Cost accepted:** new-effect creation serialises per workspace. Measured at 200 concurrent
 callers in 16–19 ms, so this is not a practical ceiling at this stage. The sharding path is
@@ -97,7 +98,8 @@ on the first spend of a day every concurrent caller read `0` and all of them pas
 callers overshot a budget each of them individually respected.
 
 **Also decided:** a zero-cost reservation short-circuits before any query. Reserving nothing cannot
-breach a ceiling, and skipping it removed six queries from the metered path (2.96 ms → 2.11 ms).
+breach a ceiling, and skipping it removes six queries from the metered path — measured at 3.47 ms
+with budget enforcement active against 2.14 ms without.
 
 ---
 

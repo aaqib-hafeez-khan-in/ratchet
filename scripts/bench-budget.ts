@@ -1,4 +1,8 @@
 /** Measures the begin() path with budget enforcement active. */
+// Measure the gate, not the rate limiter: without this the numbers below are
+// the latency of 429 responses once the plan limit is reached.
+process.env.RATE_LIMIT_OVERRIDE = '1000000';
+
 import { buildApp } from '../src/api/app.js';
 import { createWorkspace } from '../src/domain/auth.js';
 import { upsertPolicy } from '../src/domain/policy.js';

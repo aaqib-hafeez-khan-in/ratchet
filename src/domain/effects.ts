@@ -6,6 +6,7 @@ import { getPolicy } from './policy.js';
 import { reserveSpend, adjustSpend, BudgetExceeded } from './budget.js';
 import { meterEffect, InsufficientCredit } from './metering.js';
 import { enqueueEvent } from './events.js';
+import { recordActivity, recordMilestone } from './activity.js';
 import type {
   BeginInput, BeginResult, EffectRow, ReportInput, Policy, Decision,
 } from './types.js';
@@ -99,7 +100,7 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
   const now = new Date();
   const fingerprint = canonicalFingerprint(input.payload);
 
-  return withTx(async (tx) => {
+  const result = await withTx(async (tx): Promise<BeginResult> => {
     const policy = await getPolicy(tx, input.workspaceId, input.effectType);
 
     if (policy.maxCostMicros !== null && input.estimatedCostMicros > policy.maxCostMicros) {
@@ -281,6 +282,17 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
         throw errors.internal('Unhandled effect state.');
     }
   });
+
+  // Analytics, after commit and fire-and-forget. Keeping this out of the
+  // transaction preserves the short lock hold that begin() depends on.
+  if (result.billing.metered) {
+    recordActivity(input.workspaceId, 'effects_begun');
+    recordMilestone(input.workspaceId, 'first_begin', { effectType: input.effectType });
+  }
+  if (result.state === 'indeterminate') {
+    recordMilestone(input.workspaceId, 'first_indeterminate', { effectType: input.effectType });
+  }
+  return result;
 }
 
 async function meter(
@@ -510,6 +522,12 @@ export async function reportEffect(input: ReportInput): Promise<ReportResult> {
       failureReason: input.outcome === 'failed' ? (input.failureReason ?? 'unspecified') : null,
     });
 
+    if (input.outcome === 'succeeded') {
+      recordActivity(input.workspaceId, 'effects_succeeded');
+      // Activation: the workspace has completed a full gated workflow.
+      recordMilestone(input.workspaceId, 'first_success', { effectType: effect.effect_type });
+    }
+
     return {
       effectId: row.id, state: row.state, attempt: row.attempt,
       settledAt: row.settled_at ? row.settled_at.toISOString() : null,
@@ -581,6 +599,8 @@ export async function resolveEffect(args: {
       [args.workspaceId, args.actor, effect.id,
        JSON.stringify({ from: effect.state, to: state, evidence: args.evidence ?? null })],
     );
+
+    recordMilestone(args.workspaceId, 'first_resolve', { outcome: args.outcome });
 
     return {
       effectId: row.id, state: row.state, attempt: row.attempt,
