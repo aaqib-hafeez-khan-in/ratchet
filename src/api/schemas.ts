@@ -62,6 +62,24 @@ export const beginBody = {
       type: 'integer', minimum: 5, maximum: 3600,
       description: 'Requested lease length. Clamped to the policy maximum for this effect type.',
     },
+    group_key: {
+      type: 'string', maxLength: 255,
+      description: 'Declares this effect part of a unit of work that can be rolled back as a whole. Use one stable key per logical workflow, e.g. "booking:trip_8812".',
+    },
+    compensation: {
+      type: 'object',
+      required: ['effect_type', 'payload'],
+      additionalProperties: false,
+      description: 'How to undo this effect if the unit of work has to be rolled back. Declare it now, while you still know what undoing means — it cannot be reconstructed later.',
+      properties: {
+        effect_type: { type: 'string', maxLength: 64, pattern: '^[a-z0-9]([a-z0-9._-]{0,62}[a-z0-9])?$' },
+        payload: { description: 'Arguments the compensating action will need.' },
+      },
+    },
+    compensates_effect_id: {
+      type: 'string', maxLength: 64,
+      description: 'Set when THIS effect is the compensation for another. Reporting it succeeded marks the original reversed.',
+    },
   },
 } as const;
 

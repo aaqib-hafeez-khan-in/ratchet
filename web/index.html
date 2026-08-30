@@ -33,6 +33,89 @@
   </div>
 </section>
 
+
+<!-- Scroll-driven explainer. One request travels to the gate and back while the
+     reader scrolls; a second caller then gets turned away. Each beat maps to a
+     real API decision, and the whole thing degrades to a stacked diagram under
+     prefers-reduced-motion. -->
+<section class="stage" id="how" aria-label="How Ratchet works">
+  <div class="stage-pin">
+    <div class="stage-inner">
+
+      <div class="beat" data-beat="0">
+        <div class="beat-body">
+          <p class="eyebrow">Step one</p>
+          <h2>Your agent is about to act</h2>
+          <p>It is going to charge a card. It has no way of knowing whether it already did that
+             three seconds ago, in another process, before it crashed.</p>
+          <div class="track">
+            <div class="track-line"></div>
+            <div class="node agent"><div class="dot"></div><span>agent</span></div>
+            <div class="node gate"><div class="dot"></div><span>ratchet</span></div>
+            <div class="node vendor"><div class="dot"></div><span>vendor</span></div>
+            <div class="packet" data-packet>1</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="beat" data-beat="1">
+        <div class="beat-body">
+          <p class="eyebrow">Step two</p>
+          <h2>It asks first</h2>
+          <p>One call, before the action. The gate takes a durable record and a lease, then
+             answers. This is the only metered call in the whole product.</p>
+          <div class="track">
+            <div class="track-line"></div>
+            <div class="node agent"><div class="dot"></div><span>agent</span></div>
+            <div class="node gate"><div class="dot"></div><span>ratchet</span></div>
+            <div class="node vendor"><div class="dot"></div><span>vendor</span></div>
+            <div class="packet at-gate" data-packet>1</div>
+          </div>
+          <div class="verdict go">execute — you hold the lease</div>
+        </div>
+      </div>
+
+      <div class="beat" data-beat="2">
+        <div class="beat-body">
+          <p class="eyebrow">Step three</p>
+          <h2>Now it acts</h2>
+          <p>Ratchet never touches your vendor. It has no credentials and no outbound access.
+             Your code does the work, then reports what happened.</p>
+          <div class="track">
+            <div class="track-line"></div>
+            <div class="node agent"><div class="dot"></div><span>agent</span></div>
+            <div class="node gate"><div class="dot"></div><span>ratchet</span></div>
+            <div class="node vendor"><div class="dot"></div><span>vendor</span></div>
+            <div class="packet at-vendor" data-packet>1</div>
+          </div>
+          <div class="verdict go">charged once · result recorded</div>
+        </div>
+      </div>
+
+      <div class="beat" data-beat="3">
+        <div class="beat-body">
+          <p class="eyebrow">The moment that matters</p>
+          <h2>The retry arrives</h2>
+          <p>A supervisor re-runs the task. A parallel worker picks it up. The same agent wakes
+             from a crash. Whatever the cause, the second caller is turned away — and handed the
+             first one's result instead.</p>
+          <div class="track">
+            <div class="track-line"></div>
+            <div class="node agent"><div class="dot"></div><span>agent</span></div>
+            <div class="node gate"><div class="dot"></div><span>ratchet</span></div>
+            <div class="node vendor"><div class="dot"></div><span>vendor</span></div>
+            <div class="packet at-vendor ghost" data-packet>1</div>
+            <div class="packet second at-gate blocked" data-packet-2>2</div>
+          </div>
+          <div class="verdict stop">duplicate — do not act, replay the result</div>
+        </div>
+      </div>
+
+    </div>
+    <div class="rail" role="tablist" aria-label="Steps"></div>
+  </div>
+</section>
+
 <section>
   <div class="wrap">
     <h2>The problem is not that agents fail. It's that they retry.</h2>

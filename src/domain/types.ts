@@ -61,6 +61,11 @@ export interface EffectRow {
   updated_at: Date;
   settled_at: Date | null;
   expires_at: Date;
+  group_id: string | null;
+  compensation: { effectType: string; payload: unknown } | null;
+  compensates_effect_id: string | null;
+  compensated_at: Date | null;
+  group_seq: number | null;
 }
 
 export interface BeginInput {
@@ -77,6 +82,12 @@ export interface BeginInput {
   requestSummary?: Record<string, unknown>;
   /** Overrides the policy lease, clamped to [5, policy.leaseSeconds]. */
   leaseSeconds?: number | null;
+  /** Declares this effect part of a unit of work that can be rolled back. */
+  groupKey?: string | null;
+  /** How to undo this effect, declared while the caller still knows. */
+  compensation?: { effectType: string; payload: unknown } | null;
+  /** Set when this effect IS a compensation, naming what it reverses. */
+  compensatesEffectId?: string | null;
 }
 
 export interface BeginResult {
@@ -105,6 +116,8 @@ export interface BeginResult {
   };
   /** Ratchet's own metering impact of this call. */
   billing: { metered: boolean; decisionsRemaining: number | null };
+  /** Present when the effect belongs to a group. */
+  group?: { groupKey: string; state: string; sequence: number | null };
 }
 
 export interface ReportInput {

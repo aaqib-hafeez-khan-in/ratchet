@@ -115,6 +115,16 @@ export const config = {
   },
 
   // Console sign-in link lifetime.
+  // Non-custodial crypto. Ratchet never holds a key; the destination is an
+  // address the operator controls and can change without touching this service.
+  crypto: {
+    get solanaDestination() { return process.env.SOLANA_DESTINATION_ADDRESS ?? ''; },
+    get rpcUrl() { return process.env.SOLANA_RPC_URL ?? ''; },
+    get pollIntervalMs() {
+      return Number.parseInt(process.env.CRYPTO_POLL_INTERVAL_MS ?? '20000', 10);
+    },
+  },
+
   consoleSessionTtlHours: int('CONSOLE_SESSION_TTL_HOURS', 72),
 } as const;
 

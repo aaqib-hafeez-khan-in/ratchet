@@ -47,6 +47,11 @@ export default async function effectRoutes(app: FastifyInstance) {
       runId: b.run_id ?? null,
       requestSummary: b.request_summary ?? {},
       leaseSeconds: b.lease_seconds ?? null,
+      groupKey: b.group_key ?? null,
+      compensation: b.compensation
+        ? { effectType: b.compensation.effect_type, payload: b.compensation.payload }
+        : null,
+      compensatesEffectId: b.compensates_effect_id ?? null,
     });
     return beginOut(result);
   });

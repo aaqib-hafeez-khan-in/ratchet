@@ -8,6 +8,8 @@ import { CREDIT_PACKS, packById, startCheckout, settleTestCheckout,
          stripeIsTestKey, stripeSetupGap, reverseCredit,
          BillingUnavailable, StripeError } from '../../domain/billing.js';
 import { PLANS } from '../../domain/plans.js';
+import { cryptoEnabled, listAssets, createIntent, listIntents,
+         CryptoUnavailable } from '../../domain/crypto.js';
 import { config } from '../../lib/config.js';
 import { errorResponses } from '../schemas.js';
 
@@ -86,7 +88,91 @@ export default async function billingRoutes(app: FastifyInstance) {
     // "live" — it creates real Checkout Sessions but moves no real money, and
     // calling that live would be the kind of claim this service refuses to make.
     provider: providerStatus(),
+    crypto: {
+      enabled: cryptoEnabled(),
+      custody: 'none',
+      assets_url: `${config.publicUrl}/v1/billing/crypto/assets`,
+    },
   }));
+
+  // ----------------------------------------------------------------- crypto
+  app.get('/billing/crypto/assets', {
+    schema: {
+      tags: ['Billing'], operationId: 'listCryptoAssets',
+      summary: 'Assets this instance accepts, and on what terms',
+      description: 'Which assets are acceptable is operator policy — a payer cannot introduce one '
+        + 'or set its terms. Ratchet is non-custodial: it holds no key and takes custody of nothing.',
+      response: { 200: { type: 'object', additionalProperties: true } },
+    },
+  }, async () => {
+    const assets = await listAssets(getPool(), true);
+    return {
+      enabled: cryptoEnabled(),
+      custody: 'none — payments go directly to an address the operator controls',
+      note: cryptoEnabled()
+        ? 'Quotes are struck in USD. Credit granted is always the USD amount, never a token '
+          + 'amount, so a price move between quote and settlement cannot mint credit.'
+        : 'Crypto payments are not configured on this instance.',
+      assets: assets.map((a) => ({
+        chain: a.chain, symbol: a.symbol, token_mint: a.tokenMint, decimals: a.decimals,
+        stable: a.isStable, quote_ttl_seconds: a.quoteTtlSeconds,
+        volatility_haircut_bps: a.volatilityBps,
+        min_usd_micros: a.minUsdMicros, required_confirmations: a.requiredConfirmations,
+      })),
+    };
+  });
+
+  app.post('/billing/crypto/intents', {
+    preHandler: app.requireConsole('workspace:read'),
+    schema: {
+      tags: ['Billing'], operationId: 'createCryptoIntent',
+      summary: 'Quote a crypto payment for prepaid credit',
+      description: 'Returns an address, an exact token amount, and a memo. Credit is applied only '
+        + 'after the transfer confirms on-chain. A transfer short of the quote is not credited.',
+      body: {
+        type: 'object', required: ['token_mint', 'usd_micros'], additionalProperties: false,
+        properties: {
+          token_mint: { type: 'string', maxLength: 64 },
+          usd_micros: { type: 'integer', minimum: 1, maximum: 100_000_000_000 },
+        },
+      },
+      response: {
+        200: { type: 'object', additionalProperties: true },
+        503: { type: 'object', additionalProperties: true },
+        ...errorResponses,
+      },
+    },
+  }, async (req, reply) => {
+    const b = req.body as { token_mint: string; usd_micros: number };
+    try {
+      const i = await createIntent({
+        workspaceId: wsOf(req), tokenMint: b.token_mint, usdMicros: b.usd_micros,
+      });
+      return {
+        intent_id: i.id, chain: i.chain, symbol: i.symbol,
+        destination: i.destination, amount: i.displayAmount,
+        amount_base_units: i.tokenAmount, decimals: i.tokenDecimals,
+        usd_micros: i.usdMicros, quoted_rate_usd: i.quotedRateUsd,
+        memo: i.memo, state: i.state, expires_at: i.expiresAt,
+        instructions: i.instructions,
+      };
+    } catch (err) {
+      if (err instanceof CryptoUnavailable) {
+        reply.code(503);
+        return { error: { code: 'crypto_unavailable', message: err.message } };
+      }
+      throw err;
+    }
+  });
+
+  app.get('/billing/crypto/intents', {
+    preHandler: app.requireConsole('workspace:read'),
+    schema: {
+      tags: ['Billing'], operationId: 'listCryptoIntents',
+      summary: 'Recent crypto payment intents and their state',
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => ({ data: await listIntents(getPool(), wsOf(req)) }));
 
   app.post('/billing/checkout', {
     preHandler: app.requireConsole('workspace:read'),

@@ -1,4 +1,5 @@
 import { getPool } from '../db/pool.js';
+import { unwindGroup, getGroup } from '../domain/groups.js';
 import { ApiError, errors } from '../lib/errors.js';
 import { beginEffect, reportEffect, resolveEffect, lookupEffect, listEffects } from '../domain/effects.js';
 import { getPolicy } from '../domain/policy.js';
@@ -35,6 +36,11 @@ export async function callTool(
         runId: args.run_id ?? null,
         requestSummary: {},
         leaseSeconds: args.lease_seconds ?? null,
+        groupKey: args.group_key ?? null,
+        compensation: args.compensation
+          ? { effectType: args.compensation.effect_type, payload: args.compensation.payload }
+          : null,
+        compensatesEffectId: args.compensates_effect_id ?? null,
       });
       // The `next_step` line is what keeps a model from misreading a decision.
       return { ...beginOut(r), next_step: nextStep(r.decision) };
@@ -86,6 +92,19 @@ export async function callTool(
     case 'ratchet_get_policy':
       return policyOut(await getPolicy(getPool(), ctx.workspaceId, args.effect_type));
 
+    case 'ratchet_unwind_group': {
+      const plan = await unwindGroup({
+        workspaceId: ctx.workspaceId, groupKey: args.group_key, reason: args.reason,
+      });
+      return planOut(plan);
+    }
+
+    case 'ratchet_group_status': {
+      const plan = await getGroup(getPool(), ctx.workspaceId, args.group_key);
+      if (!plan) throw errors.notFound('No such group in this workspace.');
+      return planOut(plan);
+    }
+
     case 'ratchet_usage': {
       const ws = await getWorkspace(getPool(), ctx.workspaceId);
       if (!ws) throw errors.notFound('Workspace not found.');
@@ -104,6 +123,32 @@ export async function callTool(
     default:
       throw errors.notFound(`Unknown tool "${name}".`);
   }
+}
+
+function planOut(p: Awaited<ReturnType<typeof getGroup>>) {
+  if (!p) return { found: false };
+  return {
+    group_key: p.groupKey,
+    state: p.state,
+    reason: p.reason,
+    compensations_pending: p.steps.filter((s) => s.status === 'pending').length,
+    steps: p.steps.map((s) => ({
+      order: s.order,
+      status: s.status,
+      undo_this: s.originalEffectType,
+      original_effect_id: s.originalEffectId,
+      original_result: s.originalResult,
+      call_begin_with: {
+        effect_type: s.compensation.effectType,
+        idempotency_key: s.suggestedIdempotencyKey,
+        payload: s.compensation.payload,
+        compensates_effect_id: s.originalEffectId,
+      },
+    })),
+    irreversible: p.irreversible,
+    unresolved: p.unresolved,
+    next_step: p.nextStep,
+  };
 }
 
 function nextStep(decision: string): string {

@@ -70,6 +70,23 @@ export const MCP_TOOLS: McpToolDef[] = [
           type: 'integer', minimum: 5, maximum: 3600,
           description: 'How long you expect the action to take. Report before this elapses or the effect becomes indeterminate.',
         },
+        group_key: {
+          type: 'string',
+          description: 'Use when this action is one step of a multi-step workflow that must succeed or fail as a whole, e.g. "booking:trip_8812". Lets the whole unit be rolled back later.',
+        },
+        compensation: {
+          type: 'object',
+          description: 'How to undo THIS step if the workflow has to be rolled back. Declare it now, while you still know what undoing means — it cannot be worked out later. Steps without one are permanent.',
+          required: ['effect_type', 'payload'],
+          properties: {
+            effect_type: { type: 'string', description: 'e.g. "booking.cancel", "payment.refund"' },
+            payload: { type: 'object', additionalProperties: true, description: 'What the undo will need — booking ids, charge ids.' },
+          },
+        },
+        compensates_effect_id: {
+          type: 'string',
+          description: 'Set when THIS call IS an undo, naming the effect it reverses. Comes from ratchet_unwind_group.',
+        },
       },
     },
   },
@@ -176,6 +193,49 @@ export const MCP_TOOLS: McpToolDef[] = [
       type: 'object',
       required: ['effect_type'],
       properties: { effect_type: effectTypeProp },
+    },
+  },
+  {
+    name: 'ratchet_unwind_group',
+    title: 'Roll back a multi-step unit of work',
+    scope: 'effects:admin',
+    readOnly: false,
+    description:
+      'Call this when a multi-step workflow fails partway and the steps that already succeeded ' +
+      'must be undone — a booking made but not paid for, a resource created but not configured.\n' +
+      'Returns the exact compensations to perform, in the order to perform them, which is the ' +
+      'REVERSE of the order they succeeded in. Undoing forwards can strand a step that depended ' +
+      'on an earlier one.\n' +
+      'Ratchet does NOT perform the compensations. For each step: call ratchet_begin_effect with ' +
+      'the step\'s suggested_idempotency_key and compensates_effect_id, do the real undo, then ' +
+      'call ratchet_report_effect. Gating the undo is what stops a retry from refunding twice.\n' +
+      'Read `unresolved` first. If any effect in the group has an unknown outcome, STOP and ' +
+      'resolve it before undoing anything around it. Read `irreversible` too: those steps ' +
+      'succeeded and declared no way to undo themselves, so a human has to decide what to do ' +
+      'about them. Say so plainly rather than implying the rollback was complete.',
+    inputSchema: {
+      type: 'object',
+      required: ['group_key'],
+      properties: {
+        group_key: { type: 'string', description: 'The unit of work to roll back, e.g. "booking:trip_8812".' },
+        reason: { type: 'string', description: 'Why it is being rolled back. Stored for the operator.' },
+      },
+    },
+  },
+  {
+    name: 'ratchet_group_status',
+    title: 'Inspect a unit of work',
+    scope: 'effects:read',
+    readOnly: true,
+    description:
+      'Shows every step in a multi-step unit of work: what succeeded, what can still be undone, ' +
+      'what has already been undone, what is irreversible, and what has an unknown outcome. ' +
+      'Use it to answer "where did this workflow actually get to?" after a crash, without ' +
+      'changing anything.',
+    inputSchema: {
+      type: 'object',
+      required: ['group_key'],
+      properties: { group_key: { type: 'string' } },
     },
   },
   {

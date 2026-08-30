@@ -29,6 +29,7 @@ export function beginOut(r: BeginResult) {
       metered: r.billing.metered,
       included_remaining: r.billing.decisionsRemaining,
     },
+    ...(r.group ? { group: { group_key: r.group.groupKey, state: r.group.state } } : {}),
   };
 }
 

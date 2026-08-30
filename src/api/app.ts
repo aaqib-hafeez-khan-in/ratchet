@@ -12,6 +12,7 @@ import { authenticate, cachedPlanLimit } from '../domain/auth.js';
 import { PLANS } from '../domain/plans.js';
 import authPlugin from './plugins/auth.js';
 import effectRoutes from './routes/effects.js';
+import groupRoutes from './routes/groups.js';
 import workspaceRoutes from './routes/workspace.js';
 import billingRoutes from './routes/billing.js';
 import metaRoutes from './routes/meta.js';
@@ -161,6 +162,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       servers: [{ url: config.publicUrl, description: 'This instance' }],
       tags: [
         { name: 'Effects', description: 'The gate: begin, report, resolve.' },
+        { name: 'Groups', description: 'Units of work that can be rolled back as a whole.' },
         { name: 'Policies', description: 'Per-effect-type rules for retries, budgets, and approval.' },
         { name: 'Workspace', description: 'Keys, usage, ledger, audit.' },
         { name: 'Webhooks', description: 'Signed event delivery.' },
@@ -229,6 +231,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       }
     });
     await v1.register(effectRoutes);
+    await v1.register(groupRoutes);
     await v1.register(workspaceRoutes);
     await v1.register(billingRoutes);
   }, { prefix: '/v1' });

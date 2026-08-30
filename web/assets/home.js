@@ -1,4 +1,5 @@
 import { mountChrome, highlight, tabs } from '/assets/partials.js';
+import { beatFor } from '/assets/beat.js';
 mountChrome('/');
 
 const flow = `# 1. Ask, before you act.
@@ -113,3 +114,80 @@ await ratchet(\`/effects/\${gate.effect_id}/report\`, {
 tabs(document.getElementById('int-tabs'), (name) => {
   document.getElementById('int-code').innerHTML = highlight(SNIPPETS[name]);
 });
+
+
+/* ─────────────────────────────────────────── scroll-driven hero explainer
+   Beats advance with scroll position rather than on a timer, so the reader
+   sets the pace and can stop on any frame.
+
+   Driven by a requestAnimationFrame loop that runs ONLY while the stage is on
+   screen, rather than by the scroll event. Scroll events are not dependable
+   here: browsers coalesce them during smooth scrolling, they do not fire on
+   scroll restoration or a deep link into the middle of the page, and some
+   automation contexts never dispatch them at all. An IntersectionObserver
+   starts and stops the loop, so nothing runs when the section is out of view.
+
+   Honours prefers-reduced-motion by doing nothing — the CSS already lays the
+   beats out as a static stacked diagram in that case. */
+(() => {
+  const stage = document.querySelector('.stage');
+  if (!stage) return;
+
+  const beats = [...stage.querySelectorAll('.beat')];
+  const rail = stage.querySelector('.rail');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+
+  const staticLayout = () => { for (const b of beats) b.dataset.active = 'true'; };
+  if (reduced.matches) return staticLayout();
+
+  // Dots double as controls, so the sequence is reachable without scrolling.
+  rail.innerHTML = beats.map((_, i) =>
+    `<button role="tab" aria-label="Step ${i + 1}" data-go="${i}"></button>`).join('');
+  const dots = [...rail.querySelectorAll('button')];
+
+  let current = -1;
+  const show = (i) => {
+    if (i === current) return;
+    current = i;
+    beats.forEach((b, n) => { b.dataset.active = String(n === i); });
+    dots.forEach((d, n) => d.setAttribute('aria-current', String(n === i)));
+  };
+
+  const update = () => show(beatFor(
+    stage.getBoundingClientRect().top, stage.offsetHeight, innerHeight, beats.length));
+
+  let running = false;
+  const tick = () => {
+    if (!running) return;
+    update();
+    requestAnimationFrame(tick);
+  };
+
+  // Only animate while the section is actually on screen.
+  new IntersectionObserver(([entry]) => {
+    if (entry.isIntersecting && !running) { running = true; tick(); }
+    else if (!entry.isIntersecting) { running = false; }
+  }, { rootMargin: '100px' }).observe(stage);
+
+  // Belt and braces: rAF is throttled or paused on low-power devices and in
+  // background tabs, where a scroll listener still fires. update() is one
+  // getBoundingClientRect, so running it on both is cheap.
+  addEventListener('scroll', update, { passive: true });
+  addEventListener('resize', update, { passive: true });
+
+  // Someone may switch the preference mid-session.
+  reduced.addEventListener?.('change', (e) => { if (e.matches) { running = false; staticLayout(); } });
+
+  for (const d of dots) {
+    d.addEventListener('click', () => {
+      const i = Number(d.dataset.go);
+      const scrollable = stage.offsetHeight - innerHeight;
+      scrollTo({
+        top: stage.offsetTop + (scrollable * (i + 0.5)) / beats.length,
+        behavior: 'smooth',
+      });
+    });
+  }
+
+  update();
+})();

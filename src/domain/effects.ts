@@ -7,6 +7,7 @@ import { reserveSpend, adjustSpend, BudgetExceeded } from './budget.js';
 import { meterEffect, InsufficientCredit } from './metering.js';
 import { enqueueEvent } from './events.js';
 import { recordActivity, recordMilestone } from './activity.js';
+import { ensureGroup, assertAcceptsWork, markCompensated, type GroupRow } from './groups.js';
 import type {
   BeginInput, BeginResult, EffectRow, ReportInput, Policy, Decision,
 } from './types.js';
@@ -27,7 +28,8 @@ const SELECT_EFFECT = `
          attempt, lease_token, lease_expires_at, leased_by_key_id,
          reserved_micros, actual_micros, request_summary, result,
          failure_reason, denial_reason, agent_id, run_id,
-         approval_state, approved_by, created_at, updated_at, settled_at, expires_at
+         approval_state, approved_by, created_at, updated_at, settled_at, expires_at,
+         group_id, compensation, compensates_effect_id, compensated_at, group_seq
     FROM effects`;
 
 /**
@@ -75,7 +77,8 @@ async function grantLease(
                 attempt, lease_token, lease_expires_at, leased_by_key_id,
                 reserved_micros, actual_micros, request_summary, result,
                 failure_reason, denial_reason, agent_id, run_id,
-                approval_state, approved_by, created_at, updated_at, settled_at, expires_at`,
+                approval_state, approved_by, created_at, updated_at, settled_at, expires_at,
+                group_id, compensation, compensates_effect_id, compensated_at, group_seq`,
     [effect.id, leaseToken, expiresAt, input.apiKeyId, input.estimatedCostMicros],
   );
   return rows[0]!;
@@ -123,6 +126,14 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
     // The unlocked pre-check keeps this off the hot path: duplicate suppression,
     // in-flight checks, and retries all skip the workspace lock entirely,
     // because only a genuinely new effect is ever metered.
+    let group: GroupRow | null = null;
+    if (input.groupKey) {
+      group = await ensureGroup(tx, input.workspaceId, input.groupKey,
+        input.agentId ?? null, policy.retentionDays);
+      // A group being rolled back must not accept new forward steps.
+      assertAcceptsWork(group);
+    }
+
     const preCheck = await tx.query<{ id: string }>(
       `SELECT id FROM effects
         WHERE workspace_id=$1 AND effect_type=$2 AND idempotency_key=$3`,
@@ -137,17 +148,23 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
     const claim = await tx.query<EffectRow>(
       `INSERT INTO effects
          (id, workspace_id, effect_type, idempotency_key, fingerprint, state,
-          request_summary, agent_id, run_id, expires_at)
-       VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9)
+          request_summary, agent_id, run_id, expires_at,
+          group_id, compensation, compensates_effect_id, group_seq)
+       VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,
+               CASE WHEN $10::text IS NULL THEN NULL ELSE nextval('effect_group_seq') END)
        ON CONFLICT (workspace_id, effect_type, idempotency_key) DO NOTHING
        RETURNING id, workspace_id, effect_type, idempotency_key, fingerprint, state,
                  attempt, lease_token, lease_expires_at, leased_by_key_id,
                  reserved_micros, actual_micros, request_summary, result,
                  failure_reason, denial_reason, agent_id, run_id,
-                 approval_state, approved_by, created_at, updated_at, settled_at, expires_at`,
+                 approval_state, approved_by, created_at, updated_at, settled_at, expires_at,
+                 group_id, compensation, compensates_effect_id, compensated_at, group_seq`,
       [effectId, input.workspaceId, input.effectType, input.idempotencyKey, fingerprint,
        JSON.stringify(input.requestSummary ?? {}), input.agentId ?? null,
-       input.runId ?? null, expiresAt],
+       input.runId ?? null, expiresAt,
+       group?.id ?? null,
+       input.compensation ? JSON.stringify(input.compensation) : null,
+       input.compensatesEffectId ?? null],
     );
 
     let effect = claim.rows[0];
@@ -283,6 +300,10 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
     }
   });
 
+  if (input.groupKey) {
+    result.group = { groupKey: input.groupKey, state: 'open', sequence: null };
+  }
+
   // Analytics, after commit and fire-and-forget. Keeping this out of the
   // transaction preserves the short lock hold that begin() depends on.
   if (result.billing.metered) {
@@ -344,7 +365,8 @@ async function markIndeterminate(tx: PoolClient, effect: EffectRow): Promise<Eff
                 attempt, lease_token, lease_expires_at, leased_by_key_id,
                 reserved_micros, actual_micros, request_summary, result,
                 failure_reason, denial_reason, agent_id, run_id,
-                approval_state, approved_by, created_at, updated_at, settled_at, expires_at`,
+                approval_state, approved_by, created_at, updated_at, settled_at, expires_at,
+                group_id, compensation, compensates_effect_id, compensated_at, group_seq`,
     [effect.id],
   );
   const updated = rows[0]!;
@@ -521,6 +543,12 @@ export async function reportEffect(input: ReportInput): Promise<ReportResult> {
       actualCostMicros: actual,
       failureReason: input.outcome === 'failed' ? (input.failureReason ?? 'unspecified') : null,
     });
+
+    // A successful compensation closes out the effect it reverses, and may
+    // settle the whole group.
+    if (input.outcome === 'succeeded' && effect.compensates_effect_id) {
+      await markCompensated(tx, effect.compensates_effect_id);
+    }
 
     if (input.outcome === 'succeeded') {
       recordActivity(input.workspaceId, 'effects_succeeded');

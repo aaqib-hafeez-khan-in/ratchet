@@ -243,3 +243,137 @@ ul.checks li::before {
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+
+/* ══════════════════════════════════════════════════ scroll-driven hero motion
+   A single agent request travels down the page as you scroll: it reaches the
+   gate, the gate answers, and a second caller is turned away. The point is to
+   show the mechanism, not to decorate — every frame corresponds to something
+   the API actually does.
+
+   Driven by scroll position, so the reader controls the pace and can stop on
+   any frame. Fully disabled under prefers-reduced-motion, where the same
+   content stands as a static diagram. */
+
+.stage {
+  position: relative;
+  /* Four viewport-heights of scroll, one per beat of the story. */
+  height: 400vh;
+}
+.stage-pin {
+  position: sticky;
+  top: 58px;
+  height: calc(100vh - 58px);
+  min-height: 520px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.stage-inner { width: min(940px, 92vw); }
+
+.beat {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+  pointer-events: none;
+  padding: 0 1.25rem;
+}
+.beat[data-active="true"] { opacity: 1; transform: none; pointer-events: auto; }
+
+.beat h2 { font-size: clamp(1.5rem, 4vw, 2.3rem); margin-bottom: 0.5rem; }
+.beat p  { color: var(--text-dim); max-width: 54ch; margin-inline: auto; text-align: center; }
+.beat-body { text-align: center; }
+
+/* progress rail */
+.rail {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: 1.5rem;
+  display: flex; gap: 0.5rem; z-index: 3;
+}
+.rail button {
+  width: 30px; height: 4px; border: none; border-radius: 2px; padding: 0;
+  background: var(--border-strong); cursor: pointer; transition: background 0.3s ease;
+}
+.rail button[aria-current="true"] { background: var(--accent); }
+
+/* the travelling request */
+.track {
+  position: relative; height: 132px; margin: 1.75rem auto 0;
+  max-width: 620px;
+}
+.track-line {
+  position: absolute; top: 50%; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--border-strong) 12%, var(--border-strong) 88%, transparent);
+}
+.node {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  display: grid; place-items: center; gap: 0.4rem;
+  font-size: 0.74rem; color: var(--text-faint); white-space: nowrap;
+}
+.node .dot {
+  width: 13px; height: 13px; border-radius: 50%;
+  background: var(--bg); border: 2px solid var(--border-strong);
+}
+.node.gate .dot { border-color: var(--accent); background: var(--accent); }
+.node span { position: absolute; top: 20px; }
+.node.agent  { left: 8%; }
+.node.gate   { left: 50%; }
+.node.vendor { left: 92%; }
+
+.packet {
+  position: absolute; top: 50%; left: 8%;
+  transform: translate(-50%, -50%) scale(0.9);
+  width: 30px; height: 30px; border-radius: 9px;
+  background: var(--accent); color: var(--accent-ink);
+  display: grid; place-items: center; font-size: 0.7rem; font-weight: 700;
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 18%, transparent);
+  transition: left 0.6s cubic-bezier(.5,.05,.2,1), background 0.35s ease,
+              box-shadow 0.35s ease, opacity 0.35s ease, transform 0.35s ease;
+}
+.packet.at-gate   { left: 50%; }
+.packet.at-vendor { left: 92%; }
+.packet.blocked {
+  background: var(--stop);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--stop) 20%, transparent);
+}
+.packet.ghost { opacity: 0.34; }
+
+/* second, duplicate caller */
+.packet.second {
+  top: calc(50% + 34px);
+  transition-delay: 0.15s;
+}
+
+.verdict {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  margin-top: 1.5rem; padding: 0.45rem 0.9rem;
+  border: 1px solid currentColor; border-radius: 999px;
+  font-size: 0.85rem; font-weight: 600;
+  opacity: 0; transform: translateY(6px);
+  transition: opacity 0.4s ease 0.35s, transform 0.4s ease 0.35s;
+}
+.beat[data-active="true"] .verdict { opacity: 1; transform: none; }
+.verdict.go   { color: var(--ok); }
+.verdict.stop { color: var(--stop); }
+.verdict.unk  { color: var(--unknown); }
+
+@media (prefers-reduced-motion: reduce) {
+  /* No pinning, no travel: every beat becomes a plain stacked section. */
+  .stage { height: auto; }
+  .stage-pin { position: static; height: auto; display: block; }
+  .beat {
+    position: static; opacity: 1; transform: none; pointer-events: auto;
+    padding: 2.5rem 1.25rem; border-top: 1px solid var(--border);
+  }
+  .beat:first-child { border-top: none; }
+  .rail { display: none; }
+  .packet { transition: none; }
+  .verdict { opacity: 1; transform: none; transition: none; }
+}
+@media (max-width: 640px) {
+  .stage { height: 340vh; }
+  .node span { font-size: 0.68rem; }
+}
