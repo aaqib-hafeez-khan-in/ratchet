@@ -1,0 +1,20 @@
+{
+  "_comment": [
+    "Running your own Ratchet instance? Point the same package at it.",
+    "The published package is a thin HTTPS bridge: it needs no database access",
+    "and no server secret, only a scoped API key."
+  ],
+  "mcpServers": {
+    "ratchet": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "ratchet-mcp"
+      ],
+      "env": {
+        "RATCHET_API_KEY": "rk_live_replace_me",
+        "RATCHET_BASE_URL": "https://your-own-instance.example.com"
+      }
+    }
+  }
+}

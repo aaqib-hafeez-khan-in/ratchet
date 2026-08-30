@@ -242,7 +242,7 @@ default or shorter than 32 characters, if `CORS_ORIGINS` contains `*`, or if
 | Machine docs | `/llms.txt` |
 | MCP tool schemas | `/mcp/info` |
 | MCP (Streamable HTTP) | `POST /mcp` with `Authorization: Bearer <key>` |
-| MCP (stdio) | `npm run mcp:stdio`, key in `RATCHET_API_KEY` |
+| MCP (stdio) | `npx -y ratchet-mcp` with `RATCHET_API_KEY` — see [`packages/ratchet-mcp`](packages/ratchet-mcp) |
 
 Seven MCP tools: `ratchet_begin_effect`, `ratchet_report_effect`, `ratchet_check_effect`,
 `ratchet_resolve_effect`, `ratchet_list_effects`, `ratchet_get_policy`, `ratchet_usage`.

@@ -1,6 +1,14 @@
 #!/usr/bin/env node
 /**
- * MCP stdio server.
+ * MCP stdio server — for LOCAL DEVELOPMENT of this repository only.
+ *
+ * This talks to Postgres directly, so it requires DATABASE_URL and AUTH_SECRET.
+ * It is deliberately NOT what ships to npm: an MCP server that made its users
+ * hold the service's database credentials would be a far larger thing to trust
+ * than the service itself.
+ *
+ * The published package is packages/ratchet-mcp — a thin HTTPS bridge to /mcp
+ * whose only credential is the caller's own scoped, revocable API key.
  *
  * For clients that spawn a local process (Claude Desktop, Claude Code, Cursor).
  * The API key comes from RATCHET_API_KEY in the client's env block, so it never
