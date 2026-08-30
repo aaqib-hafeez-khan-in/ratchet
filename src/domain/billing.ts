@@ -185,7 +185,7 @@ export function buildCheckoutParams(
  * success URL is not proof that payment succeeded.
  */
 export async function startSubscription(
-  workspaceId: string, planId: 'pro',
+  workspaceId: string, planId: 'pro' | 'scale',
 ): Promise<CheckoutSession> {
   const gap = stripeSetupGap();
   if (gap) {

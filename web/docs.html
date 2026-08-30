@@ -227,7 +227,17 @@
 <section>
   <div class="wrap narrow">
     <h2>MCP</h2>
-    <p class="dim">Seven tools over stdio or streamable HTTP, backed by the same code as the REST API.</p>
+    <p class="dim">Nine tools over stdio or streamable HTTP, backed by the same code as the REST API.</p>
+    <p class="small dim">Works today with <strong>Claude Code</strong>, <strong>Claude Desktop</strong>,
+      <strong>Cursor</strong>, and any MCP client — see <a href="/start">Get started</a> for each.
+      OpenAI-compatible tool loops and Gemini-style clients use the REST API directly.</p>
+    <div class="notice">
+      <strong>Not listed in any provider directory.</strong> Ratchet is not submitted to, reviewed
+      by, or endorsed by Anthropic, OpenAI, Google, or anyone else. One-click connector directories
+      expect OAuth&nbsp;2.1 with dynamic client registration; this endpoint uses a static bearer key,
+      so installation is a config file you edit. That is honest about where it stands rather than
+      implying a listing that does not exist.
+    </div>
     <div id="mcp-tools"><p class="loading">Loading tool list…</p></div>
     <h3 style="margin-top:1.75rem">Connecting</h3>
     <div id="mcp-tabs" class="tabs" role="tablist">

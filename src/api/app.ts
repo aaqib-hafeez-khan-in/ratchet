@@ -246,7 +246,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(fastifyStatic, { root: webRoot, prefix: '/', index: ['index.html'] });
   // HTML pages are hidden from the OpenAPI document: it describes the API an
   // agent calls, not the site a human reads.
-  for (const page of ['docs', 'console', 'pricing', 'security']) {
+  for (const page of ['docs', 'console', 'pricing', 'security', 'start']) {
     app.get(`/${page}`, { schema: { hide: true } },
       async (_req, reply) => reply.sendFile(`${page}.html`));
   }

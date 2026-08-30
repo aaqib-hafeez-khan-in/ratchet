@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get started — Ratchet</title>
+<meta name="description" content="Install Ratchet in your agent in about five minutes. Setup for Claude Code, Claude Desktop, Cursor, and plain HTTP, plus the patterns that actually matter.">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><text y='16' font-size='16'>⚙️</text></svg>">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+<section>
+  <div class="wrap narrow">
+    <p class="eyebrow">Get started</p>
+    <h1>Five minutes, start to finish</h1>
+    <p class="lede">No SDK to install, no rewrite. Two calls wrapped around something you already do.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>1. Get a key</h2>
+    <p class="dim">Free, no card. One request, or use the <a href="/console">console</a>.</p>
+    <pre><code id="c-key"></code></pre>
+    <div class="notice"><strong>Store it now.</strong> The key is shown once and kept only as a
+      keyed hash — it cannot be recovered, only replaced.</div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>2. Connect your agent</h2>
+    <p class="dim">Pick the one that matches your setup.</p>
+    <div id="setup-tabs" class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="claudecode">Claude Code</button>
+      <button class="tab" role="tab" data-tab="desktop">Claude Desktop</button>
+      <button class="tab" role="tab" data-tab="cursor">Cursor</button>
+      <button class="tab" role="tab" data-tab="http">Plain HTTP</button>
+    </div>
+    <pre><code id="c-setup"></code></pre>
+    <p class="small faint" id="setup-note"></p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>3. Wrap one action</h2>
+    <p class="dim">Start with a single high-stakes effect — the one that would hurt if it happened
+      twice. Prove it there before spreading it around.</p>
+    <pre><code id="c-wrap"></code></pre>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>Tips that save real pain</h2>
+    <div class="grid two" style="margin-top:1.25rem">
+      <div class="card">
+        <h3>Derive keys from the work</h3>
+        <p class="small dim">The idempotency key is the whole mechanism. It must be identical on a
+          retry of the same logical action.</p>
+        <ul class="plain small mono" style="margin-top:0.6rem">
+          <li style="color:var(--ok)">invoice:2026-08:acct_88</li>
+          <li style="color:var(--stop)">uuid4()</li>
+          <li style="color:var(--stop)">"send-" + Date.now()</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Report <em>failed</em> only when you're sure</h3>
+        <p class="small dim">Only when the action provably never reached the outside world. On a
+          timeout, report nothing — the lease lapses into an honest
+          <code>indeterminate</code>. A false <code>failed</code> is worse than silence, because
+          it licenses a duplicate.</p>
+      </div>
+      <div class="card">
+        <h3>Set the lease to the real duration</h3>
+        <p class="small dim">A 60s lease on a 5-minute job means the effect goes indeterminate
+          while it is still running. Match the lease to how long the action actually takes, plus
+          headroom.</p>
+      </div>
+      <div class="card">
+        <h3>Decide fail-open vs fail-closed first</h3>
+        <p class="small dim">Ratchet is in your critical path. Decide before integrating what your
+          agent does when it is unreachable —
+          <a href="https://github.com/OWNER/ratchet/blob/main/docs/FAILURE_MODES.md">the contract</a>
+          spells out both.</p>
+      </div>
+      <div class="card">
+        <h3>Put <code>block</code> on anything irreversible</h3>
+        <p class="small dim">It is the default for a reason. Only choose <code>retry</code> when
+          the vendor genuinely deduplicates, and <code>probe</code> when a human must verify
+          first.</p>
+      </div>
+      <div class="card">
+        <h3>Group multi-step work</h3>
+        <p class="small dim">Pass <code>group_key</code> and declare each step's
+          <code>compensation</code> while you still know what undoing means. It cannot be worked
+          out later from a log.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>When something looks wrong</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>What you see</th><th>What it means</th><th>What to do</th></tr></thead>
+        <tbody>
+          <tr><td><code>in_flight</code> forever</td><td class="small">A holder crashed and the lease has not lapsed yet.</td><td class="small">Wait for <code>retry_after_seconds</code>. It becomes <code>indeterminate</code> on its own.</td></tr>
+          <tr><td><code>idempotency_key_reuse</code></td><td class="small">Same key, different payload — usually a key built from unstable data.</td><td class="small">Make the key deterministic, or genuinely distinct per action.</td></tr>
+          <tr><td><code>blocked</code> repeatedly</td><td class="small">A prior attempt's outcome is unknown and policy forbids guessing.</td><td class="small">Check the vendor, then <code>POST /effects/{id}/resolve</code> with evidence.</td></tr>
+          <tr><td><code>lease_lost</code> on report</td><td class="small">Your lease was superseded — you took too long.</td><td class="small">Do not assume your work counted. Re-run <code>begin</code> to learn the truth.</td></tr>
+          <tr><td><code>402 insufficient_credit</code></td><td class="small">Allowance exhausted and no prepaid credit.</td><td class="small">Existing effects still replay. Add credit or upgrade.</td></tr>
+          <tr><td><code>429 rate_limited</code></td><td class="small">Over your plan's per-minute limit.</td><td class="small">Back off by <code>detail.retry_after_seconds</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>Then what</h2>
+    <div class="actions">
+      <a class="btn" href="/console">Create a workspace</a>
+      <a class="btn secondary" href="/docs">Full API reference</a>
+      <a class="btn secondary" href="/pricing">Pricing</a>
+    </div>
+  </div>
+</section>
+</main>
+<footer class="site"></footer>
+<script type="module" src="/assets/start.js"></script>
+</body>
+</html>

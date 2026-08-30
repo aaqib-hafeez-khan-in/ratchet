@@ -189,6 +189,29 @@ is unknown is the one thing a library could enforce that documentation cannot.
 
 ---
 
+## 11b. Claude / Anthropic listing: what is actually possible
+
+Ratchet works with Claude Code, Claude Desktop, and Cursor **today**, via the stdio MCP server —
+the operator pastes a key into a config file. That is documented on `/start` and works now.
+
+What is **not** true, and must not be claimed:
+
+- **It is not listed in any Anthropic-run directory.** Nothing has been submitted and nothing has
+  been reviewed or approved.
+- **It cannot be listed in a one-click connector directory yet.** Those flows expect OAuth 2.1
+  with dynamic client registration so a user can authorise without handling an API key by hand.
+  Ratchet's remote MCP endpoint authenticates with a static bearer token only.
+
+The order of work to change that:
+
+1. Publish `ratchet-mcp` to npm (blocked on the owner's npm login).
+2. Implement OAuth 2.1 + dynamic client registration on `/mcp`.
+3. Submit to the MCP registry, then to any provider directory that accepts submissions.
+
+Steps 1 and 2 are prerequisites, not optional polish: a directory listing that requires a
+hand-pasted key is not a listing anyone will complete. *Directory requirements change; confirm
+them at submission time rather than trusting this note.*
+
 ## 11. Registry submission material is prepared, not submitted
 
 Nothing has been submitted to any MCP registry, directory, or marketplace, and no provider has

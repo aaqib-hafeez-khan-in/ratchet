@@ -275,14 +275,24 @@ ul.checks li::before {
   mask-image: radial-gradient(circle at 50% 45%, #000 30%, transparent 78%);
   -webkit-mask-image: radial-gradient(circle at 50% 45%, #000 30%, transparent 78%);
 }
-.stage-inner { width: min(1080px, 94vw); position: relative; z-index: 1; }
+.stage-inner {
+  width: min(1080px, 94vw);
+  /* Must have real height. Every .beat inside is absolutely positioned, so
+     without this the box collapses to 0px, and `place-items: center` then
+     centres nothing — the content hangs below the midpoint instead of on it. */
+  height: 100%;
+  position: relative; z-index: 1;
+}
 
 .beat {
   position: absolute; inset: 0;
   display: grid; place-items: center;
+  /* Sits a touch above true centre: the progress rail occupies the bottom of
+     the pin, and optical centre reads slightly high anyway. */
+  padding-bottom: 4.5rem;
   opacity: 0; transform: translateY(26px) scale(0.985);
   transition: opacity 0.5s cubic-bezier(.22,.8,.3,1), transform 0.5s cubic-bezier(.22,.8,.3,1);
-  pointer-events: none; padding: 0 1.25rem;
+  pointer-events: none; padding-inline: 1.25rem;
 }
 .beat[data-active="true"] { opacity: 1; transform: none; pointer-events: auto; }
 .beat-body { text-align: center; width: 100%; }
@@ -298,7 +308,7 @@ ul.checks li::before {
 }
 
 /* ---------------------------------------------------------------- the scene */
-.scene { position: relative; margin: 2.6rem auto 0; max-width: 760px; height: 190px; }
+.scene { position: relative; margin: 2.1rem auto 0; max-width: 760px; height: 170px; }
 
 .wire {
   position: absolute; top: 50%; left: 0; right: 0; height: 2px;
@@ -401,7 +411,7 @@ ul.checks li::before {
 
 .verdict {
   display: inline-flex; align-items: center; gap: 0.55rem;
-  margin-top: 1.9rem; padding: 0.55rem 1.15rem;
+  margin-top: 1.4rem; padding: 0.55rem 1.15rem;
   border: 1px solid currentColor; border-radius: 999px;
   font-size: 0.92rem; font-weight: 600;
   opacity: 0; transform: translateY(8px);

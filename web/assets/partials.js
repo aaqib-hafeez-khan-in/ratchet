@@ -8,6 +8,7 @@ const LOGO = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-h
 </svg>`;
 
 const NAV = [
+  ['/start', 'Get started'],
   ['/docs', 'Docs'],
   ['/pricing', 'Pricing'],
   ['/security', 'Security'],
@@ -37,6 +38,16 @@ export function mountChrome(current) {
             <li><a href="/pricing">Pricing</a></li>
             <li><a href="/console">Operator console</a></li>
             <li><a href="/docs#groups">Rollback groups</a></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Works with</h3>
+          <ul>
+            <li><a href="/start">Claude Code</a></li>
+            <li><a href="/start">Claude Desktop</a></li>
+            <li><a href="/start">Cursor</a></li>
+            <li><a href="/start">Any MCP client</a></li>
+            <li><a href="/docs">OpenAI-compatible tools</a></li>
           </ul>
         </div>
         <div>

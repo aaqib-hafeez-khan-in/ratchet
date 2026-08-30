@@ -12,6 +12,7 @@ import { config, assertProductionSafety } from '../lib/config.js';
 import { closePool, getPool } from '../db/pool.js';
 import { sweepExpiredLeases, collectExpiredEffects, collectStaleRecords } from './reaper.js';
 import { deliverDue } from './webhooks.js';
+import { watchChainOnce, expireQuotes } from './chain.js';
 import { startActivityFlusher, stopActivityFlusher } from '../domain/activity.js';
 
 const problems = assertProductionSafety();
@@ -60,6 +61,19 @@ async function main() {
 
   loop('lease-sweep', config.worker.leaseSweepIntervalMs, () => sweepExpiredLeases());
   loop('webhook-delivery', config.worker.webhookPollIntervalMs, () => deliverDue());
+  // Only runs when the operator has configured a receiving address. The
+  // watcher reads the chain and never holds a key.
+  if (config.crypto.solanaDestination && config.crypto.rpcUrl) {
+    log('info', 'chain watcher enabled', { destination: config.crypto.solanaDestination });
+    loop('chain-watch', config.crypto.pollIntervalMs, async () => {
+      const r = await watchChainOnce();
+      return r.credited;
+    });
+    loop('quote-expiry', 60_000, () => expireQuotes());
+  } else {
+    log('info', 'chain watcher disabled (no SOLANA_DESTINATION_ADDRESS / SOLANA_RPC_URL)');
+  }
+
   loop('retention-gc', config.worker.gcIntervalMs, async () => {
     const effects = await collectExpiredEffects();
     const stale = await collectStaleRecords();

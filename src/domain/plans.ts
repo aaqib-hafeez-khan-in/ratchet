@@ -2,17 +2,25 @@
  * Ratchet's own pricing. One meter: a *gated effect* — the first successful
  * begin() for a given (workspace, effect_type, idempotency_key).
  *
- * Two plans, not three. Three tiers assert knowledge of three segments; with no
- * usage history there is no evidence for one. Above CUSTOM_PRICING_THRESHOLD
- * the honest answer is a conversation, not a published number for a customer
- * profile nobody has observed yet.
+ * Three plans. Free to evaluate, Pro for production, Scale for volume.
+ *
+ * Scale deliberately collects LESS at a given volume than Pro-plus-overage
+ * would: at 250k effects that is $249 against $366. It exists because a
+ * variable bill is what triggers a procurement review, and predictable revenue
+ * that renews is worth more than a larger invoice that churns.
+ *
+ * There is no enterprise tier, and adding one would be dishonest today. What
+ * enterprises actually buy at that level is an SLA, SSO, and a support
+ * commitment — none of which a single-region deployment with no failover and
+ * one maintainer can honour. See docs/handoff/KNOWN_LIMITATIONS.md. Selling it
+ * anyway is how a service acquires a customer it then fails.
  *
  * Everything else is free: duplicate suppression, in-flight checks, retries of
  * the same key, outcome reports, reads, policy changes, and webhooks. Callers
  * are never penalised for the retry behaviour the product exists to absorb.
  */
 
-export type PlanId = 'free' | 'pro';
+export type PlanId = 'free' | 'pro' | 'scale';
 
 export interface Plan {
   id: PlanId;
@@ -66,6 +74,19 @@ export const PLANS: Record<PlanId, Plan> = {
     maxRetentionDays: 30,
     maxApiKeys: 20,
     maxWebhookEndpoints: 5,
+  },
+  scale: {
+    id: 'scale',
+    name: 'Scale',
+    monthlyPriceMicros: 249_000_000,
+    includedEffects: 250_000,
+    // $1.00 per 1,000 — a real volume rate. Every limit below is one the code
+    // actually enforces; nothing here is a promise the service cannot keep.
+    overageMicrosPerEffect: 1_000,
+    rateLimitPerMinute: 3_000,
+    maxRetentionDays: 90,
+    maxApiKeys: 100,
+    maxWebhookEndpoints: 25,
   },
 };
 

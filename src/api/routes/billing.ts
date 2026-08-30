@@ -224,7 +224,7 @@ export default async function billingRoutes(app: FastifyInstance) {
         + 'confirms the subscription — never on the browser returning to the success URL.',
       body: {
         type: 'object', required: ['plan_id'], additionalProperties: false,
-        properties: { plan_id: { type: 'string', enum: ['pro'] } },
+        properties: { plan_id: { type: 'string', enum: ['pro', 'scale'] } },
       },
       response: {
         200: { type: 'object', additionalProperties: true },
@@ -234,7 +234,7 @@ export default async function billingRoutes(app: FastifyInstance) {
     },
   }, async (req, reply) => {
     try {
-      const s = await startSubscription(wsOf(req), (req.body as { plan_id: 'pro' }).plan_id);
+      const s = await startSubscription(wsOf(req), (req.body as { plan_id: 'pro' | 'scale' }).plan_id);
       return { provider: s.provider, session_id: s.sessionId, url: s.url, test_mode: s.testMode };
     } catch (err) {
       if (err instanceof BillingUnavailable) {
