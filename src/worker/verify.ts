@@ -120,6 +120,58 @@ export async function verifyEvmTransfer(args: {
 }
 
 /**
+ * Verify a NATIVE asset transfer on an EVM chain (ETH on Ethereum or Base).
+ *
+ * Different from an ERC-20 transfer in a way that matters: a native transfer
+ * moves no token and emits no log, so the amount lives on the transaction
+ * itself rather than in an event.
+ *
+ * Only DIRECT transfers are verified — `tx.to` is the destination and
+ * `tx.value` is the amount. ETH forwarded by a contract arrives as an internal
+ * transfer, which leaves no trace in the transaction or receipt and is visible
+ * only through a tracing API most public nodes do not expose. Rather than
+ * appear to check something it cannot, this reports the transfer as
+ * unverifiable and says why.
+ */
+export async function verifyEvmNative(args: {
+  chain: 'ethereum' | 'base';
+  txHash: string;
+  destination: string;
+  minConfirmations: number;
+}): Promise<Verified> {
+  const urls = endpointsFor(args.chain);
+  if (urls.length === 0) return { ok: false, reason: 'no RPC configured for that chain' };
+
+  const tx = await rpc(urls, 'eth_getTransactionByHash', [args.txHash]);
+  if (!tx) return { ok: false, reason: 'transaction not found (or not yet mined)' };
+
+  // A transaction can exist and still have reverted, moving nothing.
+  const receipt = await rpc(urls, 'eth_getTransactionReceipt', [args.txHash]);
+  if (!receipt) return { ok: false, reason: 'transaction not yet mined' };
+  if (receipt.status !== '0x1') return { ok: false, reason: 'transaction reverted — nothing moved' };
+
+  const head = Number(await rpc(urls, 'eth_blockNumber', []));
+  const confirmations = Math.max(0, head - Number(receipt.blockNumber) + 1);
+  if (confirmations < args.minConfirmations) {
+    return { ok: false, reason: `only ${confirmations} confirmation(s), need ${args.minConfirmations}`, confirmations };
+  }
+
+  if ((tx.to ?? '').toLowerCase() !== args.destination.toLowerCase()) {
+    return {
+      ok: false, confirmations,
+      reason: 'this transaction did not send directly to that address. ETH forwarded by a '
+            + 'contract is an internal transfer and cannot be verified here — send directly '
+            + 'from a wallet instead.',
+    };
+  }
+
+  const value = BigInt(tx.value ?? '0x0');
+  return value > 0n
+    ? { ok: true, amount: value, confirmations }
+    : { ok: false, reason: 'transaction sent no value', confirmations };
+}
+
+/**
  * Verify a Bitcoin payment. Sums every output paying our address, because a
  * wallet may legitimately split across outputs.
  */
@@ -165,8 +217,13 @@ export async function verifyTransfer(args: {
     });
   }
   if (args.chain === 'ethereum' || args.chain === 'base') {
+    // No contract means the chain's native asset (ETH), which moves value on
+    // the transaction rather than emitting a token Transfer log.
     if (!args.contract) {
-      return { ok: false, reason: 'native-asset transfers are not verified by this path yet' };
+      return verifyEvmNative({
+        chain: args.chain, txHash: args.txHash, destination: args.destination,
+        minConfirmations: args.minConfirmations,
+      });
     }
     return verifyEvmTransfer({
       chain: args.chain, txHash: args.txHash, destination: args.destination,

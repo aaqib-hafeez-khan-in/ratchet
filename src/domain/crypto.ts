@@ -66,6 +66,47 @@ export interface PaymentIntent {
   instructions: string[];
 }
 
+/**
+ * Format a base-unit amount for display, entirely in integer arithmetic.
+ *
+ * ETH has 18 decimals, and one whole ETH is 1e18 wei — two orders of magnitude
+ * past Number.MAX_SAFE_INTEGER. Converting to a float to divide would silently
+ * round the amount a payer is told to send, which is not a rounding error in a
+ * display, it is a wrong invoice.
+ */
+export function formatUnits(baseUnits: bigint, decimals: number, maxFractionDigits = 8): string {
+  const negative = baseUnits < 0n;
+  const v = negative ? -baseUnits : baseUnits;
+  const scale = 10n ** BigInt(decimals);
+  const whole = v / scale;
+  let frac = (v % scale).toString().padStart(decimals, '0');
+  if (frac.length > maxFractionDigits) frac = frac.slice(0, maxFractionDigits);
+  frac = frac.replace(/0+$/, '');
+  return `${negative ? '-' : ''}${whole}${frac ? '.' + frac : ''}`;
+}
+
+/** Convert a USD amount to base units of a token, without floats. */
+export function usdToBaseUnits(
+  usdMicros: number, ratePerToken: number, decimals: number, haircutBps: number,
+): bigint {
+  // Work in micro-USD scaled up by the token's decimals, so the only rounding
+  // is the final ceil — which rounds in the payer's direction, never ours.
+  const withHaircut = BigInt(Math.round(usdMicros * (1 + haircutBps / 10_000)));
+  // Rate is carried at 12 decimal places to keep the division exact enough.
+  const RATE_SCALE = 1_000_000_000_000n;                 // 1e12
+  const USD_SCALE = 1_000_000n;                          // usdMicros is 1e6-scaled
+  const rateScaled = BigInt(Math.round(ratePerToken * 1e12));
+  if (rateScaled <= 0n) throw new Error('non-positive rate');
+
+  // baseUnits = (usdMicros / USD_SCALE) / rate * 10^decimals
+  // Both scales are carried into the numerator so the division is exact and
+  // the only rounding is the final ceil.
+  const numerator = withHaircut * 10n ** BigInt(decimals) * RATE_SCALE;
+  const denominator = rateScaled * USD_SCALE;
+  const q = numerator / denominator;
+  return numerator % denominator === 0n ? q : q + 1n;   // ceil, in the payer's direction
+}
+
 export class CryptoUnavailable extends Error {
   constructor(msg: string) { super(msg); this.name = 'CryptoUnavailable'; }
 }
@@ -152,9 +193,8 @@ export async function createIntent(args: {
   const rate = await rateUsdPerToken(asset);
   // The haircut protects the ledger from a price move between quote and
   // confirmation. It increases what the payer sends; it never reduces credit.
-  const withHaircut = args.usdMicros * (1 + asset.volatilityBps / 10_000);
-  const whole = withHaircut / 1e6 / rate;
-  const tokenAmount = BigInt(Math.ceil(whole * 10 ** asset.decimals));
+  // Computed in integer arithmetic — see usdToBaseUnits.
+  const tokenAmount = usdToBaseUnits(args.usdMicros, rate, asset.decimals, asset.volatilityBps);
 
   const memo = `ratchet-${randomBytes(9).toString('base64url').toLowerCase().replace(/[^a-z0-9]/g, '')}`;
   const id = newId('cpi');
@@ -170,7 +210,7 @@ export async function createIntent(args: {
      asset.decimals, rate, memo, expiresAt, asset.attribution],
   );
 
-  const display = (Number(tokenAmount) / 10 ** asset.decimals).toFixed(Math.min(asset.decimals, 6));
+  const display = formatUnits(tokenAmount, asset.decimals, Math.min(asset.decimals, 8));
 
   return {
     id, chain: asset.chain, symbol: asset.symbol, tokenMint: asset.tokenMint,
@@ -334,7 +374,7 @@ export async function listIntents(db: Db, workspaceId: string, limit = 25) {
   return rows.map((r) => ({
     id: r.id, chain: r.chain, symbol: r.token_symbol,
     usdMicros: Number(r.usd_micros),
-    amount: (Number(r.token_amount) / 10 ** r.token_decimals).toFixed(6),
+    amount: formatUnits(BigInt(r.token_amount), r.token_decimals, 8),
     memo: r.memo, state: r.state, txSignature: r.tx_signature,
     createdAt: r.created_at.toISOString(), expiresAt: r.expires_at.toISOString(),
     creditedAt: r.credited_at ? r.credited_at.toISOString() : null,
