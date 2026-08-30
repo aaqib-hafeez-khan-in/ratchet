@@ -164,12 +164,23 @@ describe('non-custodial crypto payments', () => {
 
   test('crypto is off unless the operator configured a destination they control', async () => {
     assert.equal(cryptoEnabled(), true);
-    const saved = process.env.SOLANA_DESTINATION_ADDRESS;
-    delete process.env.SOLANA_DESTINATION_ADDRESS;
+
+    // Crypto is available when ANY chain has a receiving address, so all of
+    // them must be cleared to prove the off state.
+    const CHAINS = ['SOLANA', 'ETHEREUM', 'BASE', 'BITCOIN'] as const;
+    const saved = Object.fromEntries(
+      CHAINS.map((c) => [c, process.env[`${c}_DESTINATION_ADDRESS`]]));
+    for (const c of CHAINS) process.env[`${c}_DESTINATION_ADDRESS`] = '';
+
     assert.equal(cryptoEnabled(), false);
     await assert.rejects(
       () => createIntent({ workspaceId: ws.workspaceId, tokenMint: USDC, usdMicros: 25_000_000 }),
-      (e: Error) => e instanceof CryptoUnavailable);
-    process.env.SOLANA_DESTINATION_ADDRESS = saved;
+      (e: Error) => e instanceof CryptoUnavailable,
+      'with nowhere to send funds, a quote would point at nothing');
+
+    for (const c of CHAINS) {
+      if (saved[c] === undefined) delete process.env[`${c}_DESTINATION_ADDRESS`];
+      else process.env[`${c}_DESTINATION_ADDRESS`] = saved[c]!;
+    }
   });
 });

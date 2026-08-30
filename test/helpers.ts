@@ -15,6 +15,14 @@ process.env.LOG_LEVEL = 'silent';
 // already set, so setting these first keeps the suite hermetic: it must behave
 // identically whether or not the operator has real Stripe keys in their .env.
 // A test that needs a different provider state sets it before importing this.
+// Neutralise crypto configuration for the same reason as payments: the suite
+// must behave identically whether or not the operator has real receiving
+// addresses in their .env. A test that needs a chain enabled sets it first.
+process.env.SOLANA_DESTINATION_ADDRESS ??= '';
+process.env.ETHEREUM_DESTINATION_ADDRESS ??= '';
+process.env.BASE_DESTINATION_ADDRESS ??= '';
+process.env.BITCOIN_DESTINATION_ADDRESS ??= '';
+
 process.env.BILLING_PROVIDER ??= 'test';
 process.env.STRIPE_SECRET_KEY ??= '';
 process.env.STRIPE_WEBHOOK_SECRET ??= '';
