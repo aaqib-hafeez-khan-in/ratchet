@@ -5,7 +5,8 @@ import { wsOf, actorOf } from '../plugins/auth.js';
 import { audit } from '../../domain/audit.js';
 import { CREDIT_PACKS, packById, startCheckout, settleTestCheckout,
          verifyStripeSignature, applyPaymentEvent, stripeConfigured,
-         stripeIsTestKey, stripeSetupGap, reverseCredit,
+         stripeIsTestKey, stripeSetupGap, reverseCredit, startSubscription,
+         applySubscriptionEvent,
          BillingUnavailable, StripeError } from '../../domain/billing.js';
 import { PLANS } from '../../domain/plans.js';
 import { cryptoEnabled, listAssets, createIntent, listIntents,
@@ -214,6 +215,40 @@ export default async function billingRoutes(app: FastifyInstance) {
     }
   });
 
+  app.post('/billing/subscribe', {
+    preHandler: app.requireConsole('workspace:read'),
+    schema: {
+      tags: ['Billing'], operationId: 'startSubscription',
+      summary: 'Subscribe to a paid plan',
+      description: 'Returns a hosted checkout URL. The plan is granted when the signed webhook '
+        + 'confirms the subscription — never on the browser returning to the success URL.',
+      body: {
+        type: 'object', required: ['plan_id'], additionalProperties: false,
+        properties: { plan_id: { type: 'string', enum: ['pro'] } },
+      },
+      response: {
+        200: { type: 'object', additionalProperties: true },
+        503: { type: 'object', additionalProperties: true },
+        ...errorResponses,
+      },
+    },
+  }, async (req, reply) => {
+    try {
+      const s = await startSubscription(wsOf(req), (req.body as { plan_id: 'pro' }).plan_id);
+      return { provider: s.provider, session_id: s.sessionId, url: s.url, test_mode: s.testMode };
+    } catch (err) {
+      if (err instanceof BillingUnavailable) {
+        reply.code(503);
+        return { error: { code: 'billing_unavailable', message: err.message } };
+      }
+      if (err instanceof StripeError) {
+        throw new ApiError(502, 'payment_provider_error',
+          `The payment provider rejected the request: ${err.message}`);
+      }
+      throw err;
+    }
+  });
+
   app.post('/billing/test/settle', {
     preHandler: app.requireConsole('workspace:read'),
     schema: {
@@ -283,8 +318,35 @@ export default async function billingRoutes(app: FastifyInstance) {
     }
     const obj = event.data?.object ?? {};
 
+    // ---- subscriptions ---------------------------------------------------
+    if (event.type === 'customer.subscription.updated'
+        || event.type === 'customer.subscription.deleted'
+        || event.type === 'customer.subscription.created') {
+      const workspaceId = obj.metadata?.workspace_id;
+      const planId = obj.metadata?.plan_id ?? 'pro';
+      if (!workspaceId) return { received: true, ignored: 'subscription without workspace_id' };
+      const status = event.type === 'customer.subscription.deleted'
+        ? 'canceled'
+        : ({ active: 'active', past_due: 'past_due', canceled: 'canceled',
+             trialing: 'active', unpaid: 'past_due' } as Record<string, any>)[obj.status]
+          ?? 'incomplete';
+      const r = await applySubscriptionEvent({
+        eventId: event.id, workspaceId, planId,
+        subscriptionId: typeof obj.id === 'string' ? obj.id : null,
+        customerId: typeof obj.customer === 'string' ? obj.customer : null,
+        status,
+        endsAt: obj.current_period_end ? new Date(obj.current_period_end * 1000) : null,
+      });
+      return { received: true, applied: r.applied, plan: r.plan };
+    }
+
     // ---- money in -------------------------------------------------------
     if (event.type === 'checkout.session.completed') {
+      // A subscription checkout grants the plan through the subscription
+      // events above; there is no credit to apply here.
+      if (obj.mode === 'subscription') {
+        return { received: true, ignored: 'subscription checkout — plan granted by subscription events' };
+      }
       const workspaceId = obj.metadata?.workspace_id;
       const packId = obj.metadata?.pack_id;
       const pack = packId ? packById(packId) : undefined;

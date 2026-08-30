@@ -24,6 +24,30 @@ POST /v1/effects/eff_.../report
 -> { "decision": "duplicate", "result": { "message_id": "m_9f2" } }`;
 document.getElementById('flow-code').innerHTML = highlight(flow);
 
+const groupExample = `# Declare each step as part of one unit, with its undo.
+POST /v1/effects/begin
+{
+  "effect_type": "flight.book",
+  "idempotency_key": "trip:8812:flight",
+  "group_key": "trip:8812",
+  "compensation": {
+    "effect_type": "flight.cancel",
+    "payload": { "ref": "FL123" }
+  }
+}
+
+# Step five fails. Ask for the rollback plan:
+POST /v1/groups/trip:8812/unwind
+
+-> { "state": "unwinding",
+     "steps": [
+       { "order": 1, "undo": "hotel.book"  -> "hotel.cancel" },
+       { "order": 2, "undo": "flight.book" -> "flight.cancel" }
+     ],
+     "irreversible": [ { "effect_type": "email.send" } ] }`;
+const gc = document.getElementById('grp-code');
+if (gc) gc.innerHTML = highlight(groupExample);
+
 const SNIPPETS = {
   curl: `curl -X POST https://your-host/v1/effects/begin \\
   -H "Authorization: Bearer $RATCHET_API_KEY" \\

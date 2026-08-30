@@ -36,6 +36,7 @@ export function mountChrome(current) {
             <li><a href="/docs">Documentation</a></li>
             <li><a href="/pricing">Pricing</a></li>
             <li><a href="/console">Operator console</a></li>
+            <li><a href="/docs#groups">Rollback groups</a></li>
           </ul>
         </div>
         <div>
@@ -53,12 +54,20 @@ export function mountChrome(current) {
             <li><a href="/security">Security posture</a></li>
             <li><a href="/healthz">Health</a></li>
             <li><a href="/readyz">Readiness</a></li>
+            <li><a href="/v1/billing/crypto/assets">Crypto payments</a></li>
           </ul>
         </div>
       </div>
-      <p style="margin-top:2rem">
-        Ratchet gates side effects. It does not execute them, and it never holds your funds.
-      </p>
+      <div style="margin-top:2.5rem;padding-top:1.5rem;border-top:1px solid var(--border);
+                  display:flex;flex-wrap:wrap;gap:1rem;align-items:baseline;justify-content:space-between">
+        <p style="margin:0;max-width:52ch">
+          Ratchet gates side effects. It does not execute them, holds no vendor credentials,
+          and never takes custody of your funds.
+        </p>
+        <p style="margin:0;white-space:nowrap">
+          Powered by <a href="https://deimos.mx" rel="noopener">Deimos.MX</a>
+        </p>
+      </div>
     </div>`;
   }
 }

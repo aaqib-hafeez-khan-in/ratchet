@@ -174,6 +174,110 @@ export function buildCheckoutParams(
 }
 
 /**
+ * Start a subscription to a paid plan.
+ *
+ * Separate from credit purchases because the two are genuinely different
+ * products: a subscription buys monthly included volume, credit buys overage
+ * beyond it. Conflating them would make the invoice unreadable.
+ *
+ * The plan is NOT granted here. It is granted when the signed webhook confirms
+ * the subscription, for the same reason credit is: a browser returning to a
+ * success URL is not proof that payment succeeded.
+ */
+export async function startSubscription(
+  workspaceId: string, planId: 'pro',
+): Promise<CheckoutSession> {
+  const gap = stripeSetupGap();
+  if (gap) {
+    throw new BillingUnavailable(
+      `Stripe is selected but ${gap} is not set. Subscriptions are disabled until it is.`);
+  }
+  if (!stripeConfigured()) {
+    throw new BillingUnavailable(
+      'No payment provider is configured, so plans cannot be purchased on this instance.');
+  }
+
+  const plan = PLANS[planId];
+  const base = config.publicUrl.replace(/\/$/, '');
+  const session = await stripePost('/checkout/sessions', {
+    mode: 'subscription',
+    'line_items[0][quantity]': '1',
+    'line_items[0][price_data][currency]': 'usd',
+    'line_items[0][price_data][unit_amount]': String(Math.round(plan.monthlyPriceMicros / 10_000)),
+    'line_items[0][price_data][recurring][interval]': 'month',
+    'line_items[0][price_data][product_data][name]': `Ratchet ${plan.name}`,
+    'line_items[0][price_data][product_data][description]':
+      `${plan.includedEffects.toLocaleString()} gated effects per month, then `
+      + `$${(plan.overageMicrosPerEffect * 1000 / 1e6).toFixed(2)} per 1,000 from prepaid credit.`,
+    success_url: `${base}/console?subscribed=1`,
+    cancel_url: `${base}/console?subscribe=cancelled`,
+    client_reference_id: workspaceId,
+    'metadata[workspace_id]': workspaceId,
+    'metadata[plan_id]': planId,
+    'metadata[kind]': 'subscription',
+    'subscription_data[metadata][workspace_id]': workspaceId,
+    'subscription_data[metadata][plan_id]': planId,
+  }, `subscribe:${workspaceId}:${planId}:${Math.floor(Date.now() / 60_000)}`);
+
+  return {
+    provider: 'stripe',
+    sessionId: session.id,
+    url: session.url ?? null,
+    testMode: stripeIsTestKey(),
+  };
+}
+
+/**
+ * Apply a subscription state change. Idempotent on the provider event id.
+ *
+ * `past_due` deliberately keeps the plan: cutting a paying customer's
+ * entitlement the moment a card declines would push their agents into the
+ * duplicate-execution failure this service exists to prevent, over a billing
+ * problem that usually resolves itself.
+ */
+export async function applySubscriptionEvent(args: {
+  eventId: string;
+  workspaceId: string;
+  planId: string;
+  subscriptionId: string | null;
+  customerId: string | null;
+  status: 'active' | 'past_due' | 'canceled' | 'incomplete';
+  endsAt: Date | null;
+}): Promise<{ applied: boolean; plan: string }> {
+  return withTx(async (tx) => {
+    const seen = await tx.query('SELECT id FROM processed_payment_events WHERE id = $1',
+      [args.eventId]);
+    if (seen.rows[0]) {
+      const cur = await tx.query<{ plan: string }>(
+        'SELECT plan FROM workspaces WHERE id = $1', [args.workspaceId]);
+      return { applied: false, plan: cur.rows[0]?.plan ?? 'free' };
+    }
+    await tx.query(
+      'INSERT INTO processed_payment_events (id, provider, workspace_id) VALUES ($1,$2,$3)',
+      [args.eventId, 'stripe', args.workspaceId]);
+
+    const entitled = args.status === 'active' || args.status === 'past_due';
+    const plan = entitled ? args.planId : 'free';
+
+    await tx.query(
+      `UPDATE workspaces
+          SET plan = $2, stripe_subscription_id = COALESCE($3, stripe_subscription_id),
+              stripe_customer_id = COALESCE($4, stripe_customer_id),
+              subscription_status = $5, subscription_ends_at = $6, updated_at = now()
+        WHERE id = $1`,
+      [args.workspaceId, plan, args.subscriptionId, args.customerId, args.status, args.endsAt]);
+
+    await tx.query(
+      `INSERT INTO audit_events (workspace_id, action, actor, subject_id, detail)
+       VALUES ($1,'billing.subscription_changed','system',$2,$3)`,
+      [args.workspaceId, args.subscriptionId,
+       JSON.stringify({ status: args.status, plan, endsAt: args.endsAt })]);
+
+    return { applied: true, plan };
+  });
+}
+
+/**
  * Start a credit purchase.
  *
  * With Stripe configured this creates a real Checkout Session and returns the

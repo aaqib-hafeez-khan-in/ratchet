@@ -30,9 +30,12 @@ try {
         <dt>Webhooks</dt><dd>${p.max_webhook_endpoints}</dd>
       </dl>
       <div class="actions">
-        <a class="btn ${p.id === 'free' ? '' : 'secondary'}" href="/console">
-          ${p.id === 'free' ? 'Start free' : 'Choose ' + esc(p.name)}</a>
+        <a class="btn ${p.id === 'free' ? 'secondary' : ''}" href="/console">
+          ${p.id === 'free' ? 'Start free' : 'Subscribe to ' + esc(p.name)}</a>
       </div>
+      ${p.id === 'free' ? '' :
+        '<p class="small faint" style="margin:0.6rem 0 0">Billed monthly, cancel anytime. '
+        + 'Overage draws from prepaid credit, so it can never exceed what you loaded.</p>'}
     </div>`).join('');
 
   const pr = data.provider;
@@ -46,6 +49,14 @@ try {
        and idempotency path executes, but no card is charged and no external request is made.
        Every response says <code>test_mode: true</code>. Set <code>BILLING_PROVIDER</code>,
        <code>STRIPE_SECRET_KEY</code>, and <code>STRIPE_WEBHOOK_SECRET</code> to take live payments.</p>`;
+  const cs = document.getElementById('crypto-status');
+  if (cs) {
+    cs.innerHTML = data.crypto?.enabled
+      ? '<span class="pill go">enabled</span> Accepted assets are listed at '
+        + '<a href="/v1/billing/crypto/assets">/v1/billing/crypto/assets</a>.'
+      : '<span class="pill flat">not configured</span> This instance has no receiving address set, '
+        + 'so crypto payments are off.';
+  }
 } catch {
   document.getElementById('plans').innerHTML =
     '<p class="notice bad">Could not load pricing. The API may be unavailable.</p>';

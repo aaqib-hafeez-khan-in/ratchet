@@ -98,9 +98,71 @@ Content-Type: application/json
 # Protocol versions supported: 2025-06-18, 2025-03-26, 2024-11-05`,
 };
 
+S.group = `# Each step declares how to undo itself, while you still know.
+curl -X POST ${BASE}/v1/effects/begin \\
+  -H "Authorization: Bearer $RATCHET_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "effect_type": "flight.book",
+    "idempotency_key": "trip:8812:flight",
+    "group_key": "trip:8812",
+    "payload": { "passenger": "sam", "leg": "LHR-JFK" },
+    "compensation": {
+      "effect_type": "flight.cancel",
+      "payload": { "ref": "FL123" }
+    }
+  }'`;
+
+S.unwind = `# Payment failed. Ask what has to be undone.
+curl -X POST ${BASE}/v1/groups/trip:8812/unwind \\
+  -H "Authorization: Bearer $RATCHET_API_KEY" \\
+  -d '{ "reason": "card declined" }'
+
+# -> {
+#      "state": "unwinding",
+#      "steps": [
+#        { "order": 1,
+#          "original_effect_type": "hotel.book",
+#          "compensation": { "effect_type": "hotel.cancel", ... },
+#          "suggested_idempotency_key": "compensate:eff_9f2..." },
+#        { "order": 2, "original_effect_type": "flight.book", ... }
+#      ],
+#      "irreversible": [ { "effect_type": "email.send" } ],
+#      "unresolved": []
+#    }
+
+# Gate each undo, so the rollback is at-most-once too.
+curl -X POST ${BASE}/v1/effects/begin \\
+  -H "Authorization: Bearer $RATCHET_API_KEY" \\
+  -d '{
+    "effect_type": "hotel.cancel",
+    "idempotency_key": "compensate:eff_9f2...",
+    "compensates_effect_id": "eff_9f2...",
+    "payload": { "ref": "HT456" }
+  }'`;
+
+S.crypto = `# What this instance accepts, and on what terms.
+curl ${BASE}/v1/billing/crypto/assets
+
+# Quote a top-up. Priced in USD; you send the token amount shown.
+curl -X POST ${BASE}/v1/billing/crypto/intents \\
+  -H "Authorization: Bearer $RATCHET_API_KEY" \\
+  -d '{ "token_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "usd_micros": 25000000 }'
+
+# -> { "symbol": "USDC", "amount": "25.000000",
+#      "destination": "<an address the operator controls>",
+#      "memo": "ratchet-8f2ka9",
+#      "expires_at": "...",
+#      "instructions": [ "Send exactly 25.000000 USDC to ...",
+#                        "Include the memo — it attributes the payment.",
+#                        "A transfer short of the quote is not credited." ] }`;
+
 for (const [id, key] of [['c-signup','signup'], ['c-begin','begin'], ['c-report','report'],
-                         ['c-policy','policy'], ['c-resolve','resolve']]) {
-  document.getElementById(id).innerHTML = highlight(S[key]);
+                         ['c-policy','policy'], ['c-resolve','resolve'],
+                         ['c-group','group'], ['c-unwind','unwind'], ['c-crypto','crypto']]) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = highlight(S[key]);
 }
 
 tabs(document.getElementById('mcp-tabs'), (name) => {

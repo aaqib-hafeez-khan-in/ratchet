@@ -116,6 +116,32 @@
         </ul>
       </div>
       <div class="card">
+        <h3>Payments</h3>
+        <ul class="checks">
+          <li>Card details are entered on the provider's own page and never reach Ratchet</li>
+          <li>Credit is applied only on a signed webhook — never because a browser reached a
+              success URL, which is not proof that payment settled</li>
+          <li>Payment webhooks are verified by HMAC over the raw body, with a replay window and
+              event-id deduplication</li>
+          <li>Refunds and disputes reverse credit through a compensating ledger entry, capped at
+              what was actually credited</li>
+          <li><strong>Crypto is non-custodial.</strong> No private key is held and no funds are
+              taken into custody; payments go directly to an address the operator controls</li>
+          <li>Crypto quotes are struck in USD, so a price move between quote and settlement
+              cannot mint credit. Underpayment is never rounded up</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Rollback safety</h3>
+        <ul class="checks">
+          <li>A compensation is itself a gated effect, so a retried rollback cannot double-refund</li>
+          <li>A group being unwound refuses new forward steps</li>
+          <li>A step with no compensation is reported irreversible; the group settles
+              <code>unwind_failed</code> rather than claiming a clean rollback</li>
+          <li>An effect with an unknown outcome blocks planning around it</li>
+        </ul>
+      </div>
+      <div class="card">
         <h3>Transport and abuse</h3>
         <ul class="checks">
           <li>Per-key rate limiting, so tenants cannot exhaust each other</li>

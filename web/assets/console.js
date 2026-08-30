@@ -179,6 +179,21 @@ async function renderAlerts() {
         Each one may or may not have happened. Verify at the vendor, then resolve it —
         see <em>Needs attention</em>.</div>`);
     }
+    try {
+      const groups = await api('/groups?limit=100');
+      const stuck = groups.data.filter((g) => g.pendingCompensations > 0);
+      const failed = groups.data.filter((g) => g.state === 'unwind_failed');
+      if (stuck.length) {
+        out.push(`<div class="notice bad"><strong>${stuck.length} rollback(s) incomplete.</strong>
+          Steps that already happened still need undoing — see <em>Rollbacks</em>.</div>`);
+      }
+      if (failed.length) {
+        out.push(`<div class="notice bad"><strong>${failed.length} unit(s) could not be fully
+          rolled back.</strong> Something irreversible succeeded. A person has to decide what
+          to do about it.</div>`);
+      }
+    } catch { /* best effort */ }
+
     if (appr.data.length) {
       out.push(`<div class="notice"><strong>${appr.data.length} effect${appr.data.length === 1 ? '' : 's'}
         waiting for approval.</strong> Agents are blocked until you decide.</div>`);
@@ -295,6 +310,36 @@ const PANELS = {
           } catch (err) { failed(err); }
         });
       }
+    } catch (err) { failed(err); }
+  },
+
+  async groups() {
+    loading();
+    try {
+      const { data } = await api('/groups?limit=50');
+      const head = `<div style="padding:1.25rem 1.25rem 0">
+        <p class="small dim" style="max-width:72ch">Units of work that can be rolled back as a
+        whole. A group with pending compensations has steps that succeeded and still need undoing
+        — until they are done, the rollback is incomplete.</p></div>`;
+      panel(head + (data.length
+        ? table(['Unit of work', 'State', 'Steps', 'To undo', 'Reason', 'Started'],
+            data.map((g) => `<tr>
+              <td class="mono">${esc(g.groupKey)}</td>
+              <td>${g.state === 'unwound' || g.state === 'committed'
+                    ? `<span class="pill go">${esc(g.state)}</span>`
+                    : g.state === 'unwind_failed'
+                      ? '<span class="pill stop">unwind failed</span>'
+                      : g.state === 'unwinding'
+                        ? '<span class="pill wait">unwinding</span>'
+                        : `<span class="pill flat">${esc(g.state)}</span>`}</td>
+              <td>${g.effects}</td>
+              <td>${g.pendingCompensations
+                    ? `<strong style="color:var(--stop)">${g.pendingCompensations}</strong>` : '—'}</td>
+              <td class="small faint">${esc((g.unwindReason ?? '').slice(0, 40) || '—')}</td>
+              <td class="small faint">${when(g.createdAt)}</td>
+            </tr>`))
+        : empty('No grouped work yet.',
+            'Pass <code>group_key</code> and <code>compensation</code> to <code>begin</code> to make a workflow reversible.')));
     } catch (err) { failed(err); }
   },
 
@@ -458,6 +503,7 @@ const PANELS = {
         ${pr.live ? '' : `<div class="notice"><strong>Test mode.</strong> ${esc(pr.note)}
           The full credit ledger, entitlement, and idempotency path runs — no card is charged.</div>`}
         <div id="pay-result"></div>
+        <div id="sub-block"></div>
         <h3>Add prepaid credit</h3>
         <p class="small dim">Overage draws from this balance. At zero, new effects are refused;
           replays of existing effects keep working.</p>
@@ -476,6 +522,72 @@ const PANELS = {
               <td class="small faint">${when(l.createdAt)}</td>
             </tr>`))
           : empty('No credit movements yet.', 'Included usage costs nothing and writes no ledger row.')));
+
+      // Subscription state + upgrade path.
+      const paid = plans.plans.filter((p) => p.monthly_price_micros > 0);
+      const onPaid = workspace.plan.id !== 'free';
+      $('sub-block').innerHTML = `
+        <h3>Plan</h3>
+        <p class="small dim">Currently on <strong>${esc(workspace.plan.name ?? workspace.plan.id)}</strong>
+          — ${num(workspace.plan.included_effects)} gated effects a month.</p>
+        ${onPaid
+          ? '<p class="small faint">Manage or cancel from the receipt emailed by the payment provider.</p>'
+          : `<div class="actions" style="margin:0.75rem 0 1.5rem">
+               ${paid.map((p) => `<button class="btn" data-sub="${esc(p.id)}">
+                 Subscribe to ${esc(p.name)} — $${(p.monthly_price_micros / 1e6).toFixed(0)}/mo
+               </button>`).join('')}
+             </div>`}`;
+
+      for (const btn of $('panel').querySelectorAll('[data-sub]')) {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try {
+            const co = await api('/billing/subscribe', {
+              method: 'POST', body: { plan_id: btn.dataset.sub },
+            });
+            if (co.url) { location.href = co.url; return; }
+            $('pay-result').innerHTML =
+              '<div class="notice bad">No checkout URL was returned.</div>';
+          } catch (err) {
+            $('pay-result').innerHTML = `<div class="notice bad">${esc(err.message)}</div>`;
+          } finally { btn.disabled = false; }
+        });
+      }
+
+      // Crypto top-ups, when the instance is configured for them.
+      try {
+        const c = await (await fetch('/v1/billing/crypto/assets')).json();
+        if (c.enabled && c.assets.length) {
+          const box = document.createElement('div');
+          box.style.cssText = 'padding:0 1.25rem 1.25rem';
+          box.innerHTML = `<h3>Or pay with crypto</h3>
+            <p class="small dim">Non-custodial: funds go directly to an address the operator
+              controls. Quoted in USD, so a price move cannot change your credit.</p>
+            <div class="actions">${c.assets.map((a) =>
+              `<button class="btn secondary" data-crypto="${esc(a.token_mint)}">
+                 $25 in ${esc(a.symbol)}</button>`).join('')}</div>
+            <div id="crypto-result"></div>`;
+          $('panel').appendChild(box);
+          for (const b of box.querySelectorAll('[data-crypto]')) {
+            b.addEventListener('click', async () => {
+              b.disabled = true;
+              try {
+                const i = await api('/billing/crypto/intents', {
+                  method: 'POST', body: { token_mint: b.dataset.crypto, usd_micros: 25_000_000 },
+                });
+                document.getElementById('crypto-result').innerHTML = `
+                  <div class="notice">Send exactly <strong>${esc(i.amount)} ${esc(i.symbol)}</strong>
+                    with memo <code>${esc(i.memo)}</code>. Quote expires ${when(i.expires_at)}.</div>
+                  <div class="secret">${esc(i.destination)}</div>
+                  <p class="small faint">${i.instructions.map(esc).join('<br>')}</p>`;
+              } catch (err) {
+                document.getElementById('crypto-result').innerHTML =
+                  `<div class="notice bad">${esc(err.message)}</div>`;
+              } finally { b.disabled = false; }
+            });
+          }
+        }
+      } catch { /* crypto is optional; its absence is not an error */ }
 
       for (const btn of $('panel').querySelectorAll('[data-pack]')) {
         btn.addEventListener('click', async () => {

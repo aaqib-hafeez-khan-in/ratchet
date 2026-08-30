@@ -34,42 +34,42 @@
 </section>
 
 
-<!-- Scroll-driven explainer. One request travels to the gate and back while the
-     reader scrolls; a second caller then gets turned away. Each beat maps to a
-     real API decision, and the whole thing degrades to a stacked diagram under
-     prefers-reduced-motion. -->
+
+<!-- Scroll-driven explainer. Six beats: the setup, the ask, the act, the retry
+     storm, the crash, and the rollback. Every frame maps to a real decision the
+     API makes. Collapses to a stacked static diagram under reduced motion. -->
 <section class="stage" id="how" aria-label="How Ratchet works">
   <div class="stage-pin">
     <div class="stage-inner">
 
       <div class="beat" data-beat="0">
         <div class="beat-body">
-          <p class="eyebrow">Step one</p>
-          <h2>Your agent is about to act</h2>
-          <p>It is going to charge a card. It has no way of knowing whether it already did that
-             three seconds ago, in another process, before it crashed.</p>
-          <div class="track">
-            <div class="track-line"></div>
-            <div class="node agent"><div class="dot"></div><span>agent</span></div>
+          <p class="eyebrow">The setup</p>
+          <h2>Your agent is about&nbsp;to charge a card</h2>
+          <p>It cannot know whether it already did that ninety seconds ago, in a process that
+             died before it could write anything down.</p>
+          <div class="scene">
+            <div class="wire"></div>
+            <div class="node agent"><div class="dot"></div><span>your agent</span></div>
             <div class="node gate"><div class="dot"></div><span>ratchet</span></div>
-            <div class="node vendor"><div class="dot"></div><span>vendor</span></div>
-            <div class="packet" data-packet>1</div>
+            <div class="node vendor"><div class="dot"></div><span>the vendor</span></div>
+            <div class="packet">1</div>
           </div>
         </div>
       </div>
 
       <div class="beat" data-beat="1">
         <div class="beat-body">
-          <p class="eyebrow">Step two</p>
+          <p class="eyebrow">One call, before acting</p>
           <h2>It asks first</h2>
-          <p>One call, before the action. The gate takes a durable record and a lease, then
-             answers. This is the only metered call in the whole product.</p>
-          <div class="track">
-            <div class="track-line"></div>
-            <div class="node agent"><div class="dot"></div><span>agent</span></div>
+          <p>Ratchet takes a durable record and hands back a lease. This is the only call in the
+             entire product that costs you anything.</p>
+          <div class="scene">
+            <div class="wire"></div>
+            <div class="node agent"><div class="dot"></div><span>your agent</span></div>
             <div class="node gate"><div class="dot"></div><span>ratchet</span></div>
-            <div class="node vendor"><div class="dot"></div><span>vendor</span></div>
-            <div class="packet at-gate" data-packet>1</div>
+            <div class="node vendor"><div class="dot"></div><span>the vendor</span></div>
+            <div class="packet at-gate">1</div>
           </div>
           <div class="verdict go">execute — you hold the lease</div>
         </div>
@@ -77,37 +77,69 @@
 
       <div class="beat" data-beat="2">
         <div class="beat-body">
-          <p class="eyebrow">Step three</p>
+          <p class="eyebrow">Your code, your vendor</p>
           <h2>Now it acts</h2>
-          <p>Ratchet never touches your vendor. It has no credentials and no outbound access.
-             Your code does the work, then reports what happened.</p>
-          <div class="track">
-            <div class="track-line"></div>
-            <div class="node agent"><div class="dot"></div><span>agent</span></div>
+          <p>Ratchet never touches the vendor. No credentials, no outbound access, no proxy.
+             Your code does the work and reports what happened.</p>
+          <div class="scene">
+            <div class="wire"></div>
+            <div class="node agent"><div class="dot"></div><span>your agent</span></div>
             <div class="node gate"><div class="dot"></div><span>ratchet</span></div>
-            <div class="node vendor"><div class="dot"></div><span>vendor</span></div>
-            <div class="packet at-vendor" data-packet>1</div>
+            <div class="node vendor"><div class="dot"></div><span>the vendor</span></div>
+            <div class="packet at-vendor">1</div><div class="tally"><strong>1</strong>charge made</div>
           </div>
-          <div class="verdict go">charged once · result recorded</div>
+          <div class="verdict go">succeeded — result recorded</div>
         </div>
       </div>
 
       <div class="beat" data-beat="3">
         <div class="beat-body">
-          <p class="eyebrow">The moment that matters</p>
-          <h2>The retry arrives</h2>
-          <p>A supervisor re-runs the task. A parallel worker picks it up. The same agent wakes
-             from a crash. Whatever the cause, the second caller is turned away — and handed the
-             first one's result instead.</p>
-          <div class="track">
-            <div class="track-line"></div>
-            <div class="node agent"><div class="dot"></div><span>agent</span></div>
+          <p class="eyebrow">The moment that pays for itself</p>
+          <h2>Then the retries arrive</h2>
+          <p>A supervisor re-runs the task. Two workers pick it up in parallel. The agent wakes
+             from a crash and tries again. Four more callers, one after another.</p>
+          <div class="scene">
+            <div class="wire"></div>
+            <div class="node agent"><div class="dot"></div><span>your agent</span></div>
             <div class="node gate"><div class="dot"></div><span>ratchet</span></div>
-            <div class="node vendor"><div class="dot"></div><span>vendor</span></div>
-            <div class="packet at-vendor ghost" data-packet>1</div>
-            <div class="packet second at-gate blocked" data-packet-2>2</div>
+            <div class="node vendor"><div class="dot"></div><span>the vendor</span></div>
+            <div class="packet at-vendor ghost tiny">1</div><div class="packet tiny s1 at-gate blocked">2</div><div class="packet tiny s2 at-gate blocked">3</div><div class="packet tiny s3 at-gate blocked">4</div><div class="packet tiny s4 at-gate blocked">5</div><div class="tally"><strong>1</strong>charge made</div>
           </div>
-          <div class="verdict stop">duplicate — do not act, replay the result</div>
+          <div class="verdict stop">duplicate — replay the result, do not act</div>
+        </div>
+      </div>
+
+      <div class="beat" data-beat="4">
+        <div class="beat-body">
+          <p class="eyebrow">The case nobody else admits to</p>
+          <h2>And when it crashes mid&#8209;charge?</h2>
+          <p>The lease expires with nothing reported. Ratchet does not guess. The effect becomes
+             <strong>indeterminate</strong> — a known unknown — and your policy for that effect
+             type decides what happens next. Never a silent retry.</p>
+          <div class="scene">
+            <div class="wire"></div>
+            <div class="node agent"><div class="dot"></div><span>your agent</span></div>
+            <div class="node gate"><div class="dot"></div><span>ratchet</span></div>
+            <div class="node vendor"><div class="dot"></div><span>the vendor</span></div>
+            <div class="packet at-gate unknown">?</div>
+          </div>
+          <div class="verdict unk">indeterminate — verify before you touch it</div>
+        </div>
+      </div>
+
+      <div class="beat" data-beat="5">
+        <div class="beat-body">
+          <p class="eyebrow">New: reversible effect groups</p>
+          <h2>Four steps in. Step&nbsp;five&nbsp;fails.</h2>
+          <p>Declare the steps as one unit of work and how to undo each. When it breaks, Ratchet
+             hands back the exact rollback plan — in reverse, because the last thing done is the
+             first thing to undo.</p>
+          <div class="unwind">
+            <div><em>undo</em> hotel.book <b>→ hotel.cancel</b></div>
+            <div><em>undo</em> flight.book <b>→ flight.cancel</b></div>
+            <div><em>undo</em> seat.reserve <b>→ seat.release</b></div>
+          </div>
+          <div class="verdict go">each undo is itself gated — no double refunds</div>
         </div>
       </div>
 
@@ -237,6 +269,38 @@
 
 <section>
   <div class="wrap">
+    <p class="eyebrow">Reversible effect groups</p>
+    <h2>Undo is the hard part</h2>
+    <p class="dim" style="max-width:64ch">
+      At-most-once tells you whether something happened. It does not help when three of five
+      steps happened and the fourth failed — and your customer is holding a flight for a trip
+      that was never paid for.
+    </p>
+    <div class="grid two" style="margin-top:1.75rem;align-items:start">
+      <div>
+        <pre><code id="grp-code"></code></pre>
+      </div>
+      <div>
+        <ul class="checks">
+          <li><strong>Reverse order, always.</strong> The last thing done is the first thing
+              undone, because undoing forward strands whatever depended on it.</li>
+          <li><strong>Every undo is itself gated.</strong> A compensation is just another effect,
+              so a retried rollback cannot double-refund. That is the failure that makes
+              hand-rolled rollback dangerous.</li>
+          <li><strong>It refuses to lie.</strong> A step that declared no way to undo itself is
+              reported irreversible, and the group settles <code>unwind_failed</code> rather than
+              claiming a clean rollback. An email cannot be unsent.</li>
+          <li><strong>Unknowns block the plan.</strong> If any step's outcome is uncertain, the
+              rollback stops until you verify it. Rolling back past a maybe is how half-undone
+              states are made.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
     <h2>Also, while we're holding the gate</h2>
     <div class="grid two" style="margin-top:1.5rem">
       <div class="card">
@@ -286,6 +350,23 @@
     <p class="small faint">
       Verified against Claude Code / Claude Desktop, Cursor, and any MCP client that speaks stdio
       or streamable HTTP. The REST API is provider-neutral — nothing about it assumes a model vendor.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <p class="eyebrow">Paying for it</p>
+    <h2>Card or crypto, never custody</h2>
+    <p class="dim">
+      Subscribe with a card, or top up prepaid credit with USDC on Solana. Crypto is
+      <strong>non-custodial</strong>: payments go straight to an address the operator controls and
+      Ratchet only watches the chain. It holds no key and takes custody of nothing.
+    </p>
+    <p class="small faint">
+      Quotes are struck in USD and the credit granted is the USD amount, so a price move between
+      quote and settlement cannot mint credit that was not paid for. Volatile assets are refused
+      rather than quoted at a guessed price — that is a treasury decision, not an engineering one.
     </p>
   </div>
 </section>

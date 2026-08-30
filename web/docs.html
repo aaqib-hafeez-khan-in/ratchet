@@ -168,6 +168,62 @@
   </div>
 </section>
 
+<section id="groups">
+  <div class="wrap narrow">
+    <p class="eyebrow">Reversible effect groups</p>
+    <h2>Rolling back a multi-step workflow</h2>
+    <p class="dim">
+      Declare several effects as one unit of work, and how to undo each. If the unit fails,
+      Ratchet returns the exact compensation plan.
+    </p>
+    <pre><code id="c-group"></code></pre>
+    <h3 style="margin-top:1.5rem">Then perform the plan</h3>
+    <pre><code id="c-unwind"></code></pre>
+    <div class="notice">
+      <strong>Each undo is itself gated.</strong> Use the
+      <code>suggested_idempotency_key</code> and set <code>compensates_effect_id</code>. That is
+      what stops a retried rollback from refunding twice — the failure that makes hand-rolled
+      compensation dangerous.
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Group state</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill go">open</span></td><td class="small">Accepting steps.</td></tr>
+          <tr><td><span class="pill go">committed</span></td><td class="small">Every step succeeded. Can still be unwound later.</td></tr>
+          <tr><td><span class="pill wait">unwinding</span></td><td class="small">Rolling back. Refuses new forward steps.</td></tr>
+          <tr><td><span class="pill go">unwound</span></td><td class="small">Everything reversible was reversed.</td></tr>
+          <tr><td><span class="pill stop">unwind_failed</span></td><td class="small">A step that succeeded had no compensation. Not a clean rollback, and it will not claim to be.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small faint">
+      Read <code>unresolved</code> before acting on a plan. If any step's outcome is unknown, the
+      rollback stops until you verify it — rolling back past a maybe is how a half-undone state
+      is created.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <p class="eyebrow">Payments</p>
+    <h2>Card, or crypto without custody</h2>
+    <p class="dim">Subscribe with a card, or top up prepaid credit on-chain.</p>
+    <pre><code id="c-crypto"></code></pre>
+    <ul class="checks">
+      <li><strong>Non-custodial.</strong> Ratchet holds no private key. Payments go directly to an
+          address the operator controls; Ratchet only watches the chain.</li>
+      <li><strong>Quoted in USD.</strong> Credit granted is the USD amount, never the token amount,
+          so a price move between quote and settlement cannot mint credit.</li>
+      <li><strong>Underpayment is never rounded up.</strong> A short transfer credits nothing and
+          waits for a human.</li>
+      <li><strong>Volatile assets are refused</strong> unless a price oracle is configured. Quoting
+          one without a live rate would mean inventing a price.</li>
+    </ul>
+  </div>
+</section>
+
 <section>
   <div class="wrap narrow">
     <h2>MCP</h2>

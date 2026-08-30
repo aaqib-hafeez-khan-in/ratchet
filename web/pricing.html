@@ -84,7 +84,22 @@
 
 <section>
   <div class="wrap narrow">
-    <h2>Billing status</h2>
+    <h2>How you pay</h2>
+    <div class="grid two" style="margin-top:1.25rem">
+      <div class="card">
+        <h3>Card</h3>
+        <p class="small dim">Subscribe monthly, or buy prepaid credit for overage. Card details
+          are entered on the payment provider's own page and never reach Ratchet.</p>
+      </div>
+      <div class="card">
+        <h3>Crypto — no custody</h3>
+        <p class="small dim">Top up prepaid credit with USDC on Solana. Payments go straight to an
+          address the operator controls; Ratchet holds no key and takes custody of nothing.
+          Quotes are struck in USD, so a price move cannot mint credit.</p>
+        <div id="crypto-status" class="small faint" style="margin-top:0.6rem">Checking…</div>
+      </div>
+    </div>
+    <h2 style="margin-top:2.5rem">Billing status</h2>
     <div id="provider" class="card"><p class="loading">Checking…</p></div>
   </div>
 </section>

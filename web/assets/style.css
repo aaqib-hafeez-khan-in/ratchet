@@ -245,135 +245,203 @@ ul.checks li::before {
 }
 
 
-/* ══════════════════════════════════════════════════ scroll-driven hero motion
-   A single agent request travels down the page as you scroll: it reaches the
-   gate, the gate answers, and a second caller is turned away. The point is to
-   show the mechanism, not to decorate — every frame corresponds to something
-   the API actually does.
+/* ══════════════════════════════════════════════ scroll-driven hero explainer
+   A single agent request travels to the gate and back while the reader
+   scrolls, then a retry storm arrives, then a crash, then a rollback. Every
+   frame corresponds to something the API actually does — the motion is the
+   explanation, not decoration on top of one.
 
-   Driven by scroll position, so the reader controls the pace and can stop on
-   any frame. Fully disabled under prefers-reduced-motion, where the same
-   content stands as a static diagram. */
+   Scroll-driven so the reader sets the pace and can stop anywhere. Under
+   prefers-reduced-motion the whole thing becomes a stacked static diagram. */
 
-.stage {
-  position: relative;
-  /* Four viewport-heights of scroll, one per beat of the story. */
-  height: 400vh;
-}
+.stage { position: relative; height: 620vh; }
+
 .stage-pin {
-  position: sticky;
-  top: 58px;
-  height: calc(100vh - 58px);
-  min-height: 520px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
+  position: sticky; top: 58px;
+  height: calc(100vh - 58px); min-height: 600px;
+  display: grid; place-items: center; overflow: hidden;
+  background:
+    radial-gradient(1100px 520px at 50% 18%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%),
+    var(--bg);
 }
-.stage-inner { width: min(940px, 92vw); }
+/* faint moving grid, purely atmospheric — sits behind everything */
+.stage-pin::before {
+  content: ""; position: absolute; inset: -2px;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 46px 46px;
+  opacity: 0.34;
+  mask-image: radial-gradient(circle at 50% 45%, #000 30%, transparent 78%);
+  -webkit-mask-image: radial-gradient(circle at 50% 45%, #000 30%, transparent 78%);
+}
+.stage-inner { width: min(1080px, 94vw); position: relative; z-index: 1; }
 
 .beat {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  opacity: 0;
-  transform: translateY(18px);
-  transition: opacity 0.45s ease, transform 0.45s ease;
-  pointer-events: none;
-  padding: 0 1.25rem;
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  opacity: 0; transform: translateY(26px) scale(0.985);
+  transition: opacity 0.5s cubic-bezier(.22,.8,.3,1), transform 0.5s cubic-bezier(.22,.8,.3,1);
+  pointer-events: none; padding: 0 1.25rem;
 }
 .beat[data-active="true"] { opacity: 1; transform: none; pointer-events: auto; }
+.beat-body { text-align: center; width: 100%; }
 
-.beat h2 { font-size: clamp(1.5rem, 4vw, 2.3rem); margin-bottom: 0.5rem; }
-.beat p  { color: var(--text-dim); max-width: 54ch; margin-inline: auto; text-align: center; }
-.beat-body { text-align: center; }
+.beat .eyebrow { margin-bottom: 0.6rem; }
+.beat h2 {
+  font-size: clamp(1.9rem, 5.2vw, 3.4rem);
+  line-height: 1.05; margin-bottom: 0.7rem;
+}
+.beat p {
+  color: var(--text-dim); max-width: 58ch; margin-inline: auto;
+  font-size: clamp(0.98rem, 1.6vw, 1.12rem);
+}
 
-/* progress rail */
-.rail {
-  position: absolute; left: 50%; transform: translateX(-50%); bottom: 1.5rem;
-  display: flex; gap: 0.5rem; z-index: 3;
-}
-.rail button {
-  width: 30px; height: 4px; border: none; border-radius: 2px; padding: 0;
-  background: var(--border-strong); cursor: pointer; transition: background 0.3s ease;
-}
-.rail button[aria-current="true"] { background: var(--accent); }
+/* ---------------------------------------------------------------- the scene */
+.scene { position: relative; margin: 2.6rem auto 0; max-width: 760px; height: 190px; }
 
-/* the travelling request */
-.track {
-  position: relative; height: 132px; margin: 1.75rem auto 0;
-  max-width: 620px;
-}
-.track-line {
+.wire {
   position: absolute; top: 50%; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, transparent, var(--border-strong) 12%, var(--border-strong) 88%, transparent);
+  background: linear-gradient(90deg, transparent, var(--border-strong) 10%, var(--border-strong) 90%, transparent);
 }
+/* energy pulse that runs along the wire while a beat is live */
+.wire::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 220px 100%; background-repeat: no-repeat;
+  opacity: 0; animation: none;
+}
+.beat[data-active="true"] .wire::after { opacity: 0.85; animation: wire-run 2.6s linear infinite; }
+@keyframes wire-run { from { background-position: -240px 0; } to { background-position: 780px 0; } }
+
 .node {
   position: absolute; top: 50%; transform: translate(-50%, -50%);
-  display: grid; place-items: center; gap: 0.4rem;
-  font-size: 0.74rem; color: var(--text-faint); white-space: nowrap;
+  display: grid; justify-items: center; gap: 0.55rem;
+  font-size: 0.76rem; color: var(--text-faint); white-space: nowrap; letter-spacing: 0.02em;
 }
 .node .dot {
-  width: 13px; height: 13px; border-radius: 50%;
+  width: 18px; height: 18px; border-radius: 50%;
   background: var(--bg); border: 2px solid var(--border-strong);
+  transition: box-shadow 0.4s ease, border-color 0.4s ease, transform 0.4s ease;
 }
-.node.gate .dot { border-color: var(--accent); background: var(--accent); }
-.node span { position: absolute; top: 20px; }
-.node.agent  { left: 8%; }
+.node span { position: absolute; top: 26px; }
+.node.agent  { left: 7%; }
 .node.gate   { left: 50%; }
-.node.vendor { left: 92%; }
+.node.vendor { left: 93%; }
+.node.gate .dot { border-color: var(--accent); background: var(--accent); }
+/* the gate visibly decides */
+.beat[data-active="true"] .node.gate .dot { animation: gate-pulse 2.2s ease-in-out infinite; }
+@keyframes gate-pulse {
+  0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
+  50%     { box-shadow: 0 0 0 14px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
 
 .packet {
-  position: absolute; top: 50%; left: 8%;
-  transform: translate(-50%, -50%) scale(0.9);
-  width: 30px; height: 30px; border-radius: 9px;
+  position: absolute; top: 50%; left: 7%;
+  transform: translate(-50%, -50%);
+  width: 38px; height: 38px; border-radius: 11px;
   background: var(--accent); color: var(--accent-ink);
-  display: grid; place-items: center; font-size: 0.7rem; font-weight: 700;
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 18%, transparent);
-  transition: left 0.6s cubic-bezier(.5,.05,.2,1), background 0.35s ease,
-              box-shadow 0.35s ease, opacity 0.35s ease, transform 0.35s ease;
+  display: grid; place-items: center; font-size: 0.78rem; font-weight: 700;
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 16%, transparent),
+              0 8px 24px color-mix(in srgb, var(--accent) 28%, transparent);
+  transition: left 0.75s cubic-bezier(.45,.05,.2,1), top 0.5s ease,
+              background 0.4s ease, box-shadow 0.4s ease, opacity 0.4s ease, transform 0.4s ease;
 }
 .packet.at-gate   { left: 50%; }
-.packet.at-vendor { left: 92%; }
+.packet.at-vendor { left: 93%; }
 .packet.blocked {
   background: var(--stop);
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--stop) 20%, transparent);
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--stop) 18%, transparent),
+              0 8px 24px color-mix(in srgb, var(--stop) 26%, transparent);
 }
-.packet.ghost { opacity: 0.34; }
+.packet.unknown {
+  background: var(--unknown);
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--unknown) 18%, transparent);
+  animation: unsure 1.7s ease-in-out infinite;
+}
+@keyframes unsure {
+  0%,100% { transform: translate(-50%,-50%) rotate(-4deg); }
+  50%     { transform: translate(-50%,-50%) rotate(4deg); }
+}
+.packet.ghost { opacity: 0.26; box-shadow: none; }
+.packet.tiny  { width: 26px; height: 26px; font-size: 0.66rem; border-radius: 8px; }
 
-/* second, duplicate caller */
-.packet.second {
-  top: calc(50% + 34px);
-  transition-delay: 0.15s;
+/* the retry swarm — stacked callers all bouncing off the gate */
+.packet.s1 { top: calc(50% - 46px); transition-delay: 0.05s; }
+.packet.s2 { top: calc(50% - 16px); transition-delay: 0.13s; }
+.packet.s3 { top: calc(50% + 16px); transition-delay: 0.21s; }
+.packet.s4 { top: calc(50% + 46px); transition-delay: 0.29s; }
+
+/* the counter that never moves — the whole point, made visible */
+.tally {
+  position: absolute; right: -4px; top: 50%; transform: translateY(-50%);
+  text-align: right; font-size: 0.72rem; color: var(--text-faint);
 }
+.tally strong {
+  display: block; font-size: clamp(1.8rem, 4vw, 2.6rem); color: var(--ok);
+  font-variant-numeric: tabular-nums; line-height: 1;
+}
+@media (max-width: 720px) { .tally { display: none; } }
+
+/* rollback beat: steps unwinding in reverse */
+.unwind { display: grid; gap: 0.5rem; max-width: 430px; margin: 1.75rem auto 0; }
+.unwind div {
+  display: flex; align-items: center; gap: 0.7rem;
+  padding: 0.6rem 0.9rem; border: 1px solid var(--border); border-radius: 9px;
+  background: var(--bg-raised); font-size: 0.88rem;
+  opacity: 0; transform: translateX(-14px);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+.beat[data-active="true"] .unwind div { opacity: 1; transform: none; }
+.beat[data-active="true"] .unwind div:nth-child(1) { transition-delay: 0.25s; }
+.beat[data-active="true"] .unwind div:nth-child(2) { transition-delay: 0.45s; }
+.beat[data-active="true"] .unwind div:nth-child(3) { transition-delay: 0.65s; }
+.unwind em { color: var(--stop); font-style: normal; font-weight: 600; }
+.unwind b  { color: var(--ok); font-weight: 600; margin-left: auto; }
 
 .verdict {
-  display: inline-flex; align-items: center; gap: 0.5rem;
-  margin-top: 1.5rem; padding: 0.45rem 0.9rem;
+  display: inline-flex; align-items: center; gap: 0.55rem;
+  margin-top: 1.9rem; padding: 0.55rem 1.15rem;
   border: 1px solid currentColor; border-radius: 999px;
-  font-size: 0.85rem; font-weight: 600;
-  opacity: 0; transform: translateY(6px);
-  transition: opacity 0.4s ease 0.35s, transform 0.4s ease 0.35s;
+  font-size: 0.92rem; font-weight: 600;
+  opacity: 0; transform: translateY(8px);
+  transition: opacity 0.45s ease 0.4s, transform 0.45s ease 0.4s;
 }
 .beat[data-active="true"] .verdict { opacity: 1; transform: none; }
+.verdict::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor;
+}
 .verdict.go   { color: var(--ok); }
 .verdict.stop { color: var(--stop); }
 .verdict.unk  { color: var(--unknown); }
 
+/* progress rail */
+.rail {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: 1.6rem;
+  display: flex; gap: 0.45rem; z-index: 3;
+}
+.rail button {
+  width: 34px; height: 4px; border: none; border-radius: 2px; padding: 0;
+  background: var(--border-strong); cursor: pointer;
+  transition: background 0.3s ease, transform 0.3s ease;
+}
+.rail button[aria-current="true"] { background: var(--accent); transform: scaleY(1.8); }
+
 @media (prefers-reduced-motion: reduce) {
-  /* No pinning, no travel: every beat becomes a plain stacked section. */
   .stage { height: auto; }
-  .stage-pin { position: static; height: auto; display: block; }
+  .stage-pin { position: static; height: auto; display: block; background: none; }
+  .stage-pin::before { display: none; }
   .beat {
     position: static; opacity: 1; transform: none; pointer-events: auto;
-    padding: 2.5rem 1.25rem; border-top: 1px solid var(--border);
+    padding: 2.75rem 1.25rem; border-top: 1px solid var(--border);
   }
   .beat:first-child { border-top: none; }
   .rail { display: none; }
-  .packet { transition: none; }
-  .verdict { opacity: 1; transform: none; transition: none; }
+  .packet, .wire::after, .node.gate .dot { animation: none !important; transition: none; }
+  .verdict, .unwind div { opacity: 1; transform: none; transition: none; }
 }
 @media (max-width: 640px) {
-  .stage { height: 340vh; }
+  .stage { height: 520vh; }
+  .scene { height: 150px; }
   .node span { font-size: 0.68rem; }
 }
