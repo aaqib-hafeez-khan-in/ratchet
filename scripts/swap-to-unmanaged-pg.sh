@@ -30,8 +30,14 @@ else
     --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 10
 fi
 
-step "Attach it (this overwrites DATABASE_URL on ${APP})"
-fly postgres attach "${NEW_PG}" --app "${APP}" --yes 2>&1 | tail -3
+step "Attach it (this replaces DATABASE_URL on ${APP})"
+# `attach` refuses to overwrite an existing DATABASE_URL, so clear it first.
+# --stage means the app is not restarted into a window with no database.
+fly secrets unset DATABASE_URL --app "${APP}" --stage 2>&1 | tail -1 || true
+# Attaching provisions a dedicated database and user rather than handing the
+# app superuser credentials, which is why this is preferred over setting
+# DATABASE_URL to the cluster's own connection string by hand.
+fly postgres attach "${NEW_PG}" --app "${APP}" --yes 2>&1 | tail -4
 
 step "Redeploy so both processes pick up the new DATABASE_URL"
 # Migrations run on API boot inside one transaction under an advisory lock, so
