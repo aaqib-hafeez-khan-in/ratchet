@@ -80,6 +80,41 @@ Fly token, both database passwords). **None present.** One regex hit was the lit
 `npm audit --omit=dev`: **0 vulnerabilities**, 9 production dependencies. The published
 `ratchet-mcp` package has **zero** dependencies and carries no database access or server secret.
 
+## Second pass — a vulnerability found and fixed
+
+**HTML injection in transactional email (introduced, then fixed the same day).**
+The email templates interpolated caller-controlled values — an API key name, effect type names,
+a receipt method — directly into HTML with no escaping. A crafted key name injected arbitrary
+markup into a message that arrives looking like it came from Ratchet. Most clients strip
+`<script>`, but they render markup, so this was a working phishing primitive: an attacker could
+place a convincing "verify your account" link inside a genuine Ratchet alert.
+
+Fixed by escaping every interpolated value in the HTML branch. The plain-text branch is not
+markup and is deliberately left alone. Verified against four payload shapes across every
+interpolation point.
+
+Worth recording how it was nearly missed: the first check used `/onerror=/` as the signal, which
+still matched inside the *escaped* output and reported a false positive. The corrected test asks
+the only question that matters — did a payload create a tag that survives — rather than whether a
+suspicious substring appears.
+
+**Checked and clean on the second pass:**
+
+| Area | Result |
+|---|---|
+| Console rendering of attacker-controlled fields | Every one of 21 fields wrapped in `esc()`; workspace name uses `textContent` |
+| Other page scripts | Only render our own strings, through `highlight()` which escapes first |
+| State-changing GET requests | None — every `GET` is a read, so `SameSite=Lax` covers CSRF |
+| New surfaces (robots, sitemap, 404, og.svg) | No secrets, no wallet addresses |
+| Wallet addresses on marketing pages | Absent; they appear only on `/v1/billing/crypto/assets`, where a payer needs them |
+| CSP with new SVG assets | Unchanged and sufficient — same-origin `img-src 'self'` |
+
+**One unreproduced test failure.** A single run of `isolation.test.ts` reported
+"the plaintext secret is never stored" as failing, in a run immediately following a schema
+migration. It did not reproduce across five consecutive runs, nor when interleaved with the file
+that preceded it. Recorded here rather than dismissed: a flaky assertion about key storage is
+worth watching, and if it recurs it should be treated as a real finding until explained.
+
 ## Residual risks — unchanged and still true
 
 | Risk | Status |

@@ -122,6 +122,32 @@ export const MCP_TOOLS: McpToolDef[] = [
     },
   },
   {
+    name: 'ratchet_heartbeat_effect',
+    title: 'Say you are still working on an effect',
+    scope: 'effects:report',
+    readOnly: false,
+    description:
+      'Call this periodically during a long action you were authorised to perform, before the ' +
+      'lease expires. It tells Ratchet you are alive and extends your hold.\n' +
+      'Use it when work turns out to take longer than the lease you asked for — a slow vendor, ' +
+      'a large export, a retrying upload. Without it, the lease expires while you are still ' +
+      'working, the effect is recorded as having an UNKNOWN outcome, and your report is then ' +
+      'refused.\n' +
+      'If it fails with lease_expired or lease_lost, STOP. Your hold is gone and the outcome is ' +
+      'already recorded as unknown. Do not keep going and do not retry the action — call ' +
+      'ratchet_begin_effect to find out where things actually stand.',
+    inputSchema: {
+      type: 'object',
+      required: ['effect_id', 'lease_token'],
+      properties: {
+        effect_id: { type: 'string' },
+        lease_token: { type: 'string' },
+        extend_seconds: { type: 'integer', minimum: 5, maximum: 3600,
+          description: 'How much longer you need, from now. Clamped to the policy maximum.' },
+      },
+    },
+  },
+  {
     name: 'ratchet_check_effect',
     title: 'Check whether an action has already been done',
     scope: 'effects:read',

@@ -1,0 +1,10 @@
+# Ratchet — https://ratchet-gate.fly.dev
+User-agent: *
+Allow: /
+# The console and the API are per-workspace and behind auth; crawling them
+# produces nothing useful and generates rate-limited noise.
+Disallow: /console
+Disallow: /v1/
+Disallow: /mcp
+
+Sitemap: https://ratchet-gate.fly.dev/sitemap.xml

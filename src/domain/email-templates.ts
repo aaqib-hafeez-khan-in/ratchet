@@ -14,6 +14,19 @@ import { config } from '../lib/config.js';
 
 const base = () => config.publicUrl.replace(/\/$/, '');
 
+/**
+ * Escape a value before it goes into email HTML.
+ *
+ * Everything interpolated here is caller-controlled — an API key name, an
+ * effect type — and an email is rendered as HTML by the recipient's client.
+ * Unescaped, a crafted key name injects markup into a message that appears to
+ * come from Ratchet, which is a phishing primitive even where the client strips
+ * scripts. The plain-text part needs no escaping; this is only for the HTML.
+ */
+const esc = (v: unknown): string =>
+  String(v).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+
 function wrap(title: string, body: string, action: { label: string; href: string }): string {
   // Table layout and inline styles, because mail clients discard most CSS.
   // Plain text is the primary format; this is the courtesy version.
@@ -25,7 +38,7 @@ function wrap(title: string, body: string, action: { label: string; href: string
   <div style="font:600 15px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#14171c">Ratchet</div>
 </td></tr>
 <tr><td style="padding:0 26px 4px">
-  <h1 style="margin:12px 0 10px;font:640 21px/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#14171c">${title}</h1>
+  <h1 style="margin:12px 0 10px;font:640 21px/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#14171c">${esc(title)}</h1>
 </td></tr>
 <tr><td style="padding:0 26px 18px;font:15px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#3d4450">
   ${body}
@@ -71,7 +84,7 @@ Manage alerts: ${base()}/console`;
   const html = wrap(subject,
     `<p style="margin:0 0 12px"><strong>${plural(n, 'effect')}</strong> in your workspace ${n === 1 ? 'has' : 'have'} an unknown outcome.</p>
      <p style="margin:0 0 12px">An agent took a lease, then never reported back — it crashed, timed out, or lost its connection partway. Ratchet does not guess, so ${n === 1 ? 'it is' : 'they are'} recorded as <strong>indeterminate</strong> rather than quietly retried.</p>
-     <p style="margin:0 0 12px;color:#5b626d">Affected: <code style="background:#f6f7f9;padding:2px 6px;border-radius:4px">${list}</code></p>
+     <p style="margin:0 0 12px;color:#5b626d">Affected: <code style="background:#f6f7f9;padding:2px 6px;border-radius:4px">${esc(list)}</code></p>
      <p style="margin:0 0 12px">The real-world action may or may not have happened. Until someone checks, no agent can safely repeat it — and Ratchet will keep refusing to let them.</p>
      <p style="margin:0"><strong>Check the vendor, then record what you find.</strong> Everything unblocks from there.</p>`,
     { label: 'Resolve these effects', href: `${base()}/console` });
@@ -155,7 +168,7 @@ Manage alerts: ${base()}/console`;
     exhausted
       ? `<p style="margin:0 0 12px">You have used all <strong>${included.toLocaleString()}</strong> gated effects included this month.</p>
          ${creditMicros > 0
-           ? `<p style="margin:0">Overage is drawing on your <strong>${credit}</strong> of prepaid credit.</p>`
+           ? `<p style="margin:0">Overage is drawing on your <strong>${esc(credit)}</strong> of prepaid credit.</p>`
            : `<p style="margin:0 0 12px">With no prepaid credit, <strong>new effects are being refused</strong>.</p>
               <p style="margin:0;color:#5b626d">Duplicate suppression still works — effects you already gated keep replaying their result, so nothing your agents already did can happen twice because of this.</p>`}`
       : `<p style="margin:0"><strong>${remaining.toLocaleString()}</strong> of ${included.toLocaleString()} included gated effects remain this month. Prepaid credit: <strong>${credit}</strong>.</p>`,
@@ -174,7 +187,7 @@ New balance: $${(balanceMicros / 1e6).toFixed(2)}.
 
 Manage alerts: ${base()}/console`;
   const html = wrap(subject,
-    `<p style="margin:0 0 12px"><strong>${amt}</strong> of prepaid credit was added via ${method}.</p>
+    `<p style="margin:0 0 12px"><strong>${esc(amt)}</strong> of prepaid credit was added via ${esc(method)}.</p>
      <p style="margin:0">New balance: <strong>$${(balanceMicros / 1e6).toFixed(2)}</strong>.</p>`,
     { label: 'View ledger', href: `${base()}/console` });
   return { subject, text, html };
@@ -193,8 +206,8 @@ If this was not you, revoke it now — a key is usable until it is revoked.
 
 Manage alerts: ${base()}/console`;
   const html = wrap(subject,
-    `<p style="margin:0 0 12px">An API key named <strong>${name}</strong> (<code>${prefix}…</code>) was created on your workspace.</p>
-     <p style="margin:0 0 12px;color:#5b626d">Scopes: ${scopes.join(', ')}</p>
+    `<p style="margin:0 0 12px">An API key named <strong>${esc(name)}</strong> (<code>${esc(prefix)}…</code>) was created on your workspace.</p>
+     <p style="margin:0 0 12px;color:#5b626d">Scopes: ${esc(scopes.join(', '))}</p>
      <p style="margin:0"><strong>If this was not you, revoke it now.</strong> A key works until it is revoked.</p>`,
     { label: 'Review API keys', href: `${base()}/console` });
   return { subject, text, html };

@@ -1,7 +1,7 @@
 import { getPool } from '../db/pool.js';
 import { unwindGroup, getGroup } from '../domain/groups.js';
 import { ApiError, errors } from '../lib/errors.js';
-import { beginEffect, reportEffect, resolveEffect, lookupEffect, listEffects } from '../domain/effects.js';
+import { beginEffect, reportEffect, extendLease, resolveEffect, lookupEffect, listEffects } from '../domain/effects.js';
 import { getPolicy } from '../domain/policy.js';
 import { getWorkspace, requireScope, type AuthContext, type Scope } from '../domain/auth.js';
 import { getSpendSummary } from '../domain/budget.js';
@@ -58,6 +58,17 @@ export async function callTool(
         failureReason: args.failure_reason,
         actualCostMicros: args.actual_cost_micros ?? null,
       }));
+
+    case 'ratchet_heartbeat_effect': {
+      const r = await extendLease({
+        workspaceId: ctx.workspaceId, effectId: args.effect_id,
+        leaseToken: args.lease_token, extendSeconds: args.extend_seconds ?? null,
+      });
+      return {
+        effect_id: r.effectId, lease_expires_at: r.leaseExpiresAt, attempt: r.attempt,
+        next_step: 'Lease extended. Keep working, and heartbeat again before this expires.',
+      };
+    }
 
     case 'ratchet_check_effect': {
       const e = await lookupEffect(getPool(), ctx.workspaceId, args.effect_type, args.idempotency_key);

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { beginEffect, reportEffect, resolveEffect, cancelEffect,
+import { beginEffect, reportEffect, extendLease, resolveEffect, cancelEffect,
          decideApproval, getEffect, lookupEffect, listEffects } from '../../domain/effects.js';
 import { getPool } from '../../db/pool.js';
 import { errors } from '../../lib/errors.js';
@@ -110,6 +110,39 @@ export default async function effectRoutes(app: FastifyInstance) {
       failureReason: b.failure_reason,
       actualCostMicros: b.actual_cost_micros ?? null,
     }));
+  });
+
+  // ------------------------------------------------------------------ extend
+  app.post('/effects/:effectId/heartbeat', {
+    preHandler: app.requireKey('effects:report'),
+    schema: {
+      tags: TAG, operationId: 'extendLease',
+      summary: 'Tell Ratchet you are still working',
+      description:
+        'Extends a lease you still hold. Use it for work that may outrun its lease: keep the '
+        + 'lease short so a real crash is caught quickly, and heartbeat while you are alive. '
+        + 'An expired or superseded lease cannot be revived — by then the outcome is already '
+        + 'recorded as unknown, and erasing that would defeat the point.',
+      params: { type: 'object', required: ['effectId'], properties: { effectId: { type: 'string' } } },
+      body: {
+        type: 'object', required: ['lease_token'], additionalProperties: false,
+        properties: {
+          lease_token: { type: 'string', minLength: 8, maxLength: 128 },
+          extend_seconds: { type: 'integer', minimum: 5, maximum: 3600,
+            description: 'Fresh lease length from now. Clamped to the policy maximum.' },
+        },
+      },
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => {
+    const b = req.body as { lease_token: string; extend_seconds?: number };
+    const r = await extendLease({
+      workspaceId: req.auth!.workspaceId,
+      effectId: (req.params as { effectId: string }).effectId,
+      leaseToken: b.lease_token,
+      extendSeconds: b.extend_seconds ?? null,
+    });
+    return { effect_id: r.effectId, lease_expires_at: r.leaseExpiresAt, attempt: r.attempt };
   });
 
   // ---------------------------------------------------------------- resolve

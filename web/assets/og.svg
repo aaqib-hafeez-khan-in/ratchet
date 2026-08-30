@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0e1014"/><stop offset="1" stop-color="#151a24"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#262c36" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#grid)" opacity="0.5"/>
+  <g transform="translate(80,72)">
+    <rect width="46" height="46" rx="11" fill="#1c5cff"/>
+    <path d="M23 9 36 17v14L23 39 10 31V17L23 9Z" fill="none" stroke="#fff" stroke-width="2.6" stroke-linejoin="round"/>
+    <path d="M16.5 23.5 21 28l9.5-10" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="62" y="32" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif"
+          font-size="27" font-weight="650" fill="#e8ebf0">Ratchet</text>
+  </g>
+  <text x="80" y="270" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif"
+        font-size="72" font-weight="660" fill="#e8ebf0">Your agent retried.</text>
+  <text x="80" y="356" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif"
+        font-size="72" font-weight="660" fill="#e8ebf0">Did the email send twice?</text>
+  <text x="80" y="432" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif"
+        font-size="29" fill="#a2abb9">An effect gate for AI agents — ask before you act, so the</text>
+  <text x="80" y="474" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif"
+        font-size="29" fill="#a2abb9">same side effect happens at most once.</text>
+  <g transform="translate(80,530)">
+    <rect width="184" height="42" rx="21" fill="none" stroke="#4ec98b" stroke-width="1.6"/>
+    <circle cx="26" cy="21" r="4.5" fill="#4ec98b"/>
+    <text x="42" y="27" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif"
+          font-size="17" font-weight="600" fill="#4ec98b">execute</text>
+    <rect x="204" width="214" height="42" rx="21" fill="none" stroke="#ff8b74" stroke-width="1.6"/>
+    <circle cx="230" cy="21" r="4.5" fill="#ff8b74"/>
+    <text x="246" y="27" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif"
+          font-size="17" font-weight="600" fill="#ff8b74">duplicate</text>
+    <rect x="438" width="250" height="42" rx="21" fill="none" stroke="#b39dff" stroke-width="1.6"/>
+    <circle cx="464" cy="21" r="4.5" fill="#b39dff"/>
+    <text x="480" y="27" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif"
+          font-size="17" font-weight="600" fill="#b39dff">indeterminate</text>
+  </g>
+</svg>

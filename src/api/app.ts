@@ -216,6 +216,14 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   app.setNotFoundHandler({
     preHandler: app.rateLimit(),
   }, (req, reply) => {
+    // A browser navigating to a bad URL should see a page, not a JSON blob that
+    // looks like the site is broken. API clients still get the machine-readable
+    // error they can act on.
+    const wantsHtml = String(req.headers.accept ?? '').includes('text/html')
+      && !req.url.startsWith('/v1') && !req.url.startsWith('/mcp');
+    if (wantsHtml) {
+      return reply.code(404).type('text/html; charset=utf-8').sendFile('404.html');
+    }
     reply.code(404).send({
       error: { code: 'not_found', message: `No route for ${req.method} ${req.url}` },
     });

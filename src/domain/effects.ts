@@ -448,6 +448,69 @@ function deniedResult(
   };
 }
 
+/**
+ * Extend a lease the caller still holds — a heartbeat for slow work.
+ *
+ * Without this, an agent has to guess the duration up front and is punished
+ * either way. Guess short and a healthy agent's effect goes `indeterminate`
+ * while it is still working, and its honest report is then rejected. Guess long
+ * and a genuine crash goes undetected for the whole padding.
+ *
+ * A heartbeat separates the two: leases stay short, so a real crash is caught
+ * quickly, while an agent that is alive keeps saying so. It only ever extends —
+ * an expired or superseded lease cannot be revived, because by then the effect
+ * may already have been reaped and a newer attempt may hold it.
+ */
+export async function extendLease(args: {
+  workspaceId: string; effectId: string; leaseToken: string; extendSeconds?: number | null;
+}): Promise<{ effectId: string; leaseExpiresAt: string; attempt: number }> {
+  const now = new Date();
+  return withTx(async (tx) => {
+    const { rows } = await tx.query<EffectRow>(
+      `${SELECT_EFFECT} WHERE id=$1 AND workspace_id=$2 FOR UPDATE`,
+      [args.effectId, args.workspaceId]);
+    const effect = rows[0];
+    if (!effect) throw errors.notFound('No such effect in this workspace.');
+
+    if (effect.state !== 'pending') {
+      throw errors.conflict('invalid_state',
+        `Only a leased effect can be extended; this one is "${effect.state}".`,
+        { state: effect.state });
+    }
+    // The fencing token still governs: a stalled holder must not be able to
+    // extend a lease that has already passed to someone else.
+    if (effect.lease_token !== args.leaseToken) {
+      throw errors.conflict('lease_lost',
+        'Your lease was superseded by a newer attempt and cannot be extended. Do not assume '
+        + 'your work counted; re-run begin to learn the current state.',
+        { attempt: effect.attempt });
+    }
+    if (effect.lease_expires_at && effect.lease_expires_at <= now) {
+      throw errors.conflict('lease_expired',
+        'This lease already expired, so the outcome is recorded as unknown. Extending it now '
+        + 'would erase that — re-run begin to see what the policy for this effect type allows.',
+        { expiredAt: effect.lease_expires_at.toISOString() });
+    }
+
+    const policy = await getPolicy(tx, args.workspaceId, effect.effect_type);
+    const seconds = clampLease(args.extendSeconds, policy);
+    const expiresAt = new Date(now.getTime() + seconds * 1000);
+
+    const { rows: updated } = await tx.query<{ lease_expires_at: Date; attempt: number }>(
+      `UPDATE effects SET lease_expires_at = $2, updated_at = now()
+        WHERE id = $1 AND lease_token = $3
+        RETURNING lease_expires_at, attempt`,
+      [effect.id, expiresAt, args.leaseToken]);
+    const row = updated[0]!;
+
+    return {
+      effectId: effect.id,
+      leaseExpiresAt: row.lease_expires_at.toISOString(),
+      attempt: row.attempt,
+    };
+  });
+}
+
 // --------------------------------------------------------------------- report
 
 export interface ReportResult {
