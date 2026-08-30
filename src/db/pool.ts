@@ -18,8 +18,13 @@ export function getPool(): pg.Pool {
       max: config.dbPoolMax,
       ssl: config.dbSsl ? { rejectUnauthorized: true } : undefined,
       application_name: 'ratchet',
-      statement_timeout: 10_000,
-      idle_in_transaction_session_timeout: 15_000,
+      // statement_timeout and idle_in_transaction_session_timeout are NOT set
+      // here. `pg` sends them as connection startup parameters, and PgBouncer
+      // in transaction-pooling mode — what most managed Postgres endpoints put
+      // in front of the database — rejects the connection outright with
+      // "unsupported startup parameter". They are applied per-transaction in
+      // withTx() instead, via SET LOCAL, which is pooler-safe and equally
+      // effective for the queries that matter.
     });
     pool.on('error', (err) => {
       // A pooled idle client died (e.g. database restart). Never crash the
@@ -38,11 +43,21 @@ export async function closePool(): Promise<void> {
   }
 }
 
-/** Run `fn` inside a transaction, rolling back on any throw. */
+/**
+ * Run `fn` inside a transaction, rolling back on any throw.
+ *
+ * Timeouts are applied here with SET LOCAL rather than as connection startup
+ * parameters, so this works identically against a direct Postgres and behind a
+ * transaction-pooling PgBouncer. SET LOCAL is scoped to the transaction and
+ * released with it, so no state leaks back into the pool.
+ */
 export async function withTx<T>(fn: (tx: pg.PoolClient) => Promise<T>): Promise<T> {
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
+    await client.query(
+      `SET LOCAL statement_timeout = ${config.statementTimeoutMs}; ` +
+      `SET LOCAL idle_in_transaction_session_timeout = ${config.idleInTxTimeoutMs}`);
     const out = await fn(client);
     await client.query('COMMIT');
     return out;

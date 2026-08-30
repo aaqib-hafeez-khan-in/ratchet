@@ -8,8 +8,8 @@
 #
 # Both processes ship from one image. `fly deploy` deploys both.
 
-app = "ratchet"
-primary_region = "iad"
+app = "ratchet-gate"
+primary_region = "sjc"
 
 [build]
   dockerfile = "Dockerfile"

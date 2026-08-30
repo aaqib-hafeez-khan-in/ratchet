@@ -40,6 +40,10 @@ export const config = {
 
   databaseUrl: req('DATABASE_URL', 'postgres://ratchet:ratchet@127.0.0.1:5433/ratchet'),
   dbPoolMax: int('DB_POOL_MAX', 10),
+  // Applied per transaction via SET LOCAL, never as a startup parameter — a
+  // pooled endpoint rejects the latter.
+  statementTimeoutMs: int('DB_STATEMENT_TIMEOUT_MS', 10_000),
+  idleInTxTimeoutMs: int('DB_IDLE_IN_TX_TIMEOUT_MS', 15_000),
   dbSsl: bool('DB_SSL', false),
 
   // Used to derive the API-key lookup pepper and console session ids.
