@@ -18,6 +18,13 @@ tampered bodies, wrong-secret signatures, stale timestamps, and missing headers 
 with `400`; and the credited balance was then spent on a gated effect past the free allowance,
 drawing exactly the plan's 200-micro overage rate.
 
+**Now verified against the deployed instance**, not just locally: Stripe delivered
+`checkout.session.completed` over the public internet to `ratchet-gate.fly.dev`, signed with the
+endpoint's own secret, and $25.00 was credited. A real refund was then issued through the Stripe
+API, and `charge.refunded` reversed it to zero. The refund was $30 against a $25 credit, so the
+"never reverse more than was credited" guard was exercised by a real payload rather than a fixture.
+All deliveries reported `pending_webhooks=0` — none failed or retried.
+
 **Not yet exercised:** a live-mode key. Nothing in the code path differs between test and live
 keys — Stripe's API is identical and the key is passed through unchanged — but that is reasoning,
 not evidence, and it is recorded here as such. Before switching to `sk_live_`, run one real
@@ -32,10 +39,10 @@ key and the webhook secret are required, because taking a payment that cannot be
 leave a customer charged and uncredited. The API response and `npm run stripe:check` name the
 missing variable rather than silently falling back to the test adapter.
 
-**Refunds, disputes, and subscriptions are not implemented.** Only one-time credit purchases are.
-A refund issued in the Stripe dashboard does **not** claw back credit — that requires handling
-`charge.refunded` and writing a compensating ledger entry. Do this before taking live payments
-from anyone who might ask for one.
+**Refunds and disputes are implemented and verified in production.** `charge.refunded` and
+`charge.dispute.created` reverse credit through a compensating ledger entry, capped at what was
+credited, idempotent on the event id. **Subscriptions are not implemented** — only one-time credit
+purchases. Recurring plan billing would need `customer.subscription.*` handling and is not present.
 
 ## 1b. Sales tax and VAT are not collected by default
 
