@@ -156,6 +156,14 @@ export default async function workspaceRoutes(app: FastifyInstance) {
     const scopes: Scope[] = (b.scopes ?? DEFAULT_AGENT_SCOPES).filter(isScope);
     const key = await createApiKey(getPool(), workspaceId, b.name, scopes, b.daily_budget_micros ?? null);
     await audit(getPool(), workspaceId, 'key.created', actorOf(req), key.id, { name: b.name, scopes });
+    // A security notice, so a key minted by someone else is visible immediately.
+    void (async () => {
+      const [{ queueEmail }, tpl] = await Promise.all([
+        import('../../domain/email.js'), import('../../domain/email-templates.js')]);
+      const t = tpl.keyCreated(b.name, key.prefix, scopes);
+      await queueEmail({ workspaceId, category: 'security',
+        dedupeKey: `key:${key.id}`, subject: t.subject, text: t.text, html: t.html });
+    })().catch(() => {});
     reply.code(201);
     return { id: key.id, prefix: key.prefix, api_key: key.plaintext, scopes };
   });
@@ -336,6 +344,62 @@ export default async function workspaceRoutes(app: FastifyInstance) {
     schema: { tags: ['Webhooks'], operationId: 'listWebhookDeliveries', summary: 'Recent delivery attempts',
       response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses } },
   }, async (req) => ({ data: await listDeliveries(getPool(), wsOf(req)) }));
+
+  // ---------------------------------------------------------------- email
+  app.get('/email/preferences', {
+    preHandler: app.requireConsole('workspace:read'),
+    schema: {
+      tags: ['Workspace'], operationId: 'getEmailPreferences',
+      summary: 'Which alerts this workspace receives',
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => {
+    const { getPreferences, emailEnabled } = await import('../../domain/email.js');
+    const { rows } = await getPool().query<{ owner_email: string; email_suppressed_at: Date | null;
+                                             email_suppress_reason: string | null }>(
+      'SELECT owner_email, email_suppressed_at, email_suppress_reason FROM workspaces WHERE id=$1',
+      [wsOf(req)]);
+    return {
+      to: rows[0]?.owner_email ?? null,
+      suppressed: rows[0]?.email_suppressed_at !== null,
+      suppress_reason: rows[0]?.email_suppress_reason ?? null,
+      delivery_configured: emailEnabled(),
+      preferences: await getPreferences(getPool(), wsOf(req)),
+    };
+  });
+
+  app.put('/email/preferences/:category', {
+    preHandler: app.requireConsole('workspace:read'),
+    schema: {
+      tags: ['Workspace'], operationId: 'setEmailPreference',
+      summary: 'Turn one alert category on or off',
+      params: { type: 'object', required: ['category'], properties: { category: { type: 'string' } } },
+      body: {
+        type: 'object', required: ['enabled'], additionalProperties: false,
+        properties: { enabled: { type: 'boolean' } },
+      },
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => {
+    const { setPreference, CATEGORIES } = await import('../../domain/email.js');
+    const category = (req.params as { category: string }).category;
+    if (!(category in CATEGORIES)) throw errors.invalid('Unknown alert category.');
+    const enabled = (req.body as { enabled: boolean }).enabled;
+    await setPreference(wsOf(req), category as never, enabled);
+    return { category, enabled };
+  });
+
+  app.get('/email/messages', {
+    preHandler: app.requireConsole('workspace:read'),
+    schema: {
+      tags: ['Workspace'], operationId: 'listEmails',
+      summary: 'Recent alerts sent to this workspace',
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => {
+    const { listEmails } = await import('../../domain/email.js');
+    return { data: await listEmails(getPool(), wsOf(req)) };
+  });
 
   // ------------------------------------------------------------ observability
   app.get('/usage/ledger', {

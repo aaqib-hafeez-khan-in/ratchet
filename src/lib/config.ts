@@ -158,6 +158,24 @@ export const config = {
     },
   },
 
+  /**
+   * Transactional email. Defaults to 'log', which writes the message to stdout
+   * and sends nothing — the same shape as the test billing adapter, so the
+   * whole queue and retry path runs without credentials.
+   */
+  email: {
+    get provider() { return process.env.EMAIL_PROVIDER ?? 'log'; },
+    get apiKey() { return process.env.EMAIL_API_KEY ?? ''; },
+    get from() { return process.env.EMAIL_FROM ?? 'Ratchet <alerts@ratchet-gate.fly.dev>'; },
+    get replyTo() { return process.env.EMAIL_REPLY_TO ?? ''; },
+    get maxAttempts() {
+      return Number.parseInt(process.env.EMAIL_MAX_ATTEMPTS ?? '5', 10);
+    },
+    get pollIntervalMs() {
+      return Number.parseInt(process.env.EMAIL_POLL_INTERVAL_MS ?? '5000', 10);
+    },
+  },
+
   consoleSessionTtlHours: int('CONSOLE_SESSION_TTL_HOURS', 72),
 } as const;
 

@@ -157,6 +157,26 @@ export async function addCredit(
   return { applied: true, balanceMicros: balance };
 }
 
+/**
+ * Receipt for a credit top-up. Fire-and-forget after the transaction commits:
+ * a mail problem must never roll back money that was actually received.
+ */
+export function queueReceipt(
+  workspaceId: string, amountMicros: number, method: string, balanceMicros: number,
+): void {
+  void (async () => {
+    const [{ queueEmail }, tpl] = await Promise.all([
+      import('./email.js'), import('./email-templates.js'),
+    ]);
+    const t = tpl.receipt(amountMicros, method, balanceMicros);
+    await queueEmail({
+      workspaceId, category: 'billing',
+      dedupeKey: `receipt:${method}:${amountMicros}:${Date.now()}`,
+      subject: t.subject, text: t.text, html: t.html,
+    });
+  })().catch(() => { /* a receipt is not worth failing a payment over */ });
+}
+
 export async function listLedger(
   db: Db, workspaceId: string, limit = 50,
 ): Promise<Array<{

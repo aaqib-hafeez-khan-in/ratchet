@@ -13,6 +13,7 @@ import { closePool, getPool } from '../db/pool.js';
 import { sweepExpiredLeases, collectExpiredEffects, collectStaleRecords } from './reaper.js';
 import { deliverDue } from './webhooks.js';
 import { watchChainOnce, expireQuotes } from './chain.js';
+import { deliverEmails, generateAlerts } from './email.js';
 import { startActivityFlusher, stopActivityFlusher } from '../domain/activity.js';
 
 const problems = assertProductionSafety();
@@ -73,6 +74,13 @@ async function main() {
   } else {
     log('info', 'chain watcher disabled (no SOLANA_DESTINATION_ADDRESS / SOLANA_RPC_URL)');
   }
+
+  // Two separate loops on purpose: a mail outage delays alerts but never loses
+  // them, and a storm of effects cannot become a storm of provider requests.
+  loop('email-delivery', config.email.pollIntervalMs, () => deliverEmails());
+  // Digests current state rather than firing per event, which is what keeps
+  // five hundred indeterminate effects to one email.
+  loop('email-alerts', 5 * 60_000, () => generateAlerts());
 
   loop('retention-gc', config.worker.gcIntervalMs, async () => {
     const effects = await collectExpiredEffects();

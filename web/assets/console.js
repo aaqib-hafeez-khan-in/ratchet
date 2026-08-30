@@ -615,6 +615,65 @@ const PANELS = {
     } catch (err) { failed(err); }
   },
 
+  async alerts() {
+    loading();
+    try {
+      const [prefs, msgs] = await Promise.all([
+        api('/email/preferences'), api('/email/messages'),
+      ]);
+      panel(`<div style="padding:1.25rem">
+        ${prefs.suppressed
+          ? `<div class="notice bad"><strong>Delivery to ${esc(prefs.to)} is suppressed.</strong>
+             ${esc(prefs.suppress_reason ?? 'The address bounced permanently.')}
+             Nothing further is sent until it is corrected — continuing to send to a bad
+             address is how a sending domain gets blocked.</div>`
+          : ''}
+        ${prefs.delivery_configured
+          ? ''
+          : `<div class="notice"><strong>No mail provider is configured.</strong> Alerts are
+             queued and logged but not delivered. Set <code>EMAIL_PROVIDER</code> and
+             <code>EMAIL_API_KEY</code> to turn delivery on.</div>`}
+        <h3>Where alerts go</h3>
+        <p class="small dim">${esc(prefs.to ?? 'no address on file')}</p>
+        <h3 style="margin-top:1.25rem">What you receive</h3>
+        <p class="small dim">Alerts are digested, not sent per event: however many effects go
+          unknown in an hour, you get one email about all of them.</p>
+      </div>`
+      + table(['Alert', 'What it covers', 'On'], prefs.preferences.map((p) => `<tr>
+          <td class="mono">${esc(p.category)}${p.operational ? '' : ''}</td>
+          <td class="small faint">${esc(p.description)}</td>
+          <td><button class="btn small ${p.enabled ? '' : 'secondary'}"
+                data-pref="${esc(p.category)}" data-on="${p.enabled ? '1' : ''}">
+                ${p.enabled ? 'On' : 'Off'}</button></td>
+        </tr>`))
+      + (msgs.data.length
+          ? `<div style="padding:1.25rem 1.25rem 0;border-top:1px solid var(--border)">
+               <h3>Recently sent</h3></div>`
+            + table(['Category', 'Subject', 'State', 'When'], msgs.data.map((m) => `<tr>
+                <td class="mono small">${esc(m.category)}</td>
+                <td class="small">${esc(m.subject)}</td>
+                <td>${m.state === 'sent' ? '<span class="pill go">sent</span>'
+                      : m.state === 'dead' ? '<span class="pill stop">failed</span>'
+                      : m.state === 'suppressed' ? '<span class="pill stop">suppressed</span>'
+                      : `<span class="pill wait">${esc(m.state)}</span>`}</td>
+                <td class="small faint">${when(m.sentAt ?? m.createdAt)}</td>
+              </tr>`))
+          : empty('No alerts sent yet.', 'You will hear from Ratchet when something needs you.')));
+
+      for (const btn of $('panel').querySelectorAll('[data-pref]')) {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try {
+            await api(`/email/preferences/${btn.dataset.pref}`, {
+              method: 'PUT', body: { enabled: !btn.dataset.on },
+            });
+            await PANELS.alerts();
+          } catch (err) { failed(err); }
+        });
+      }
+    } catch (err) { failed(err); }
+  },
+
   async audit() {
     loading();
     try {
