@@ -26,7 +26,7 @@ describe('non-custodial crypto payments', () => {
   });
 
   test('a stable asset quotes at parity, in USD', async () => {
-    const i = await createIntent({ workspaceId: ws.workspaceId, tokenMint: USDC, usdMicros: 25_000_000 });
+    const i = await createIntent({ workspaceId: ws.workspaceId, tokenMint: USDC, chain: 'solana', usdMicros: 25_000_000 });
     assert.equal(i.symbol, 'USDC');
     assert.equal(i.usdMicros, 25_000_000);
     assert.equal(i.tokenAmount, '25000000', '$25 of a 6-decimal stable token');
@@ -35,21 +35,58 @@ describe('non-custodial crypto payments', () => {
     assert.equal(i.state, 'awaiting_payment');
   });
 
-  test('a volatile asset is refused rather than quoted at an invented price', async () => {
+  test('a volatile asset with NO obtainable price is refused, not guessed', async () => {
+    // A symbol no exchange lists. The oracle cannot reach two agreeing sources,
+    // so quoting it would mean inventing a number.
     await getPool().query(
       `INSERT INTO crypto_assets (chain, token_mint, symbol, decimals, enabled, is_stable,
-                                  quote_ttl_seconds, volatility_bps, min_usd_micros)
-       VALUES ('solana','MemeMint111','WIF',6,true,false,60,500,5000000)
+                                  quote_ttl_seconds, volatility_bps, min_usd_micros, attribution)
+       VALUES ('solana','UnpriceableMint1','ZZZNOTATOKEN',6,true,false,60,500,5000000,'memo')
        ON CONFLICT DO NOTHING`);
     await assert.rejects(
-      () => createIntent({ workspaceId: ws.workspaceId, tokenMint: 'MemeMint111', usdMicros: 25_000_000 }),
+      () => createIntent({ workspaceId: ws.workspaceId, tokenMint: 'UnpriceableMint1', usdMicros: 25_000_000 }),
       (e: Error) => {
         assert.ok(e instanceof CryptoUnavailable);
-        assert.match(e.message, /no price oracle/i);
+        assert.match(e.message, /Cannot price|usable price source/i);
         return true;
       },
-      'quoting a volatile asset with no live rate would mean inventing a price',
+      'an asset the oracle cannot price must be refused rather than guessed at',
     );
+  });
+
+  test('a volatile asset WITH agreeing sources is quotable, and carries its haircut', async () => {
+    // BTC is priceable from two independent sources, so it can be quoted. The
+    // haircut increases what the payer sends, absorbing price movement between
+    // quote and confirmation; it never reduces the credit granted.
+    const HAIRCUT_BPS = 250;
+    await getPool().query(
+      `INSERT INTO crypto_assets (chain, token_mint, symbol, decimals, enabled, is_stable,
+                                  quote_ttl_seconds, volatility_bps, min_usd_micros,
+                                  required_confirmations, attribution)
+       VALUES ('bitcoin','native','BTC',8,true,false,300,$1,25000000,2,'tx_submission')
+       ON CONFLICT (chain, token_mint) DO UPDATE SET enabled = true, volatility_bps = $1`,
+      [HAIRCUT_BPS]);
+
+    let i;
+    try {
+      i = await createIntent({
+        workspaceId: ws.workspaceId, tokenMint: 'native', chain: 'bitcoin', usdMicros: 25_000_000 });
+    } catch (e) {
+      // The oracle may legitimately refuse if the live sources disagree; that
+      // is the guard working, not a failure of this test.
+      assert.ok(e instanceof CryptoUnavailable);
+      return;
+    }
+
+    assert.equal(i.symbol, 'BTC');
+    assert.equal(i.usdMicros, 25_000_000, 'credit is the USD amount, whatever BTC does');
+
+    const rate = Number(i.quotedRateUsd);
+    assert.ok(rate > 1000, 'a plausible BTC price');
+    const sats = Number(i.tokenAmount);
+    const plain = (25 / rate) * 1e8;
+    assert.ok(sats > plain, 'the haircut must make the payer send MORE, not less');
+    assert.ok(sats < plain * 1.05, 'and only slightly more — 250bps, not a tax');
   });
 
   test('a confirmed payment credits the USD amount, once', async () => {

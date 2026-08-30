@@ -9,8 +9,9 @@ import { CREDIT_PACKS, packById, startCheckout, settleTestCheckout,
          applySubscriptionEvent,
          BillingUnavailable, StripeError } from '../../domain/billing.js';
 import { PLANS } from '../../domain/plans.js';
-import { cryptoEnabled, listAssets, createIntent, listIntents,
-         CryptoUnavailable } from '../../domain/crypto.js';
+import { cryptoEnabled, listAssets, createIntent, listIntents, submitTransaction,
+         destinationFor, CryptoUnavailable } from '../../domain/crypto.js';
+import { verifyTransfer } from '../../worker/verify.js';
 import { config } from '../../lib/config.js';
 import { errorResponses } from '../schemas.js';
 
@@ -114,11 +115,20 @@ export default async function billingRoutes(app: FastifyInstance) {
         ? 'Quotes are struck in USD. Credit granted is always the USD amount, never a token '
           + 'amount, so a price move between quote and settlement cannot mint credit.'
         : 'Crypto payments are not configured on this instance.',
+      chains: ['solana', 'ethereum', 'base', 'bitcoin'].map((c) => ({
+        chain: c,
+        destination: destinationFor(c) || null,
+        configured: destinationFor(c).length > 0,
+      })),
       assets: assets.map((a) => ({
         chain: a.chain, symbol: a.symbol, token_mint: a.tokenMint, decimals: a.decimals,
         stable: a.isStable, quote_ttl_seconds: a.quoteTtlSeconds,
         volatility_haircut_bps: a.volatilityBps,
         min_usd_micros: a.minUsdMicros, required_confirmations: a.requiredConfirmations,
+        attribution: a.attribution,
+        attribution_note: a.attribution === 'memo'
+          ? 'Include the memo; credited automatically once confirmed.'
+          : 'No memo on this chain — submit the transaction hash afterwards.',
       })),
     };
   });
@@ -134,6 +144,7 @@ export default async function billingRoutes(app: FastifyInstance) {
         type: 'object', required: ['token_mint', 'usd_micros'], additionalProperties: false,
         properties: {
           token_mint: { type: 'string', maxLength: 64 },
+          chain: { type: 'string', enum: ['solana', 'ethereum', 'base', 'bitcoin'] },
           usd_micros: { type: 'integer', minimum: 1, maximum: 100_000_000_000 },
         },
       },
@@ -144,10 +155,11 @@ export default async function billingRoutes(app: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    const b = req.body as { token_mint: string; usd_micros: number };
+    const b = req.body as { token_mint: string; usd_micros: number; chain?: string };
     try {
       const i = await createIntent({
-        workspaceId: wsOf(req), tokenMint: b.token_mint, usdMicros: b.usd_micros,
+        workspaceId: wsOf(req), tokenMint: b.token_mint,
+        usdMicros: b.usd_micros, chain: b.chain,
       });
       return {
         intent_id: i.id, chain: i.chain, symbol: i.symbol,
@@ -164,6 +176,38 @@ export default async function billingRoutes(app: FastifyInstance) {
       }
       throw err;
     }
+  });
+
+  app.post('/billing/crypto/intents/:intentId/submit', {
+    preHandler: app.requireConsole('workspace:read'),
+    schema: {
+      tags: ['Billing'], operationId: 'submitCryptoTransaction',
+      summary: 'Submit a transaction hash for a chain without a memo',
+      description:
+        'Ethereum, Base, and Bitcoin transfers carry no memo, so a payment cannot identify itself. '
+        + 'Submit the transaction hash and Ratchet verifies it on-chain: destination, asset, '
+        + 'amount, and confirmations are all re-derived rather than trusted. A transaction can '
+        + 'only ever settle one payment.',
+      params: { type: 'object', required: ['intentId'], properties: { intentId: { type: 'string' } } },
+      body: {
+        type: 'object', required: ['tx_hash'], additionalProperties: false,
+        properties: { tx_hash: { type: 'string', minLength: 64, maxLength: 66 } },
+      },
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => {
+    const r = await submitTransaction({
+      workspaceId: wsOf(req),
+      intentId: (req.params as { intentId: string }).intentId,
+      txHash: (req.body as { tx_hash: string }).tx_hash,
+      verify: verifyTransfer,
+    });
+    return {
+      credited: r.credited, state: r.state,
+      ...(r.reason ? { reason: r.reason } : {}),
+      ...(r.state === 'confirming'
+        ? { note: 'Not settled yet. Submit again once it has more confirmations.' } : {}),
+    };
   });
 
   app.get('/billing/crypto/intents', {

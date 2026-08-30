@@ -123,6 +123,39 @@ export const config = {
     get pollIntervalMs() {
       return Number.parseInt(process.env.CRYPTO_POLL_INTERVAL_MS ?? '20000', 10);
     },
+    /**
+     * Per-chain receiving addresses and RPCs. Each address belongs to the
+     * operator; Ratchet only reads these chains and holds no key for any of
+     * them. A chain with no destination set is simply off.
+     */
+    get chains() {
+      return {
+        solana: {
+          destination: process.env.SOLANA_DESTINATION_ADDRESS ?? '',
+          rpc: process.env.SOLANA_RPC_URL ?? '',
+        },
+        ethereum: {
+          destination: process.env.ETHEREUM_DESTINATION_ADDRESS ?? '',
+          rpc: process.env.ETHEREUM_RPC_URL ?? 'https://ethereum.publicnode.com',
+        },
+        base: {
+          destination: process.env.BASE_DESTINATION_ADDRESS ?? '',
+          rpc: process.env.BASE_RPC_URL ?? 'https://base-rpc.publicnode.com',
+        },
+        bitcoin: {
+          destination: process.env.BITCOIN_DESTINATION_ADDRESS ?? '',
+          rpc: process.env.BITCOIN_API_URL ?? 'https://mempool.space/api',
+        },
+      } as Record<string, { destination: string; rpc: string }>;
+    },
+    /** Comma-separated price sources. Volatile assets need at least two. */
+    get priceSources() {
+      return (process.env.CRYPTO_PRICE_SOURCES ?? 'coinbase,kraken')
+        .split(',').map((s) => s.trim()).filter(Boolean);
+    },
+    get maxPriceDivergenceBps() {
+      return Number.parseInt(process.env.CRYPTO_MAX_PRICE_DIVERGENCE_BPS ?? '200', 10);
+    },
   },
 
   consoleSessionTtlHours: int('CONSOLE_SESSION_TTL_HOURS', 72),
