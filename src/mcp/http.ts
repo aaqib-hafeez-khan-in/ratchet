@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { planRateLimit } from '../api/rate-limit.js';
 import { authenticate } from '../domain/auth.js';
 import { authenticateOAuth } from '../domain/oauth.js';
 import { config } from '../lib/config.js';
@@ -18,7 +19,7 @@ import { ApiError } from '../lib/errors.js';
 export async function registerMcpHttp(app: FastifyInstance) {
   app.post('/mcp', {
     schema: { hide: true },
-    config: { rateLimit: { max: 600, timeWindow: '1 minute' } },
+    config: { rateLimit: planRateLimit },
   }, async (req, reply) => {
     const h = req.headers.authorization;
     const alt = req.headers['x-api-key'];

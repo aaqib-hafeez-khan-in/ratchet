@@ -8,8 +8,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from '../lib/config.js';
 import { ApiError } from '../lib/errors.js';
-import { authenticate, cachedPlanLimit } from '../domain/auth.js';
-import { PLANS } from '../domain/plans.js';
+import { authenticate } from '../domain/auth.js';
+import { planRateLimitMax, rateLimitKey } from './rate-limit.js';
 import authPlugin from './plugins/auth.js';
 import effectRoutes from './routes/effects.js';
 import groupRoutes from './routes/groups.js';
@@ -23,20 +23,6 @@ import { registerMcpHttp } from '../mcp/http.js';
 
 const webRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web');
 
-/** The public, non-secret prefix of whichever API key a request presents. */
-function keyPrefixOf(req: { headers: Record<string, unknown> }): string | null {
-  const h = req.headers.authorization;
-  if (typeof h === 'string' && h.startsWith('Bearer rk_')) {
-    const m = /^Bearer rk_(?:live|test)_([a-z0-9]{12})_/.exec(h);
-    if (m) return m[1]!;
-  }
-  const alt = req.headers['x-api-key'];
-  if (typeof alt === 'string') {
-    const m = /^rk_(?:live|test)_([a-z0-9]{12})_/.exec(alt);
-    if (m) return m[1]!;
-  }
-  return null;
-}
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({
@@ -122,19 +108,11 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     // Per-plan, not a single global number. Publishing a per-plan limit in the
     // pricing table while enforcing one shared value would mean selling an
     // entitlement the code does not deliver.
-    max: (req) => {
-      if (config.rateLimitOverride !== null) return config.rateLimitOverride;
-      const prefix = keyPrefixOf(req);
-      if (!prefix) return config.rateLimitPerMinute;      // unauthenticated
-      return cachedPlanLimit(prefix) ?? PLANS.free.rateLimitPerMinute;
-    },
+    max: planRateLimitMax,
     timeWindow: '1 minute',
     // Limit per API key where one is presented, so one tenant cannot exhaust
     // another's budget from behind a shared NAT.
-    keyGenerator: (req) => {
-      const prefix = keyPrefixOf(req);
-      return prefix ? `key:${prefix}` : `ip:${req.ip}`;
-    },
+    keyGenerator: rateLimitKey,
     // The builder's return value is handed to the error handler as the error
     // itself, so it must be a real ApiError. A plain object arrives with no
     // status and degrades a 429 into a 500.

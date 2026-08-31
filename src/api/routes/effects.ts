@@ -4,6 +4,7 @@ import { beginEffect, reportEffect, extendLease, resolveEffect, cancelEffect,
 import { getPool } from '../../db/pool.js';
 import { errors, ApiError } from '../../lib/errors.js';
 import { config } from '../../lib/config.js';
+import { planRateLimit } from '../rate-limit.js';
 import { wsOf, actorOf } from '../plugins/auth.js';
 import { beginBody, beginResponse, reportBody, effectView, errorResponses } from '../schemas.js';
 import { beginOut, effectOut, reportOut } from '../serialize.js';
@@ -18,7 +19,7 @@ export default async function effectRoutes(app: FastifyInstance) {
     // The only route reachable without a credential: with no key it provisions
     // a small anonymous workspace and hands the key back with the decision.
     preHandler: app.requireKeyOrProvision('effects:begin'),
-    config: { rateLimit: { max: 600, timeWindow: '1 minute' } },
+    config: { rateLimit: planRateLimit },
     schema: {
       tags: TAG,
       operationId: 'beginEffect',
