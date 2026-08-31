@@ -14,6 +14,7 @@ import { buildApp } from '../../src/api/app.js';
 import { closePool } from '../helpers.js';
 
 const WEB = join(import.meta.dirname, '../../web');
+const ROOT = join(import.meta.dirname, '../..');
 const pages = readdirSync(WEB).filter((f) => f.endsWith('.html'));
 
 /**
@@ -94,5 +95,26 @@ describe('stylesheet integrity', () => {
     const css = readFileSync(join(WEB, 'assets/style.css'), 'utf8');
     assert.match(css, /\.js-reveal \[data-reveal\]\s*\{/);
     assert.match(css, /\.js-reveal \[data-reveal\]\.is-in\s*\{/);
+  });
+});
+
+describe('published retention claims match the code', () => {
+  // A privacy page that overstates how long data is kept is a promise the
+  // reaper quietly breaks. This drifted once: the page said anonymous
+  // workspaces were kept unless "never used", while the sweep deletes any
+  // unclaimed workspace with no effects in the window.
+  test('the anonymous window on /privacy is the window the reaper uses', () => {
+    const reaper = readFileSync(join(ROOT, 'src/worker/reaper.ts'), 'utf8');
+    const sweep = reaper.slice(reaper.indexOf('w.anonymous'), reaper.indexOf('w.anonymous') + 400);
+    const days = [...sweep.matchAll(/interval '(\d+) days'/g)].map((m) => m[1]);
+    assert.ok(days.length >= 1, 'could not read the anonymous sweep interval');
+    const page = readFileSync(join(WEB, 'privacy.html'), 'utf8');
+    const claim = page.slice(page.indexOf('Anonymous workspaces'), page.indexOf('Anonymous workspaces') + 400);
+    for (const d of days) {
+      assert.match(claim, new RegExp(`${d} days`),
+        `the sweep uses ${d} days; /privacy does not say so`);
+    }
+    assert.match(claim, /inactivity/,
+      'the sweep is activity-based, so the page must not imply unused-only deletion');
   });
 });
