@@ -343,6 +343,104 @@ const PANELS = {
     } catch (err) { failed(err); }
   },
 
+  /**
+   * Containment.
+   *
+   * The emergency stop lives here because it is a human control, and a human in
+   * a hurry should not have to write curl. Everything on this panel is designed
+   * to be usable by someone who has just been woken up: the stop is one button,
+   * it says exactly what it will do, and the volume table tells you what a
+   * sensible threshold would have been.
+   */
+  async circuits() {
+    loading();
+    try {
+      const { data } = await api('/circuits');
+      const open = data.circuits.filter((c) => c.state === 'open');
+      const globalStop = open.find((c) => c.effect_type === '*');
+
+      const stopBox = globalStop
+        ? `<div class="notice bad" style="margin-bottom:1rem">
+             <strong>Everything is stopped.</strong> Every effect type in this workspace is being
+             ${esc(globalStop.action === 'deny' ? 'refused' : 'held for approval')}.
+             ${globalStop.reason ? `<br><span class="small">${esc(globalStop.reason)}</span>` : ''}
+             <div style="margin-top:0.75rem">
+               <button class="btn" data-close="*">Resume all effect types</button>
+             </div>
+           </div>`
+        : `<div class="notice" style="margin-bottom:1rem">
+             <strong>Emergency stop.</strong> Halts every effect type in this workspace at once.
+             Agents keep running; the gate simply stops authorising them, so nothing new reaches
+             the outside world. It stays stopped until you resume it.
+             <div style="margin-top:0.75rem">
+               <button class="btn danger" id="stop-all">Stop all effects</button>
+             </div>
+           </div>`;
+
+      const perType = open.filter((c) => c.effect_type !== '*');
+      const openTable = perType.length
+        ? table(['Effect type', 'Doing', 'Why', 'Ends', ''],
+            perType.map((c) => `<tr>
+              <td class="mono">${esc(c.effect_type)}</td>
+              <td><span class="pill ${c.action === 'deny' ? 'stop' : c.action === 'require_approval' ? 'wait' : 'unk'}">${esc(c.action)}</span></td>
+              <td class="small">${esc(c.reason ?? '—')}</td>
+              <td class="small">${c.resets_at ? esc(new Date(c.resets_at).toLocaleString()) : 'until you close it'}</td>
+              <td><button class="btn small" data-close="${esc(c.effect_type)}">Close</button></td>
+            </tr>`))
+        : `<div style="padding:0 1.25rem 0.5rem"><p class="small dim">No effect-type breakers are open.</p></div>`;
+
+      const rates = data.rates.length
+        ? table(['Effect type', 'This hour', 'Busiest hour (30d)', 'Suggested ceiling'],
+            data.rates.map((r) => `<tr>
+              <td class="mono">${esc(r.effect_type)}</td>
+              <td>${r.this_hour}</td>
+              <td>${r.peak_hour}</td>
+              <td class="mono dim">${Math.max(10, r.peak_hour * 3)}/hour</td>
+            </tr>`))
+        : `<div style="padding:0 1.25rem"><p class="small dim">No volume recorded yet.</p></div>`;
+
+      panel(`<div style="padding:1.25rem 1.25rem 0">
+          ${stopBox}
+          <p class="small dim" style="max-width:74ch">
+            Surge containment stops an effect type that is suddenly running far more often than
+            usual — the loop that sends five thousand emails instead of three. It is off until you
+            set <code>surge_per_hour</code> on a policy. The suggested ceiling below is three times
+            your busiest hour in the last thirty days, which leaves real headroom while still
+            catching a runaway.
+          </p>
+        </div>
+        ${openTable}
+        <div style="padding:1rem 1.25rem 0"><h3 class="small" style="margin:0 0 0.35rem">Volume by effect type</h3></div>
+        ${rates}`);
+
+      const stop = $('stop-all');
+      if (stop) {
+        stop.addEventListener('click', async () => {
+          if (!confirm('Stop every effect type in this workspace?\n\n'
+            + 'Agents will be refused until you resume. Nothing already performed is undone.')) return;
+          const reason = prompt('Why? This is recorded and shown to callers that are stopped.',
+            'stopped from the console');
+          if (reason === null) return;
+          try {
+            await api('/circuits/*/open', { method: 'POST',
+              body: { action: 'deny', reason: reason || 'stopped from the console' } });
+            await PANELS.circuits();
+          } catch (err) { failed(err); }
+        });
+      }
+
+      for (const btn of $('panel').querySelectorAll('[data-close]')) {
+        btn.addEventListener('click', async () => {
+          try {
+            await api(`/circuits/${encodeURIComponent(btn.dataset.close)}/close`,
+              { method: 'POST', body: {} });
+            await PANELS.circuits();
+          } catch (err) { failed(err); }
+        });
+      }
+    } catch (err) { failed(err); }
+  },
+
   async policies() {
     loading();
     try {
@@ -361,6 +459,7 @@ const PANELS = {
               <td>${p.max_attempts}</td>
               <td class="mono">${p.max_cost_micros == null ? '—' : usd(p.max_cost_micros)}</td>
               <td class="mono">${p.daily_budget_micros == null ? '—' : usd(p.daily_budget_micros)}</td>
+              <td class="mono">${p.surge_per_hour == null ? '—' : p.surge_per_hour}</td>
               <td>${p.retention_days}d</td>
             </tr>`))
         : empty('No explicit policies.', 'Every effect type is using the safe defaults.')));
