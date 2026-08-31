@@ -36,6 +36,7 @@ function page(title: string, body: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)} — Ratchet</title>
+<meta name="robots" content="noindex, nofollow, noarchive">
 <link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/assets/style.css">
 </head><body><main id="main"><section><div class="wrap narrow">
@@ -44,6 +45,13 @@ ${body}
 }
 
 export default async function oauthRoutes(app: FastifyInstance) {
+  // Belt and braces alongside the meta tag: a crawler that does not parse the
+  // body still gets the directive, and this also covers the redirects.
+  app.addHook('onSend', async (req, reply, payload) => {
+    if (req.url.startsWith('/oauth/')) reply.header('X-Robots-Tag', 'noindex, nofollow');
+    return payload;
+  });
+
   // ─────────────────────────────────────────────── discovery metadata
 
   // RFC 8414. Clients read this to learn where to send the user and the code.
@@ -153,8 +161,11 @@ export default async function oauthRoutes(app: FastifyInstance) {
       return page('Sign in', `
 <p class="eyebrow">Authorize</p>
 <h1>Sign in to continue</h1>
-<p class="dim"><strong>${esc(clientName)}</strong> is asking for access to a Ratchet workspace.
-  Paste an API key for the workspace you want it to reach.</p>
+<p class="dim">An application calling itself <strong>${esc(clientName)}</strong> is asking for
+  access to a Ratchet workspace. That name is supplied by the application itself and is
+  <em>not</em> verified by us.</p>
+<p class="dim">Paste a <strong>Ratchet API key</strong> — the one starting <code>rk_</code> from
+  your Ratchet console. Never enter a password or a key belonging to any other service here.</p>
 ${error ? `<p style="color:var(--stop)">${esc(error)}</p>` : ''}
 <form method="POST" action="/oauth/authorize">
 ${hidden}
@@ -163,8 +174,9 @@ ${hidden}
          placeholder="rk_live_…" style="width:100%;padding:.7rem;font-family:var(--mono)"></p>
   <button class="btn" type="submit">Continue</button>
 </form>
-<p class="small dim">Your key is exchanged for a browser session and is never given to
-  ${esc(clientName)}. The client receives its own token, scoped and revocable.</p>`);
+<p class="small dim">Your key is exchanged for a browser session and is never given to the
+  application. It receives its own scoped, revocable token instead. If you did not start this
+  from your own tooling, close this page.</p>`);
     }
 
     const usable = choices.filter((w) => w.status === 'active');
