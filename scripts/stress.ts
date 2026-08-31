@@ -318,6 +318,39 @@ console.log('\n2. SAFETY UNDER LOAD\n');
     `~${Math.max(1, Math.ceil(started / perTick))} tick(s).`);
 }
 
+// ────────────────────────── 12. surge containment under a real stampede
+{
+  const ws = await workspace('surge');
+  const CEILING = 20;
+  await put('/v1/policies/stress.surge', ws.headers,
+    { mode: 'allow', surge_per_hour: CEILING, surge_action: 'deny' });
+
+  // Every caller arrives at once — the worst case for a counter-based control.
+  const N = 300 * SCALE;
+  const rs = await Promise.all(Array.from({ length: N }, (_, i) =>
+    post('/v1/effects/begin', ws.headers,
+      { effect_type: 'stress.surge', idempotency_key: `surge-${i}` })));
+  const bodies = rs.map((r) => JSON.parse(r.payload));
+  const executed = bodies.filter((b) => b.decision === 'execute').length;
+  const denied = bodies.filter((b) => b.decision === 'denied').length;
+
+  check('a surge is contained even when it arrives all at once',
+    executed <= CEILING + 5 && denied > 0,
+    `${N} simultaneous callers, ceiling ${CEILING} → ${executed} executed, ${denied} denied`);
+
+  const { rows } = await getPool().query(
+    `SELECT count(*)::int AS n FROM circuit_breakers
+      WHERE workspace_id = $1 AND effect_type = 'stress.surge'`, [ws.id]);
+  check('a stampede opens exactly one breaker, not many', rows[0].n === 1,
+    `${rows[0].n} breaker row(s)`);
+
+  // Containment must not leak into a type nobody configured.
+  const other = JSON.parse((await post('/v1/effects/begin', ws.headers,
+    { effect_type: 'stress.unrelated', idempotency_key: 'unrelated-1' })).payload);
+  check('an open breaker does not stop unrelated effect types',
+    other.decision === 'execute', `unrelated type got ${other.decision}`);
+}
+
 console.log(`\n${failures === 0 ? 'ALL SAFETY PROPERTIES HELD' : `${failures} SAFETY CHECK(S) FAILED`}\n`);
 await app.close();
 await closePool();

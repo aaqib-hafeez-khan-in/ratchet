@@ -355,7 +355,9 @@ const PANELS = {
   async circuits() {
     loading();
     try {
-      const { data } = await api('/circuits');
+      // This endpoint returns { circuits, rates } directly — the list routes
+      // wrap their results in `data`, and this one does not.
+      const data = await api('/circuits');
       const open = data.circuits.filter((c) => c.state === 'open');
       const globalStop = open.find((c) => c.effect_type === '*');
 

@@ -25,6 +25,7 @@ report a percentile when any request came back non-2xx, because a page of fast
 | 1,200 interleaved begin+report | **0 deadlocks** |
 | 800 replays of a succeeded effect | 1 decision, 1 result |
 | 2,400 simultaneous requests vs. a 10-connection pool | 0 errors, queued |
+| 300 simultaneous callers vs. a surge ceiling of 20 | exactly 20 executed, 280 denied, 1 breaker |
 
 The lock ordering in CLAUDE.md §7 holds under real contention. Note the storm
 result: contention on a single key is not slower than distinct keys, because
@@ -36,10 +37,14 @@ result: contention on a single key is not slower than distinct keys, because
 excludes network):
 
 ```
-begin (new effect)         n=1000  mean=2.59ms  p50=2.52  p95=3.16  p99=3.86
-begin (duplicate replay)   n=1000  mean=2.08ms  p50=2.03  p95=2.35  p99=2.93
-report outcome             n=1000  mean=1.52ms  p50=1.55  p95=1.77  p99=2.08
+begin (new effect)         n=800   mean=3.04ms  p50=2.96  p95=3.54  p99=4.25
+begin (duplicate replay)   n=800   mean=1.83ms  p50=1.78  p95=2.01  p99=2.62
+report outcome             n=800   mean=1.47ms  p50=1.45  p95=1.71  p99=2.11
 ```
+
+`begin (new effect)` rose from p50 2.52 ms after surge containment shipped: one
+UPSERT into `effect_rate_windows` per genuinely new effect. Duplicates, replays
+and reports are untouched, which is the path a retrying agent actually takes.
 
 **Production** (`npm run probe:prod`, over the public internet to `sjc`):
 

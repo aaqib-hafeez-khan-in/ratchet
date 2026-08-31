@@ -140,6 +140,32 @@ Worth revisiting: the console could offer an "agent key" preset, and signup coul
 issue a scoped key alongside the operator one so the right thing is also the
 easy thing.
 
+## Reaching a person
+
+A trip emits the `circuit.tripped` webhook event, and the worker's alert sweep
+sends a **containment** email on a 15-minute window — tighter than any other
+category, because an open breaker means work is being held or refused right now.
+The dedupe key names which breakers are open, so a newly opened one sends a
+fresh message instead of being swallowed by the previous digest.
+
+Writing that surfaced a real bug in the existing alert path: an anonymous
+workspace has no owner address, `queueEmail` inserted NULL into a NOT NULL
+column, and the exception abandoned the entire sweep — silencing alerts for
+every workspace sorted after it. Fixed at the source, and the sweep now survives
+a failing workspace.
+
+The console has a **Containment** panel: the emergency stop as one button, open
+breakers with their reasons and a close control, and volume per effect type with
+a suggested ceiling (3x the busiest hour in 30 days). A control someone needs in
+a panic should not require writing curl.
+
+## Under load
+
+`npm run stress` — 300 simultaneous callers against a ceiling of 20 produced
+**exactly 20 executions and 280 refusals**, one breaker row, and no effect on
+unrelated effect types. There is no overshoot because the counter is incremented
+inside the transaction that already holds the workspace row exclusively.
+
 ## Not done yet
 
 - **No learned baseline.** Thresholds are absolute, chosen by the operator from
@@ -147,8 +173,5 @@ easy thing.
   catch surges on workspaces that never configured anything, but it needs
   history this has only just started collecting, and a wrong automatic threshold
   refuses real work.
-- **The trip emits `circuit.tripped`** as a webhook event; there is no email on
-  it yet. An operator with no webhook configured learns about a trip only from
-  the console or the blocked agent's report.
 - **Hourly windows only.** A burst inside one minute that stays under the hourly
   ceiling passes.
