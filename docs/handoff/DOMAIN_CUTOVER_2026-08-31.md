@@ -58,3 +58,43 @@ than having none. Always six months out, asserted by test.
 - **Inbound aliases** via Cloudflare Email Routing: `security@` (referenced by security.txt and
   currently a promise we cannot keep), `support@`, `billing@`, `abuse@`, `postmaster@`, `hello@`.
 - **`www`** — certificate was still validating at cutover; apex was serving correctly throughout.
+
+---
+
+## Live services as of 2026-08-31
+
+**Email.** `mail.ratchetgate.com` verified with Resend; SPF, DKIM and DMARC all published and
+valid. Sending confirmed end to end — a real message reached `security@ratchetgate.com` through
+Cloudflare Email Routing. All six aliases live (`security`, `support`, `billing`, `abuse`,
+`postmaster`, `hello`), no catch-all.
+
+Two things worth remembering. A single hard bounce put the recipient on Resend's suppression list
+and the next send was refused before it was attempted; clearing it needs a DELETE against
+`/suppressions`. And Cloudflare routing rules take up to a minute to propagate — a correct rule
+returns `550 Address does not exist` for its first minute, which looks exactly like a broken one.
+`RCPT TO` over SMTP with no `DATA` is a safe way to check without generating a bounce.
+
+DMARC is `p=none` with reports going to both Cloudflare's parser and `security@`. Tighten to
+`quarantine`, then `reject`, once reports show only Resend sending as us.
+
+**Stripe.** Live keys deployed; a real `cs_live_` checkout session was created to prove the live
+key is the one in use, rather than trusting the configuration. The webhook destination subscribes
+to six events — `checkout.session.completed`, the three `customer.subscription.*`, plus
+`charge.refunded` and `charge.dispute.created`. The last two matter: without them a refunded or
+disputed customer keeps both the credit and their money.
+
+Signature verification confirmed in both directions: unsigned and forged requests are refused
+with 400, a genuine Stripe test event is accepted with 200 and correctly applies nothing.
+
+Note that Stripe's newer "event destinations" UI offers **Snapshot** and **Thin** payloads. This
+handler reads `mode`, `metadata`, and `payment_intent` off the event object, so it requires
+Snapshot. A Thin destination would deliver IDs only and every event would fail.
+
+## Still outstanding
+
+- `ratchet-mcp` is not published to npm; no GitHub remote exists. Both block MCP directory
+  submissions, and both need the operator's accounts.
+- Resend has only `mail.ratchetgate.com` verified. Sending *as* `security@ratchetgate.com` — for
+  replying to vulnerability reports from the published address rather than a personal Gmail —
+  needs the root domain verified as a second Resend domain.
+- Several throwaway workspaces created on production during billing verification.
