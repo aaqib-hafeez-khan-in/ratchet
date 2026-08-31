@@ -17,7 +17,7 @@
  */
 import { createInterface } from 'node:readline';
 
-const BASE = (process.env.RATCHET_BASE_URL ?? 'https://ratchet-gate.fly.dev').replace(/\/+$/, '');
+const BASE = (process.env.RATCHET_BASE_URL ?? 'https://ratchetgate.com').replace(/\/+$/, '');
 const KEY = process.env.RATCHET_API_KEY;
 const TIMEOUT_MS = Number.parseInt(process.env.RATCHET_TIMEOUT_MS ?? '15000', 10);
 

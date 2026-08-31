@@ -1,6 +1,6 @@
 # ratchet-mcp
 
-MCP server for [Ratchet](https://ratchet-gate.fly.dev) — an effect gate for AI agents.
+MCP server for [Ratchet](https://ratchetgate.com) — an effect gate for AI agents.
 
 Agents retry. LLM control flow is non-deterministic, network calls fail ambiguously, and processes
 die mid-action, so the same logical action gets attempted zero, one, or several times and nothing
@@ -8,7 +8,7 @@ knows which. Ratchet is a gate you ask **before** acting, and it answers durably
 
 ## Setup
 
-Get a key at <https://ratchet-gate.fly.dev/console> (free, no card), then:
+Get a key at <https://ratchetgate.com/console> (free, no card), then:
 
 ```json
 {
@@ -56,7 +56,7 @@ systems bury.
 | Variable | Default | Purpose |
 |---|---|---|
 | `RATCHET_API_KEY` | *(required)* | Your scoped API key |
-| `RATCHET_BASE_URL` | `https://ratchet-gate.fly.dev` | Point at your own instance |
+| `RATCHET_BASE_URL` | `https://ratchetgate.com` | Point at your own instance |
 | `RATCHET_TIMEOUT_MS` | `15000` | Request timeout |
 
 This package holds no database connection and no server secret — only your key, which is scoped
@@ -64,7 +64,7 @@ and revocable. It is a thin bridge to the HTTP API, with zero dependencies.
 
 If the gate is unreachable it returns a JSON-RPC error rather than crashing, so your agent can
 apply its fail-open or fail-closed policy. Decide which **before** integrating:
-<https://ratchet-gate.fly.dev/docs>
+<https://ratchetgate.com/docs>
 
 ## License
 

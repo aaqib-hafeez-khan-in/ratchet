@@ -11,7 +11,7 @@
     "mcp", "model-context-protocol", "ai-agents", "idempotency",
     "at-most-once", "side-effects", "agent-infrastructure", "reliability"
   ],
-  "repository": { "type": "git", "url": "git+https://github.com/OWNER/ratchet.git", "directory": "packages/ratchet-mcp" },
-  "homepage": "https://ratchet-gate.fly.dev",
+  "repository": { "type": "git", "url": "git+https://github.com/thearchitect0x-glitch/ratchet.git", "directory": "packages/ratchet-mcp" },
+  "homepage": "https://ratchetgate.com",
   "publishConfig": { "access": "public" }
 }
