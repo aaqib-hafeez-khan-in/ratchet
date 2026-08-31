@@ -106,7 +106,7 @@ def gated(effect_type: str, idempotency_key: str, payload: dict, do_it):
     except Exception as e:
         requests.post(f"{BASE}/v1/effects/{d['effect_id']}/report", headers=H,
                       json={"lease_token": d["lease_token"],
-                            "outcome": "failed", "error": str(e)}, timeout=10)
+                            "outcome": "failed", "failure_reason": str(e)[:1024]}, timeout=10)
         raise
 
     requests.post(f"{BASE}/v1/effects/{d['effect_id']}/report", headers=H,
@@ -151,7 +151,8 @@ export async function gated(effectType, idempotencyKey, payload, doIt) {
     result = await doIt();
   } catch (err) {
     await post(\`/v1/effects/\${d.effect_id}/report\`,
-      { lease_token: d.lease_token, outcome: 'failed', error: String(err) });
+      { lease_token: d.lease_token, outcome: 'failed',
+        failure_reason: String(err).slice(0, 1024) });
     throw err;
   }
   await post(\`/v1/effects/\${d.effect_id}/report\`,

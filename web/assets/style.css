@@ -546,3 +546,12 @@ ul.checks li::before {
   border-left: 3px solid var(--accent); color: var(--text-dim);
 }
 .post .meta { color: var(--text-faint); font-size: .85rem; margin-bottom: 2rem; }
+
+.verified-note {
+  margin: .9rem 0 0; padding: .75rem .9rem;
+  border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--ok) 7%, transparent);
+  font-size: .88rem; color: var(--text-dim); max-width: 62ch;
+}
+.verified-note .tag { margin-right: .4rem; }

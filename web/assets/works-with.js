@@ -11,9 +11,9 @@
 // path: how you actually connect. That is the only sort order that helps.
 const PLATFORMS = [
   // ── Speaks MCP ────────────────────────────────────────────────────────
-  ['Claude Code',        'mcp',  'verified'],
-  ['Claude Desktop',     'mcp',  'verified'],
-  ['Cursor',             'mcp',  'verified'],
+  ['Claude Code',        'mcp',  'stdio'],
+  ['Claude Desktop',     'mcp',  'stdio'],
+  ['Cursor',             'mcp',  'stdio'],
   ['Windsurf',           'mcp',  ''],
   ['Zed',                'mcp',  ''],
   ['Cline',              'mcp',  ''],
@@ -48,7 +48,7 @@ const PLATFORMS = [
   ['Lovable',              'http', 'in the app it generates'],
 
   // ── Your own model ────────────────────────────────────────────────────
-  ['Ollama',        'model', 'verified — see the worked example'],
+  ['Ollama',        'model', 'worked example'],
   ['vLLM',          'model', ''],
   ['llama.cpp',     'model', ''],
   ['LM Studio',     'model', ''],
@@ -65,6 +65,19 @@ const PLATFORMS = [
   ['Google Vertex AI', 'model', ''],
   ['A custom DNN or fine-tune', 'model', ''],
 ];
+
+const VERIFIED = {
+  mcp: 'The published <code>ratchet-mcp</code> package is installed fresh from npm and driven '
+     + 'through a full handshake, <code>tools/list</code>, and a real gated effect against '
+     + 'production. That exercises the stdio transport every client here uses — not each '
+     + 'client app individually.',
+  http: 'The exact code shown below is executed by the test suite on every run: begin, report, '
+      + 'the duplicate replay, and the retry-after-failure branch. A recipe that stops working '
+      + 'fails the build.',
+  model: 'A real local 8B model was run end to end: it issued a refund, the gateway timed out, '
+       + 'the outcome was never confirmed, and the retry was correctly refused as '
+       + '<code>indeterminate</code> rather than waved through.',
+};
 
 const PATHS = {
   mcp: {
@@ -136,6 +149,8 @@ function renderGroups(filter = '') {
       <div class="path-head">
         <h2>${esc(p.title)}</h2>
         <p class="dim">${esc(p.blurb)}</p>
+        ${VERIFIED[key] ? `<p class="verified-note"><span class="tag ok">verified</span>
+          ${VERIFIED[key]}</p>` : ''}
       </div>
       <ul class="names">
         ${items.map(([n, , note]) => `<li>
