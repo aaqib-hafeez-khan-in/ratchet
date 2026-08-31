@@ -121,7 +121,7 @@ export async function collectExpiredEffects(batchSize = 500): Promise<number> {
 /** Console sessions, delivered webhooks, and spent OAuth records past their use. */
 export async function collectStaleRecords(): Promise<
   { sessions: number; deliveries: number; oauth: number; anonymous: number;
-    orphanReceipts: number; rateLimitWindows: number }> {
+    orphanReceipts: number; rateLimitWindows: number; surgeWindows: number }> {
   const pool = getPool();
   const s = await pool.query('DELETE FROM console_sessions WHERE expires_at <= now()');
   const d = await pool.query(
@@ -157,6 +157,21 @@ export async function collectStaleRecords(): Promise<
           SELECT 1 FROM effects e
            WHERE e.workspace_id = w.id AND e.created_at > now() - interval '7 days')`);
 
+  // Surge counters older than the longest window anyone can measure against.
+  // Kept for 30 days because currentRates reports a 30-day peak, which is what
+  // an operator uses to choose a threshold.
+  const erw = await pool.query(
+    `DELETE FROM effect_rate_windows WHERE hour_start < now() - interval '31 days'`);
+
+  // Breakers belonging to workspaces that no longer exist. Like receipts, this
+  // table has no foreign key — see migration 022 for why.
+  const orphanCircuits = await pool.query(
+    `DELETE FROM circuit_breakers c
+      WHERE NOT EXISTS (SELECT 1 FROM workspaces w WHERE w.id = c.workspace_id)`);
+  const orphanRates = await pool.query(
+    `DELETE FROM effect_rate_windows r
+      WHERE NOT EXISTS (SELECT 1 FROM workspaces w WHERE w.id = r.workspace_id)`);
+
   // Rate-limit windows are only interesting while they are open. Keeping one
   // extra window is enough for an instance that is a flush behind; beyond that
   // the row can never be read again.
@@ -171,6 +186,8 @@ export async function collectStaleRecords(): Promise<
 
   return { orphanReceipts: orphans.rowCount ?? 0,
            rateLimitWindows: rl.rowCount ?? 0,
+           surgeWindows: (erw.rowCount ?? 0) + (orphanRates.rowCount ?? 0)
+                       + (orphanCircuits.rowCount ?? 0),
            sessions: s.rowCount ?? 0, deliveries: d.rowCount ?? 0,
            oauth: (c.rowCount ?? 0) + (t.rowCount ?? 0) + (cl.rowCount ?? 0),
            anonymous: anon.rowCount ?? 0 };

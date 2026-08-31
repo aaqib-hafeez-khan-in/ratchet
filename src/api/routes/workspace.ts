@@ -273,6 +273,19 @@ export default async function workspaceRoutes(app: FastifyInstance) {
             description: 'Refuse a begin for this effect type unless it declares a cost. '
               + 'Turn this on wherever you have set a spend ceiling, so the ceiling cannot '
               + 'be bypassed by simply not declaring anything.' },
+          surge_per_hour: { type: ['integer', 'null'], minimum: 1,
+            description: 'Surge containment. New effects of this type per hour above which '
+              + 'the circuit breaker opens. Budget ceilings catch an agent spending too '
+              + 'much; this catches one doing too MUCH — a retry loop sending five thousand '
+              + 'emails instead of three. Null (the default) disables it.' },
+          surge_action: { type: 'string', enum: ['monitor', 'require_approval', 'deny'],
+            description: 'What an open breaker does. "require_approval" (the default) holds '
+              + 'the work for a human rather than killing the agent, so nothing irreversible '
+              + 'happens and no context is lost. "monitor" records and alerts but changes no '
+              + 'decision — use it to watch before you enforce. "deny" refuses outright.' },
+          surge_cooldown_seconds: { type: 'integer', minimum: 60, maximum: 86400,
+            description: 'How long a tripped breaker stays open before closing itself. '
+              + 'Closing grants a fresh allowance, so a cooldown is a real second chance.' },
         },
       },
       response: { 200: policySchema, ...errorResponses },
@@ -295,6 +308,9 @@ export default async function workspaceRoutes(app: FastifyInstance) {
       maxCostMicros: b.max_cost_micros, dailyBudgetMicros: b.daily_budget_micros,
       retentionDays: b.retention_days,
       requireCost: b.require_cost,
+      surgePerHour: b.surge_per_hour,
+      surgeAction: b.surge_action,
+      surgeCooldownSeconds: b.surge_cooldown_seconds,
     });
     await audit(getPool(), workspaceId, 'policy.updated', actorOf(req), effectType, b);
     return policyOut(p);
