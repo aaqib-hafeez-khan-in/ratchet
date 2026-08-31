@@ -2,11 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import { beginEffect, reportEffect, extendLease, resolveEffect, cancelEffect,
          decideApproval, getEffect, lookupEffect, listEffects } from '../../domain/effects.js';
 import { getPool } from '../../db/pool.js';
-import { errors } from '../../lib/errors.js';
+import { errors, ApiError } from '../../lib/errors.js';
 import { config } from '../../lib/config.js';
 import { wsOf, actorOf } from '../plugins/auth.js';
 import { beginBody, beginResponse, reportBody, effectView, errorResponses } from '../schemas.js';
 import { beginOut, effectOut, reportOut } from '../serialize.js';
+import { x402Enabled, paymentRequired, encodeHeader, decodePayload,
+         settlePayment, PaymentError } from '../../domain/x402.js';
 
 const TAG = ['Effects'];
 
@@ -28,9 +30,42 @@ export default async function effectRoutes(app: FastifyInstance) {
       body: beginBody,
       response: { 200: beginResponse, ...errorResponses },
     },
-  }, async (req) => {
+  }, async (req, reply) => {
     const auth = req.auth!;
     const b = req.body as Record<string, any>;
+
+    /**
+     * A caller may present payment up front, which is what an agent does on the
+     * retry after a 402. Settled BEFORE the gate runs, so the credit exists by
+     * the time metering looks for it.
+     */
+    const paymentHeader = req.headers['payment-signature'];
+    if (typeof paymentHeader === 'string' && paymentHeader.length > 0) {
+      if (!x402Enabled()) {
+        throw new ApiError(400, 'x402_disabled',
+          'This deployment does not accept x402 payments.');
+      }
+      const payload = decodePayload(paymentHeader);
+      if (!payload) {
+        throw new ApiError(400, 'invalid_payment',
+          'PAYMENT-SIGNATURE is not base64-encoded JSON.');
+      }
+      try {
+        const r = await settlePayment({
+          workspaceId: auth.workspaceId, payload,
+          resourceUrl: `${config.publicUrl.replace(/\/+$/, '')}/v1/effects/begin`,
+        });
+        reply.header('PAYMENT-RESPONSE', encodeHeader({
+          success: true, transaction: r.settlementRef,
+          network: config.x402.network,
+        }));
+      } catch (err) {
+        if (err instanceof PaymentError) {
+          throw new ApiError(402, err.code, err.message);
+        }
+        throw err;
+      }
+    }
 
     const summaryBytes = Buffer.byteLength(JSON.stringify(b.request_summary ?? {}));
     if (summaryBytes > config.maxRequestBytes) {

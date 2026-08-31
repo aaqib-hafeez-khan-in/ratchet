@@ -6,7 +6,7 @@ import { getPolicy } from './policy.js';
 import { reserveSpend, adjustSpend, BudgetExceeded } from './budget.js';
 import { vendorIdempotencyKey } from './vendor-keys.js';
 import { writeReceipt, RECEIPT_VERSION } from './receipts.js';
-import { meterEffect, InsufficientCredit } from './metering.js';
+import { meterEffect, InsufficientCredit, AnonymousQuotaExhausted } from './metering.js';
 import { enqueueEvent } from './events.js';
 import { recordActivity, recordMilestone } from './activity.js';
 import { ensureGroup, assertAcceptsWork, markCompensated, type GroupRow } from './groups.js';
@@ -382,6 +382,19 @@ async function meter(
     const r = await meterEffect(tx, input.workspaceId, effectId, now);
     return { metered: true, decisionsRemaining: r.decisionsRemaining };
   } catch (err) {
+    /**
+     * An unclaimed workspace has spent its trial. Surfaced as its own error so
+     * the route can answer with a 402 and payment terms where x402 is enabled,
+     * rather than leaking as a 500 — which is what it did before this.
+     */
+    if (err instanceof AnonymousQuotaExhausted) {
+      throw new ApiError(402, 'quota_exhausted',
+        `This anonymous workspace has used its ${err.quota} free gated effects. `
+        + 'Claim it with an email at POST /v1/workspaces/claim to continue on the free '
+        + 'plan, or pay to continue without an account.',
+        { quota: err.quota });
+    }
+
     if (err instanceof InsufficientCredit) {
       throw errors.insufficientCredit({
         requiredMicros: err.needMicros,

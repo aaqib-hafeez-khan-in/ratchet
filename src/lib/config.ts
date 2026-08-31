@@ -179,6 +179,30 @@ export const config = {
   // Receipts outlive effects on purpose: an effect is operational state, a
   // receipt is evidence, and evidence is the thing a customer may need long
   // after the effect itself stopped mattering.
+  /**
+   * x402 machine payments. OFF unless a facilitator is configured: settling an
+   * EIP-3009 authorization needs a funded wallet, which this service does not
+   * hold, so without a facilitator we could advertise a price we cannot
+   * collect. Better to not offer it.
+   */
+  x402: {
+    get facilitatorUrl() { return process.env.X402_FACILITATOR_URL ?? ''; },
+    get facilitatorKey() { return process.env.X402_FACILITATOR_KEY ?? ''; },
+    get payTo() { return process.env.X402_PAY_TO ?? ''; },
+    /** CAIP-2 chain id, e.g. eip155:8453 for Base mainnet. */
+    get network() { return process.env.X402_NETWORK ?? 'eip155:8453'; },
+    /** Token contract. Defaults to USDC on Base. */
+    get asset() {
+      return process.env.X402_ASSET ?? '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+    },
+    /** Amount in the asset's base units. USDC has 6 decimals, so 1000000 = $1. */
+    get amount() { return process.env.X402_AMOUNT ?? '1000000'; },
+    /** Credit granted per payment, in micro-USD. Must match `amount`'s value. */
+    get creditMicros() {
+      return Number.parseInt(process.env.X402_CREDIT_MICROS ?? '1000000', 10);
+    },
+  },
+
   receiptRetentionDays: int('RECEIPT_RETENTION_DAYS', 90),
   consoleSessionTtlHours: int('CONSOLE_SESSION_TTL_HOURS', 72),
 } as const;
@@ -204,6 +228,19 @@ export function assertProductionSafety(): string[] {
   // Every OAuth surface is derived from PUBLIC_URL: the issuer, the redirect
   // target, and the metadata clients trust to find them. Over plaintext, the
   // authorization code is exposed in transit and the whole flow is worthless.
+  // Half-configured x402 would advertise a price we cannot collect.
+  const x = config.x402;
+  const anyX402 = x.facilitatorUrl || x.payTo;
+  if (anyX402 && !(x.facilitatorUrl && x.payTo)) {
+    problems.push(
+      'x402 is partially configured: X402_FACILITATOR_URL and X402_PAY_TO are both '
+      + 'required, or neither. Advertising a payment we cannot settle is worse than '
+      + 'not accepting payment.');
+  }
+  if (anyX402 && x.creditMicros <= 0) {
+    problems.push('X402_CREDIT_MICROS must be positive.');
+  }
+
   if (!config.publicUrl.startsWith('https://')) {
     problems.push(
       'PUBLIC_URL must be https in production — it is the OAuth issuer and every '

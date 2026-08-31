@@ -18,6 +18,7 @@ import billingRoutes from './routes/billing.js';
 import metaRoutes from './routes/meta.js';
 import oauthRoutes from './routes/oauth.js';
 import receiptRoutes, { receiptWellKnown } from './routes/receipts.js';
+import { x402Enabled, paymentRequired, encodeHeader } from '../domain/x402.js';
 import { registerMcpHttp } from '../mcp/http.js';
 
 const webRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web');
@@ -298,6 +299,22 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   });
 
   await app.register(oauthRoutes);
+  /**
+   * Attach x402 payment terms to any 402 we emit.
+   *
+   * Done at the boundary rather than in the handler so a machine hitting the
+   * quota wall always receives the terms, whatever produced the refusal. Only
+   * when x402 is actually configured: advertising a price we cannot collect
+   * would be worse than the plain refusal.
+   */
+  app.addHook('onSend', async (req, reply, payload) => {
+    if (reply.statusCode === 402 && x402Enabled() && !reply.getHeader('PAYMENT-REQUIRED')) {
+      const url = `${config.publicUrl.replace(/\/+$/, '')}${req.url.split('?')[0]}`;
+      reply.header('PAYMENT-REQUIRED', encodeHeader(paymentRequired(url)));
+    }
+    return payload;
+  });
+
   await app.register(receiptWellKnown);
   await app.register(metaRoutes);
   await registerMcpHttp(app);
