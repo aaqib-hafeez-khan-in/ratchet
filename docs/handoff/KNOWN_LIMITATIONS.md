@@ -114,6 +114,38 @@ uniqueness guarantee and is not a small change.
 
 ---
 
+## 4b. Surge containment is absolute, not learned
+
+`surge_per_hour` is a number an operator chooses. There is no relative rule
+("10x the trailing 7-day median"), so a workspace that never configures anything
+gets no containment at all — and the workspaces most likely to need it are the
+ones least likely to have configured it.
+
+A learned baseline needs history that only started being collected on 31 August
+2026, and a wrong automatic threshold refuses real work. The console suggests
+3x the busiest hour in the last 30 days, which is guidance, not enforcement.
+
+Also: windows are hourly. A burst inside one minute that stays under the hourly
+ceiling passes untouched.
+
+See `docs/handoff/CIRCUIT_BREAKER.md`.
+
+---
+
+## 4c. The default key can switch off its own containment
+
+Circuit routes require `policies:write`, and the key issued at signup holds every
+scope. An operator who hands that key to an agent has an agent that can close its
+own breaker.
+
+There is no code fix that does not break legitimate use — the default key is an
+operator key and has to be. The docs now end the containment section with the
+two-scope agent key and the reason for it. Worth doing properly: an "agent key"
+preset in the console, and a scoped key issued alongside the operator one at
+signup, so the right thing is also the easy thing.
+
+---
+
 ## 5. Retention deletes replayable results
 
 When an effect passes `retention_days`, its record — including the recorded `result` — is deleted.
