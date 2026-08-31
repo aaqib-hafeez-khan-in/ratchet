@@ -16,6 +16,8 @@ import { deliverDue } from './webhooks.js';
 import { watchChainOnce, expireQuotes } from './chain.js';
 import { deliverEmails, generateAlerts } from './email.js';
 import { startActivityFlusher, stopActivityFlusher } from '../domain/activity.js';
+import { recordOk, recordFailure, staleAfterMs } from './heartbeat.js';
+import { randomUUID } from 'node:crypto';
 
 const problems = assertProductionSafety();
 if (problems.length > 0) {
@@ -34,22 +36,68 @@ const timers: NodeJS.Timeout[] = [];
  * Run `fn` forever on an interval, never overlapping with itself and never
  * letting one failure kill the loop.
  */
+const INSTANCE = process.env.FLY_MACHINE_ID ?? randomUUID().slice(0, 12);
+
+/** Every loop, so the watchdog can see which of them has stopped finishing. */
+const loops: Array<{ name: string; intervalMs: number; busySince: number | null }> = [];
+
 function loop(name: string, intervalMs: number, fn: () => Promise<number | void>) {
-  let busy = false;
+  const self = { name, intervalMs, busySince: null as number | null };
+  loops.push(self);
+
   const tick = async () => {
-    if (busy || !running) return;
-    busy = true;
+    // busySince doubles as the busy flag and as evidence for the watchdog: a
+    // tick that never returns leaves a timestamp behind, which is the only
+    // trace a wedged loop ever produces.
+    if (self.busySince !== null || !running) return;
+    self.busySince = Date.now();
     try {
       const n = await fn();
       if (typeof n === 'number' && n > 0) log('info', `${name} processed`, { count: n });
+      await recordOk(name, INSTANCE, intervalMs).catch(() => {});
     } catch (err) {
-      log('error', `${name} failed`, { err: (err as Error).message });
+      const message = (err as Error).message;
+      log('error', `${name} failed`, { err: message });
+      // Heartbeat failures must never mask the failure being reported.
+      await recordFailure(name, INSTANCE, intervalMs, message).catch(() => {});
     } finally {
-      busy = false;
+      self.busySince = null;
     }
   };
   timers.push(setInterval(tick, intervalMs));
   void tick();
+}
+
+/**
+ * Exit when a loop has stopped finishing.
+ *
+ * A crashed worker is the easy case: the platform restarts it. The dangerous
+ * one is a wedge — the process alive, the logs quiet, one loop stuck inside a
+ * query that never returns. Its tick never completes, so it never runs again
+ * and never complains, and leases quietly stop expiring.
+ *
+ * Exiting is the recovery. A supervised container that dies gets replaced; one
+ * that sits there half-working does not. The threshold is the same generous one
+ * used to judge staleness, so a slow sweep is never mistaken for a stuck one.
+ */
+function startWatchdog() {
+  const timer = setInterval(() => {
+    if (!running) return;
+    const now = Date.now();
+    for (const l of loops) {
+      if (l.busySince === null) continue;
+      const stuckFor = now - l.busySince;
+      if (stuckFor > staleAfterMs(l.intervalMs)) {
+        log('error', 'loop wedged — exiting so the platform restarts this worker', {
+          loop: l.name, stuckForMs: stuckFor, intervalMs: l.intervalMs,
+        });
+        // Leases stop expiring while this is true. Better to die loudly.
+        process.exit(1);
+      }
+    }
+  }, 30_000);
+  timer.unref?.();
+  timers.push(timer);
 }
 
 async function main() {
@@ -60,6 +108,7 @@ async function main() {
   });
 
   startActivityFlusher();
+  startWatchdog();
 
   loop('lease-sweep', config.worker.leaseSweepIntervalMs, () => drainExpiredLeases());
   loop('webhook-delivery', config.worker.webhookPollIntervalMs, () => deliverDue());

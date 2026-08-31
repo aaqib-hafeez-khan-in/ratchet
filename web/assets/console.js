@@ -157,6 +157,32 @@ async function boot() {
  */
 async function renderAlerts() {
   const out = [];
+
+  /**
+   * The worker is the part nobody watches until it matters.
+   *
+   * If it stops, leases never expire, effects sit at `pending` for ever, and
+   * every retry is answered `in_flight` — with no error anywhere. This banner
+   * exists because that failure is otherwise completely silent, and the console
+   * is where someone would be looking when they finally noticed something odd.
+   *
+   * /workerz is unauthenticated so an uptime monitor can poll it too.
+   */
+  try {
+    const res = await fetch('/workerz');
+    const w = await res.json();
+    if (w.status === 'never_started') {
+      out.push(`<div class="notice bad"><strong>No worker has ever checked in.</strong>
+        Leases will never expire, so a crashed agent's effect stays <code>pending</code>
+        for ever and every retry is told <code>in_flight</code>. The worker process must be
+        deployed and long-running.</div>`);
+    } else if (w.status === 'stalled') {
+      out.push(`<div class="notice bad"><strong>The worker has stopped completing work.</strong>
+        Stalled: <code>${esc((w.stalled_loops ?? []).join(', '))}</code>. Leases may not be
+        expiring. Restart the worker process; it recovers on its own once running.</div>`);
+    }
+  } catch { /* the banner is a courtesy — never let it break the console */ }
+
   const remaining = workspace.usage.included_remaining;
   if (remaining === 0 && workspace.credit_micros <= 0) {
     out.push(`<div class="notice bad"><strong>Allowance exhausted and no credit.</strong>
