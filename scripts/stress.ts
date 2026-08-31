@@ -311,8 +311,11 @@ console.log('\n2. SAFETY UNDER LOAD\n');
     `${started} abandoned → ${rows[0].n} indeterminate`);
   console.log(`\n  reaper drain: ${d.swept} leases in ${d.batches} batches, ` +
     `${d.ms}ms  →  ${perSec.toFixed(0)}/s when draining continuously`);
-  console.log(`  worker cadence: one batch of 50 per ${process.env.LEASE_SWEEP_INTERVAL_MS ?? 2000}ms ` +
-    `= 25/s sustained, so a burst of ${started} takes ~${Math.ceil(started / 25)}s to clear.`);
+  const tick = Number(process.env.LEASE_SWEEP_INTERVAL_MS ?? 2000);
+  const perTick = 40 * 50;   // drainExpiredLeases: maxBatches × batchSize
+  console.log(`  worker cadence: drains up to ${perTick} per ${tick}ms tick ` +
+    `= ${Math.round(perTick / (tick / 1000))}/s sustained, so this burst clears in ` +
+    `~${Math.max(1, Math.ceil(started / perTick))} tick(s).`);
 }
 
 console.log(`\n${failures === 0 ? 'ALL SAFETY PROPERTIES HELD' : `${failures} SAFETY CHECK(S) FAILED`}\n`);
