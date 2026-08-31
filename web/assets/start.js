@@ -8,7 +8,9 @@ document.getElementById('c-key').innerHTML = highlight(
   -H "Content-Type: application/json" \\
   -d '{ "name": "My Agents", "email": "you@example.com" }'
 
-# -> { "api_key": "rk_live_...", "workspace_id": "ws_..." }`);
+# -> { "api_key": "rk_live_...",        <- operator: console and policy
+#      "agent_api_key": "rk_live_...",  <- put THIS one in your agent
+#      "workspace_id": "ws_..." }`);
 
 const SETUP = {
   claudecode: {

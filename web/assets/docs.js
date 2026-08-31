@@ -8,8 +8,14 @@ const S = {
   -H "Content-Type: application/json" \\
   -d '{ "name": "Acme Agents", "email": "ops@acme.example" }'
 
-# -> { "workspace_id": "ws_...", "api_key": "rk_test_...", "plan": "free" }
-#    The key is returned once. Store it now; it cannot be retrieved again.`,
+# -> { "workspace_id": "ws_...",
+#      "api_key":       "rk_live_...",   <- OPERATOR: console, policy, breakers
+#      "agent_api_key": "rk_live_...",   <- AGENT: begin + report, nothing else
+#      "plan": "free" }
+#
+# Put agent_api_key in your code. It cannot change policy, mint keys, or close
+# a circuit breaker — an agent that can switch off its own containment was
+# never contained. Both are returned once and cannot be retrieved again.`,
 
   begin: `curl -X POST ${BASE}/v1/effects/begin \\
   -H "Authorization: Bearer $RATCHET_API_KEY" \\

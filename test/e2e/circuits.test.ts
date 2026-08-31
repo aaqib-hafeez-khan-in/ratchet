@@ -152,3 +152,83 @@ describe('circuit breaker HTTP surface', () => {
     assert.equal(rows[0].detail.reason, 'looked wrong');
   });
 });
+
+describe('signup issues a key an agent cannot misuse', () => {
+  let app2: Awaited<ReturnType<typeof buildApp>>;
+  before(async () => { app2 = await buildApp({ logger: false }); await app2.ready(); });
+  after(async () => { await app2.close(); });
+
+  test('the agent key cannot close a circuit breaker', async () => {
+    // The whole point. The key a quickstart invites you to paste into an agent
+    // must not be able to switch off the containment holding that agent back.
+    const r = await app2.inject({ method: 'POST', url: '/v1/workspaces',
+      headers: { 'content-type': 'application/json' },
+      payload: { name: 'scoped-signup', email: `s-${Date.now()}@example.test` } });
+    assert.equal(r.statusCode, 201);
+    const body = JSON.parse(r.payload);
+    assert.ok(body.agent_api_key?.startsWith('rk_'), 'signup must return an agent key');
+    assert.notEqual(body.agent_api_key, body.api_key, 'and it must be a different key');
+
+    const agent = { authorization: `Bearer ${body.agent_api_key}`,
+                    'content-type': 'application/json' };
+
+    // It can do the job it exists for.
+    const gate = await app2.inject({ method: 'POST', url: '/v1/effects/begin',
+      headers: agent, payload: { effect_type: 'scoped.op', idempotency_key: 'k-1' } });
+    assert.equal(JSON.parse(gate.payload).decision, 'execute');
+
+    // And nothing else. Each body is valid for its own route, so what refuses
+    // these is the authorization guard and not schema validation — Fastify
+    // validates before preHandler, and a 400 would prove nothing about scopes.
+    const forbidden: Array<[ 'GET' | 'POST' | 'PUT', string, object | undefined ]> = [
+      ['POST', '/v1/circuits/*/open', { action: 'deny', reason: 'let me out' }],
+      ['POST', '/v1/circuits/scoped.op/close', {}],
+      ['GET', '/v1/circuits', undefined],
+      ['PUT', '/v1/policies/scoped.op', { mode: 'allow', surge_per_hour: 999999 }],
+      ['POST', '/v1/keys', { name: 'escalate', scopes: ['policies:write'] }],
+    ];
+    for (const [method, url, payload] of forbidden) {
+      const res = await app2.inject({ method, url, headers: agent, payload });
+      assert.ok(res.statusCode === 401 || res.statusCode === 403,
+        `${method} ${url} must refuse an agent key for lack of scope, got ${res.statusCode}`);
+    }
+  });
+
+  test('the operator key still works for everything', async () => {
+    const r = await app2.inject({ method: 'POST', url: '/v1/workspaces',
+      headers: { 'content-type': 'application/json' },
+      payload: { name: 'op-signup', email: `o-${Date.now()}@example.test` } });
+    const body = JSON.parse(r.payload);
+    const op = { authorization: `Bearer ${body.api_key}`, 'content-type': 'application/json' };
+    const open = await app2.inject({ method: 'POST', url: '/v1/circuits/*/open',
+      headers: op, payload: { action: 'deny', reason: 'operator can' } });
+    assert.equal(open.statusCode, 200);
+  });
+});
+
+describe('the keys signup issues do not eat the plan allowance', () => {
+  let app3: Awaited<ReturnType<typeof buildApp>>;
+  before(async () => { app3 = await buildApp({ logger: false }); await app3.ready(); });
+  after(async () => { await app3.close(); });
+
+  test('a free workspace can still create two keys of its own', async () => {
+    // Signup mints two keys for you — an operator key and a gate-only agent
+    // key. Keys the service creates must not consume the allowance that was
+    // sold, and this broke exactly once: adding the agent key silently halved
+    // what a free workspace could create.
+    const r = await app3.inject({ method: 'POST', url: '/v1/workspaces',
+      headers: { 'content-type': 'application/json' },
+      payload: { name: 'quota', email: `q-${Date.now()}@example.test` } });
+    const body = JSON.parse(r.payload);
+    const op = { authorization: `Bearer ${body.api_key}`, 'content-type': 'application/json' };
+
+    for (const n of ['mine-1', 'mine-2']) {
+      const made = await app3.inject({ method: 'POST', url: '/v1/keys', headers: op,
+        payload: { name: n, scopes: ['effects:read'] } });
+      assert.equal(made.statusCode, 201, `${n} should be allowed`);
+    }
+    const third = await app3.inject({ method: 'POST', url: '/v1/keys', headers: op,
+      payload: { name: 'mine-3', scopes: ['effects:read'] } });
+    assert.equal(third.statusCode, 403, 'and the ceiling still exists');
+  });
+});

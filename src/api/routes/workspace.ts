@@ -81,8 +81,15 @@ export default async function workspaceRoutes(app: FastifyInstance) {
           properties: {
             workspace_id: { type: 'string' },
             name: { type: 'string' },
-            api_key: { type: 'string', description: 'Shown once. Store it securely.' },
+            api_key: { type: 'string',
+              description: 'OPERATOR key: full scope, for the console and for changing policy. '
+                + 'Shown once. Store it securely and do not give it to an agent.' },
             api_key_prefix: { type: 'string' },
+            agent_api_key: { type: 'string',
+              description: 'AGENT key: effects:begin and effects:report only. This is the one '
+                + 'to put in your code. It cannot change policy, mint keys, or close a circuit '
+                + 'breaker — so an agent holding it cannot switch off its own containment.' },
+            agent_api_key_prefix: { type: 'string' },
             plan: { type: 'string' },
             console_url: { type: 'string' },
           },
@@ -93,6 +100,20 @@ export default async function workspaceRoutes(app: FastifyInstance) {
   }, async (req, reply) => {
     const b = req.body as { name: string; email: string };
     const ws = await createWorkspace(b.name, b.email);
+    /**
+     * Two keys, on purpose.
+     *
+     * The key handed over at signup is the one a quickstart invites you to paste
+     * straight into an agent — and until now that was a full-scope operator key,
+     * so the agent could change its own policy and close the circuit breaker
+     * holding it back. An agent that can switch off its own containment was
+     * never contained.
+     *
+     * Issuing the narrow key alongside it makes the safe choice the obvious one
+     * rather than something you have to know to ask for.
+     */
+    const agentKey = await createApiKey(getPool(), ws.workspaceId, 'agent',
+      ['effects:begin', 'effects:report'], null);
     const session = await createConsoleSession(ws.workspaceId, ws.email ?? b.email);
     reply.setCookie('rk_session', session, {
       httpOnly: true, sameSite: 'lax', secure: config.isProd,
@@ -104,6 +125,8 @@ export default async function workspaceRoutes(app: FastifyInstance) {
       name: ws.name,
       api_key: ws.key.plaintext,
       api_key_prefix: ws.key.prefix,
+      agent_api_key: agentKey.plaintext,
+      agent_api_key_prefix: agentKey.prefix,
       plan: 'free',
       console_url: `${config.publicUrl}/console`,
     };
