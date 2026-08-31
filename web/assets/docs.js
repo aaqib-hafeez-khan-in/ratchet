@@ -77,6 +77,21 @@ curl ${BASE}/v1/circuits -H "Authorization: Bearer $RATCHET_API_KEY"
 #      "rates": [ { "effect_type": "email.send",
 #                   "this_hour": 187, "peak_hour": 213 } ] }`,
 
+  'agent-key': `# An agent key: it can ask and report, and nothing else.
+curl -X POST ${BASE}/v1/keys \\
+  -H "Authorization: Bearer $RATCHET_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name": "support-bot",
+    "scopes": ["effects:begin", "effects:report"],
+    "daily_budget_micros": 5000000
+  }'
+
+# -> { "key": "rk_live_...", "scopes": ["effects:begin","effects:report"] }
+#
+# That key cannot close a circuit breaker, change a policy, mint another key,
+# or declare more than $5.00 of external spend in a day.`,
+
   'circuit-stop': `# Halt every effect type in the workspace, now.
 curl -X POST ${BASE}/v1/circuits/*/open \\
   -H "Authorization: Bearer $RATCHET_API_KEY" \\
@@ -195,7 +210,8 @@ curl -X POST ${BASE}/v1/billing/crypto/intents \\
 for (const [id, key] of [['c-signup','signup'], ['c-begin','begin'], ['c-report','report'],
                          ['c-policy','policy'], ['c-resolve','resolve'],
                          ['c-group','group'], ['c-unwind','unwind'], ['c-crypto','crypto'],
-                           ['c-circuit','circuit'], ['c-circuit-stop','circuit-stop']]) {
+                           ['c-circuit','circuit'], ['c-circuit-stop','circuit-stop'],
+                           ['c-agent-key','agent-key']]) {
   const el = document.getElementById(id);
   if (el) el.innerHTML = highlight(S[key]);
 }

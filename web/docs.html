@@ -228,10 +228,19 @@
       Closing gives the effect type a fresh allowance; it does not disarm the breaker, so a
       second surge trips it again.
     </p>
+    <h3>Give your agent a key that can't undo this</h3>
+    <p>
+      Circuit routes need <code>policies:write</code>. <strong>The key you get at signup holds
+      every scope</strong>, including that one — it's an operator key. Hand it to an agent and
+      the agent can close its own breaker, which means it was never contained.
+    </p>
+    <pre><code id="c-agent-key"></code></pre>
     <p class="small faint">
-      These routes need a console session or an admin key, never an agent key. An agent that can
-      close its own breaker hasn't been stopped. Surge containment is off until you set a
-      threshold — <code>GET /v1/circuits</code> reports the volume you'd be setting one against.
+      Two scopes are all a worker needs. This is worth doing whether or not you use surge
+      containment: a key that can only ask and report cannot change policy, mint keys, read
+      other effects, or spend beyond the ceiling you attach to it. Surge containment stays off
+      until you set a threshold — <code>GET /v1/circuits</code> reports the volume you'd be
+      setting one against.
     </p>
   </div>
 </section>

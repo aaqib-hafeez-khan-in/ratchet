@@ -125,6 +125,21 @@ MCP: `ratchet_circuit_status` (read-only). Its description tells the model to
 stop rather than work around a breaker — not to rename the effect type, split
 across keys, or vary the idempotency key.
 
+## The gap that makes or breaks it
+
+Circuit routes require `policies:write`. **The key issued at signup holds every
+scope**, so an operator who hands their agent the default key has an agent that
+can close its own breaker — contained in theory, not in practice.
+
+There is no code fix for this that does not break legitimate use: the default key
+is an operator key and has to be. What there is instead is prominence — the docs
+section now ends with the two-scope agent key and the reason for it, because a
+safety control the user configures wrongly is worse than one they never enabled.
+
+Worth revisiting: the console could offer an "agent key" preset, and signup could
+issue a scoped key alongside the operator one so the right thing is also the
+easy thing.
+
 ## Not done yet
 
 - **No learned baseline.** Thresholds are absolute, chosen by the operator from
