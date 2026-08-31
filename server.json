@@ -1,0 +1,41 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.ratchetgate/ratchet",
+  "description": "An effect gate for AI agents: ask before you act, so the same side effect happens at most once.",
+  "version": "0.1.1",
+  "websiteUrl": "https://ratchetgate.com",
+  "repository": {
+    "url": "https://github.com/thearchitect0x-glitch/ratchet",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "ratchet-mcp",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "RATCHET_API_KEY",
+          "description": "Ratchet API key. Create one free at https://ratchetgate.com/console",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "RATCHET_BASE_URL",
+          "description": "Override to point at a self-hosted instance.",
+          "isRequired": false,
+          "default": "https://ratchetgate.com"
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://ratchetgate.com/mcp"
+    }
+  ]
+}

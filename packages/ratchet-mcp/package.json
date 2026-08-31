@@ -1,17 +1,38 @@
 {
   "name": "ratchet-mcp",
-  "version": "0.1.0",
-  "description": "MCP server for Ratchet — the effect gate for AI agents. Ask before you act, so the same side effect happens at most once.",
-  "type": "module",
-  "bin": { "ratchet-mcp": "bin/ratchet-mcp.mjs" },
-  "files": ["bin", "README.md", "LICENSE"],
-  "engines": { "node": ">=18" },
+  "mcpName": "com.ratchetgate/ratchet",
+  "version": "0.1.1",
+  "description": "MCP server for Ratchet \u2014 the effect gate for AI agents. Ask before you act, so the same side effect happens at most once.",
   "license": "Apache-2.0",
-  "keywords": [
-    "mcp", "model-context-protocol", "ai-agents", "idempotency",
-    "at-most-once", "side-effects", "agent-infrastructure", "reliability"
-  ],
-  "repository": { "type": "git", "url": "git+https://github.com/thearchitect0x-glitch/ratchet.git", "directory": "packages/ratchet-mcp" },
   "homepage": "https://ratchetgate.com",
-  "publishConfig": { "access": "public" }
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thearchitect0x-glitch/ratchet.git",
+    "directory": "packages/ratchet-mcp"
+  },
+  "type": "module",
+  "bin": {
+    "ratchet-mcp": "bin/ratchet-mcp.mjs"
+  },
+  "files": [
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai-agents",
+    "idempotency",
+    "at-most-once",
+    "side-effects",
+    "agent-infrastructure",
+    "reliability"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

@@ -213,6 +213,15 @@ export default async function metaRoutes(app: FastifyInstance) {
        ''].join('\n'));
   });
 
+  /**
+   * Domain-ownership proof for the official MCP registry, which grants the
+   * com.ratchetgate.* namespace. The public half of an Ed25519 pair; the
+   * private half never leaves the operator's machine.
+   */
+  app.get('/.well-known/mcp-registry-auth', { schema: { hide: true } }, async (_req, reply) =>
+    reply.type('text/plain; charset=utf-8')
+      .send('v=MCPv1; k=ed25519; p=IC9xQtYEB/1lEKpfc1JcuEajLfXiVuyvPL3tS8U6Y7E=\n'));
+
   app.get('/llms.txt', {
     schema: {
       tags: ['Meta'], operationId: 'llmsTxt',
