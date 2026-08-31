@@ -88,6 +88,37 @@
         </ul>
       </div>
       <div class="card">
+        <h3>Containing a runaway agent</h3>
+        <ul class="checks">
+          <li>A circuit breaker per effect type opens when one starts running far more often
+              than its configured hourly ceiling — the failure spend limits cannot see,
+              because the loop that sends five thousand emails costs about a dollar</li>
+          <li>An open breaker raises the effect type to <code>require_approval</code> by
+              default: the work waits for a human rather than the agent being killed</li>
+          <li>A workspace-wide emergency stop, with no cooldown — a control reached for in a
+              panic must not quietly undo itself</li>
+          <li>Thresholds come from stored policy and counts from the database; nothing in an
+              agent's payload, summary, or result can raise a ceiling</li>
+          <li>Breaker controls require an operator credential. An agent that could close its
+              own breaker was never contained</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Knowing when we have failed</h3>
+        <ul class="checks">
+          <li>The worker expires leases on a timer. If it stops, effects stay
+              <code>pending</code> for ever and every retry is told <code>in_flight</code> —
+              silently. So it reports a heartbeat per loop</li>
+          <li><a href="/workerz"><code>GET /workerz</code></a> returns <code>503</code> when
+              lease expiry has stopped running. It needs no credential, so you can point your
+              own uptime monitor at it — and you should</li>
+          <li>Deliberately separate from the readiness probe: a stalled worker must never take
+              the control plane offline, because the gate still works without it</li>
+          <li>A worker whose loop wedges mid-query exits rather than sitting there half-working,
+              so the platform replaces it</li>
+        </ul>
+      </div>
+      <div class="card">
         <h3>Tenant isolation</h3>
         <ul class="checks">
           <li>Every query is scoped by workspace; there is no unscoped read path</li>
