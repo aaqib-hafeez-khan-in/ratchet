@@ -28,6 +28,7 @@ export const CATEGORIES = {
   indeterminate: 'Effects whose outcome is unknown and need verifying',
   rollback: 'Rollbacks that are incomplete or could not finish',
   approval: 'Effects waiting on your approval',
+  containment: 'Circuit breakers that have opened',
   billing: 'Receipts, refunds, and plan changes',
   usage: 'Allowance running low or exhausted',
   security: 'API keys created or revoked',
@@ -37,7 +38,8 @@ export const CATEGORIES = {
 export type Category = keyof typeof CATEGORIES;
 
 /** Alerts a person acts on. Sent unless explicitly disabled. */
-const OPERATIONAL: Category[] = ['indeterminate', 'rollback', 'approval', 'usage', 'security'];
+const OPERATIONAL: Category[] =
+  ['indeterminate', 'rollback', 'approval', 'containment', 'usage', 'security'];
 
 export interface Queued { queued: boolean; reason?: string; }
 
@@ -57,7 +59,7 @@ export async function queueEmail(args: {
   const db = args.db ?? getPool();
 
   const { rows } = await db.query<{
-    owner_email: string; email_suppressed_at: Date | null; enabled: boolean | null;
+    owner_email: string | null; email_suppressed_at: Date | null; enabled: boolean | null;
   }>(
     `SELECT w.owner_email, w.email_suppressed_at, p.enabled
        FROM workspaces w
@@ -68,6 +70,12 @@ export async function queueEmail(args: {
   );
   const ws = rows[0];
   if (!ws) return { queued: false, reason: 'no such workspace' };
+  // Anonymous workspaces have no owner. They are created by the zero-friction
+  // path — any unauthenticated begin — and their agents crash like everyone
+  // else's, so they accumulate exactly the conditions that generate alerts.
+  // Without this the insert violates NOT NULL and the exception escapes the
+  // sweep, silencing alerts for every workspace that sorts after it.
+  if (!ws.owner_email) return { queued: false, reason: 'workspace has no owner address' };
   if (ws.email_suppressed_at) return { queued: false, reason: 'address suppressed' };
   // Absent preference means enabled, so a category added later still reaches
   // people who signed up before it existed.

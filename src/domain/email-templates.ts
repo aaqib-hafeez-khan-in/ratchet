@@ -137,6 +137,65 @@ Manage alerts: ${base()}/console`;
   return { subject, text, html };
 }
 
+export function circuitAlert(
+  open: Array<{ effectType: string; action: string; reason: string | null;
+                resetsAt: Date | null }>,
+) {
+  const n = open.length;
+  const global = open.some((c) => c.effectType === '*');
+  const subject = global
+    ? 'Everything is stopped: a workspace-wide circuit breaker is open'
+    : n === 1
+      ? `Circuit breaker open: ${open[0]!.effectType}`
+      : `${n} circuit breakers are open`;
+
+  // What the operator needs at 3am, in order: what stopped, why, what happens
+  // if they do nothing, and where to look.
+  const line = (c: typeof open[number]) => {
+    const what = c.effectType === '*' ? 'Every effect type' : c.effectType;
+    const doing = c.action === 'deny' ? 'being refused'
+      : c.action === 'require_approval' ? 'waiting for your approval'
+      : 'still running (monitor only)';
+    const until = c.resetsAt
+      ? `clears on its own at ${c.resetsAt.toISOString().replace('T', ' ').slice(0, 16)} UTC`
+      : 'stays open until you close it';
+    return { what, doing, until, why: c.reason ?? 'threshold exceeded' };
+  };
+  const rows = open.map(line);
+
+  const text =
+`${global ? 'A workspace-wide stop is in place.' : `${plural(n, 'circuit breaker')} opened.`}
+
+${rows.map((r) => `  ${r.what}
+    why:  ${r.why}
+    now:  ${r.doing}
+    ends: ${r.until}`).join('\n\n')}
+
+Surge containment opens a breaker when an effect type runs far more often than
+the ceiling you set. It usually means something is looping. Nothing was
+performed twice — the gate held — but work is being held or refused right now.
+
+  ${base()}/console
+
+Manage alerts: ${base()}/console`;
+
+  const html = wrap(subject,
+    `<p style="margin:0 0 12px">${global
+      ? 'A <strong>workspace-wide stop</strong> is in place.'
+      : `<strong>${plural(n, 'circuit breaker')}</strong> opened.`}</p>` +
+    rows.map((r) =>
+      `<p style="margin:0 0 12px;padding:10px 12px;background:#f6f7f9;border-radius:8px">
+         <strong>${esc(r.what)}</strong><br>
+         <span style="color:#5b626d">${esc(r.why)}</span><br>
+         Now ${esc(r.doing)}; ${esc(r.until)}.
+       </p>`).join('') +
+    `<p style="margin:0;color:#5b626d">Surge containment opens a breaker when an effect type
+       runs far more often than the ceiling you set — usually a loop. Nothing was performed
+       twice, but work is being held or refused right now.</p>`,
+    { label: 'Review the breaker', href: `${base()}/console` });
+  return { subject, text, html };
+}
+
 export function usageAlert(remaining: number, included: number, creditMicros: number) {
   const exhausted = remaining === 0;
   const subject = exhausted
