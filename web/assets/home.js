@@ -1,5 +1,6 @@
 import { mountChrome, highlight, tabs } from '/assets/partials.js';
 import { beatFor } from '/assets/beat.js';
+import { revealSections } from '/assets/reveal.js';
 mountChrome('/');
 
 const flow = `# 1. Ask, before you act.
@@ -215,3 +216,8 @@ tabs(document.getElementById('int-tabs'), (name) => {
 
   update();
 })();
+
+// Everything after the pinned narrative was static while the top of the page
+// moved, which read as two different sites stitched together. The stage is
+// skipped: it already drives its own scroll animation and would fight this one.
+revealSections({ skip: ['.stage'] });

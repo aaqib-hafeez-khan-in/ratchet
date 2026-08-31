@@ -183,3 +183,6 @@ try {
   document.getElementById('mcp-tools').innerHTML =
     '<p class="notice bad">Could not load the tool list.</p>';
 }
+
+import { revealSections } from '/assets/reveal.js';
+revealSections({});

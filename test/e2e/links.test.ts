@@ -73,3 +73,26 @@ describe('site links', () => {
       'the beacon is under /v1/, which is disallowed — it needs an explicit Allow');
   });
 });
+
+describe('stylesheet integrity', () => {
+  // A stray brace silently disables every rule after it. This shipped once:
+  // an offset-based edit removed a block and left its closing brace behind,
+  // and the only symptom was elements staying invisible on one page.
+  test('braces balance and never close below zero', () => {
+    const css = readFileSync(join(WEB, 'assets/style.css'), 'utf8');
+    let depth = 0;
+    let line = 0;
+    for (const [i, l] of css.split('\n').entries()) {
+      depth += (l.match(/\{/g) ?? []).length - (l.match(/\}/g) ?? []).length;
+      if (depth < 0 && !line) line = i + 1;
+    }
+    assert.equal(line, 0, `a stray closing brace at line ${line} disables every rule after it`);
+    assert.equal(depth, 0, `stylesheet ends at depth ${depth}; a rule is unclosed`);
+  });
+
+  test('the reveal rules the pages depend on are present', () => {
+    const css = readFileSync(join(WEB, 'assets/style.css'), 'utf8');
+    assert.match(css, /\.js-reveal \[data-reveal\]\s*\{/);
+    assert.match(css, /\.js-reveal \[data-reveal\]\.is-in\s*\{/);
+  });
+});

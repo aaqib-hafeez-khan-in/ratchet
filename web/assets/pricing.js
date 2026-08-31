@@ -63,3 +63,6 @@ try {
   document.getElementById('provider').innerHTML =
     '<p class="small dim" style="margin:0">Billing status unavailable.</p>';
 }
+
+import { revealSections } from '/assets/reveal.js';
+revealSections({});

@@ -1,3 +1,5 @@
+import { reveal } from '/assets/reveal.js';
+
 /**
  * The compatibility router.
  *
@@ -144,7 +146,7 @@ function renderGroups(filter = '') {
       path === key && (!q || n.toLowerCase().includes(q)));
     if (!items.length) return '';
     shown += items.length;
-    return `<section class="path" data-path="${key}">
+    return `<section class="path" data-path="${key}" data-reveal>
       <div class="wrap">
       <div class="path-head">
         <h2>${esc(p.title)}</h2>
@@ -153,7 +155,7 @@ function renderGroups(filter = '') {
           ${VERIFIED[key]}</p>` : ''}
       </div>
       <ul class="names">
-        ${items.map(([n, , note]) => `<li>
+        ${items.map(([n, , note]) => `<li data-reveal>
           <span class="n">${esc(n)}</span>
           ${note === 'verified' || note.startsWith('verified')
             ? `<span class="tag ok" title="We ran it ourselves.">verified</span>`
@@ -176,49 +178,11 @@ function renderGroups(filter = '') {
   observe();
 }
 
-/* Reveal on scroll.
-   The content is the point; the motion is not. An IntersectionObserver that
-   never fires — a hidden tab, a prerender, a browser that throttles it — must
-   not be able to leave the page blank, so nothing here depends on one firing.
-   A plain sweep decides what is visible, several things call it, and the whole
-   mechanism removes itself once everything is shown. */
-const MOTION_OK = !matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-function revealAll() {
-  document.querySelectorAll('.path, .names li').forEach((el) => el.classList.add('in'));
-}
-
-let queued = false;
-function sweep() {
-  queued = false;
-  const pending = document.querySelectorAll('.path:not(.in), .names li:not(.in)');
-  if (!pending.length) { teardown(); return; }
-  const limit = innerHeight * 0.94;
-  pending.forEach((el) => {
-    if (el.getBoundingClientRect().top < limit) el.classList.add('in');
-  });
-}
-
-const onScroll = () => { if (!queued) { queued = true; requestAnimationFrame(sweep); } };
-
-function teardown() {
-  removeEventListener('scroll', onScroll);
-  removeEventListener('resize', onScroll);
-}
-
+/* Reveal uses the shared module now. This page had its own copy, which is one
+   copy too many: the fail-safe behaviour it grew — never depend on an observer
+   firing, never leave the page blank — belongs everywhere, not just here. */
 function observe() {
-  if (!MOTION_OK) { revealAll(); return; }
-  document.documentElement.classList.add('js-motion');
-
-  addEventListener('scroll', onScroll, { passive: true });
-  addEventListener('resize', onScroll, { passive: true });
-  // Whatever is on screen at mount arrives with the page, not after it.
-  requestAnimationFrame(sweep);
-  // And a hard backstop: if anything above has been prevented from running,
-  // the page still ends up readable rather than empty.
-  setTimeout(sweep, 400);
-  setTimeout(revealAll, 2500);
-  document.addEventListener('visibilitychange', sweep);
+  reveal({ stagger: 22 });
 }
 
 const input = document.getElementById('q');
