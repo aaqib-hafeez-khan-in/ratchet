@@ -74,6 +74,31 @@ never credentials — we still hold no vendor access.
   will see a zero prevented-loss figure. The tools now say why it reads zero
   instead of reporting `$0.00` as an answer, but the docs and recipes do not yet
   encourage declaring costs.
-- Key rotation is unhandled: the signing key derives from `AUTH_SECRET`, so
-  rotating that invalidates verification of every earlier receipt against the
-  current published key.
+(Key rotation was this gap and is now closed — see below.)
+
+## Key rotation
+
+The signing key derives from `AUTH_SECRET`. Rotating that secret — which an
+operator must be able to do, especially after a suspected compromise — used to
+invalidate every receipt ever issued. They stayed correctly signed, but the only
+key we published could no longer verify them, so a customer auditing last
+quarter would see the entire log fail and be unable to tell rotation from an
+attack. That made `AUTH_SECRET` effectively unrotatable.
+
+The fix rests on one asymmetry: **a public key is not a secret.** Every public
+key we have ever signed with is recorded in `receipt_keys` under a `kid` (a
+fingerprint of the key itself), and every receipt carries its `kid` **inside the
+signed body**, so it cannot be repointed at a different key. Verification
+resolves the key per record rather than using whatever is current.
+
+Rotating now changes only what NEW receipts are signed with. Old receipts verify
+against their own key, which we keep publishing forever. What is lost is the
+ability to *sign* with a retired key, which is exactly what rotation is for.
+
+`/.well-known/ratchet-receipt-key` returns every key with `current` marked.
+Checkpoints are signed too, so they carry a `kid` for the same reason.
+
+One narrow fallback: the key currently in use resolves even if its registry row
+has not been written yet, since we demonstrably hold it. An unknown `kid` that
+is *not* the current key still fails the audit — that is the case where someone
+is pointing a receipt at a key nobody ever published.

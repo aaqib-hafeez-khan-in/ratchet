@@ -10,7 +10,8 @@ import type { FastifyInstance } from 'fastify';
 import { getPool } from '../../db/pool.js';
 import { config } from '../../lib/config.js';
 import { wsOf } from '../plugins/auth.js';
-import { receiptsFor, auditChain, receiptPublicKey, RECEIPT_VERSION } from '../../domain/receipts.js';
+import { receiptsFor, auditChain, receiptPublicKey, currentKid, knownKeys,
+         RECEIPT_VERSION } from '../../domain/receipts.js';
 import { errorResponses } from '../schemas.js';
 
 /**
@@ -22,17 +23,26 @@ import { errorResponses } from '../schemas.js';
  * so the link test catches this if it ever moves again.
  */
 export async function receiptWellKnown(app: FastifyInstance) {
-  app.get('/.well-known/ratchet-receipt-key', { schema: { hide: true } }, async (_req, reply) =>
-    reply.type('application/json; charset=utf-8').send({
+  app.get('/.well-known/ratchet-receipt-key', { schema: { hide: true } }, async (_req, reply) => {
+    // Every key we have ever signed with, not only the current one. A receipt
+    // names its key in `kid`; look that up here. Publishing only the current
+    // key is what made rotation destroy the verifiability of all history.
+    const keys = await knownKeys().catch(() => []);
+    return reply.type('application/json; charset=utf-8').send({
       version: RECEIPT_VERSION,
       algorithm: 'ed25519',
+      current_kid: currentKid(),
       public_key: receiptPublicKey(),
+      keys: keys.length ? keys : [{ kid: currentKid(), public_key: receiptPublicKey(),
+                                    algorithm: 'ed25519', current: true }],
       encoding: 'base64 raw 32-byte public key; signature is base64 over the exact `body` bytes',
-      verify: 'ed25519_verify(public_key, body_bytes, signature)',
-      note: 'Receipts are signed with a key derived from this deployment. Rotating the '
-        + 'server secret rotates this key, and older receipts verify only against the '
-        + 'key that signed them.',
-    }));
+      verify: 'Find the receipt\'s `kid`, take the matching public_key from `keys`, then '
+        + 'ed25519_verify(public_key, body_bytes, signature).',
+      note: 'Retired keys stay published forever so old receipts remain verifiable. We keep '
+        + 'the public half only; we cannot sign with a retired key, which is what rotation '
+        + 'is for.',
+    });
+  });
 }
 
 export default async function receiptRoutes(app: FastifyInstance) {

@@ -1,6 +1,7 @@
 import { buildApp } from './app.js';
 import { config, assertProductionSafety } from '../lib/config.js';
 import { migrate } from '../db/migrate.js';
+import { registerCurrentKey } from '../domain/receipts.js';
 import { closePool } from '../db/pool.js';
 import { startActivityFlusher, stopActivityFlusher } from '../domain/activity.js';
 
@@ -19,6 +20,10 @@ try {
     if (applied.length) app.log.info(`applied ${applied.length} migration(s)`);
   }
   startActivityFlusher();
+  // Record the public half of the signing key before serving, so a receipt can
+  // never be issued under a key nobody can look up.
+  await registerCurrentKey();
+
   await app.listen({ port: config.port, host: config.host });
   app.log.info(`ratchet control plane listening on ${config.publicUrl}`);
 } catch (err) {

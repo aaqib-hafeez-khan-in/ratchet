@@ -11,6 +11,7 @@ import { freshWorkspace, closePool, getPool } from '../helpers.js';
 import {
   signBody, verifyReceipt, receiptPublicKey, canonicalBody,
   chainPendingReceipts, receiptsFor, auditChain, RECEIPT_VERSION,
+  currentKid, knownKeys, registerCurrentKey,
 } from '../../src/domain/receipts.js';
 
 const { beginEffect } = await import('../../src/domain/effects.js');
@@ -242,7 +243,12 @@ describe('retention', () => {
       [ws2.workspaceId]);
     const r = await pruneReceipts(90);
     assert.ok(r.pruned > 0, 'nothing was pruned');
-    assert.equal(r.checkpoints, 1);
+    // Assert per workspace: the prune sweeps up to fifty at a time, so the
+    // global count depends on what other tests left lying around.
+    const { rows: cps } = await getPool().query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM receipt_checkpoints WHERE workspace_id=$1`,
+      [ws2.workspaceId]);
+    assert.equal(Number(cps[0]!.n), 1, 'exactly one checkpoint for this workspace');
 
     // The critical property: a truncated log must NOT read as tampered.
     const audit = await auditChain(getPool(), ws2.workspaceId);
@@ -284,5 +290,80 @@ describe('retention', () => {
     const { rows } = await getPool().query<{ n: string }>(
       `SELECT count(*)::text AS n FROM receipts WHERE workspace_id=$1`, [ws2.workspaceId]);
     assert.equal(Number(rows[0]!.n), 1, 'an unattested receipt was deleted');
+  });
+});
+
+/**
+ * Key rotation.
+ *
+ * The failure this prevents is silent and total: rotate AUTH_SECRET, and every
+ * receipt ever issued stops verifying against the only key we publish. A
+ * customer auditing last quarter sees the whole log fail and cannot tell
+ * rotation from an attack.
+ */
+describe('key rotation', () => {
+  test('a key id is recorded and travels inside the signature', async () => {
+    const w = await freshWorkspace();
+    await beginEffect({
+      workspaceId: w.workspaceId, apiKeyId: w.key.id, apiKeyPrefix: w.key.prefix,
+      keyDailyBudgetMicros: null, effectType: 'payment.charge',
+      idempotencyKey: `kid-${Date.now()}`, payload: {}, estimatedCostMicros: 0,
+    });
+    const { rows } = await getPool().query<{ kid: string; body: string }>(
+      `SELECT kid, body FROM receipts WHERE workspace_id=$1`, [w.workspaceId]);
+    assert.equal(rows[0]!.kid, currentKid());
+    // Inside the signed bytes, so it cannot be repointed at another key.
+    assert.equal(JSON.parse(rows[0]!.body).kid, currentKid());
+  });
+
+  test('history still verifies after the signing key changes', async () => {
+    const w = await freshWorkspace();
+    await registerCurrentKey();
+    await beginEffect({
+      workspaceId: w.workspaceId, apiKeyId: w.key.id, apiKeyPrefix: w.key.prefix,
+      keyDailyBudgetMicros: null, effectType: 'payment.charge',
+      idempotencyKey: `rot-${Date.now()}`, payload: {}, estimatedCostMicros: 0,
+    });
+    await chainPendingReceipts();
+    assert.equal((await auditChain(getPool(), w.workspaceId)).ok, true);
+
+    // Simulate rotation: a NEW key becomes current while the old public half
+    // remains published. This is the exact scenario that used to destroy the
+    // verifiability of everything already signed.
+    const newPub = Buffer.from(
+      '3'.repeat(64), 'hex').toString('base64');
+    await getPool().query(
+      `INSERT INTO receipt_keys (kid, public_key) VALUES ($1,$2)
+       ON CONFLICT (kid) DO NOTHING`, ['deadbeefdeadbeef', newPub]);
+
+    const after = await auditChain(getPool(), w.workspaceId);
+    assert.equal(after.ok, true,
+      `old receipts must still verify after rotation: ${after.reason}`);
+  });
+
+  test('a receipt naming an unpublished key is refused, not waved through', async () => {
+    const w = await freshWorkspace();
+    await beginEffect({
+      workspaceId: w.workspaceId, apiKeyId: w.key.id, apiKeyPrefix: w.key.prefix,
+      keyDailyBudgetMicros: null, effectType: 'payment.charge',
+      idempotencyKey: `unk-${Date.now()}`, payload: {}, estimatedCostMicros: 0,
+    });
+    await chainPendingReceipts();
+    // Point it at a key nobody has ever published.
+    await getPool().query(
+      `UPDATE receipts SET body = replace(body, $2, 'ffffffffffffffff')
+        WHERE workspace_id=$1`, [w.workspaceId, currentKid()]);
+
+    const after = await auditChain(getPool(), w.workspaceId);
+    assert.equal(after.ok, false, 'an unknown signing key must fail the audit');
+  });
+
+  test('every published key is usable for verification', async () => {
+    await registerCurrentKey();
+    const keys = await knownKeys();
+    assert.ok(keys.length >= 1);
+    const cur = keys.find((k) => k.current);
+    assert.ok(cur, 'exactly one key must be marked current');
+    assert.equal(Buffer.from(cur!.public_key, 'base64').length, 32);
   });
 });

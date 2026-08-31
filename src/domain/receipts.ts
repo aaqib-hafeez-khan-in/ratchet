@@ -28,7 +28,7 @@ import type { PoolClient } from 'pg';
 import { getPool, type Db } from '../db/pool.js';
 import { config } from '../lib/config.js';
 
-export const RECEIPT_VERSION = 'ratchet-receipt-v2';
+export const RECEIPT_VERSION = 'ratchet-receipt-v3';
 
 /**
  * Ed25519 keypair derived deterministically from AUTH_SECRET.
@@ -37,7 +37,7 @@ export const RECEIPT_VERSION = 'ratchet-receipt-v2';
  * the fixed ASN.1 header for an Ed25519 private key, so the only variable part
  * is the seed itself.
  */
-let cached: { priv: ReturnType<typeof createPrivateKey>; pubB64: string } | null = null;
+let cached: { priv: ReturnType<typeof createPrivateKey>; pubB64: string; kid: string } | null = null;
 
 function keypair() {
   if (cached) return cached;
@@ -50,8 +50,43 @@ function keypair() {
   const priv = createPrivateKey({ key: pkcs8, format: 'der', type: 'pkcs8' });
   const pubDer = createPublicKey(priv).export({ format: 'der', type: 'spki' }) as Buffer;
   // Strip the 12-byte SPKI header to expose the raw 32-byte public key.
-  cached = { priv, pubB64: pubDer.subarray(12).toString('base64') };
+  const pubB64 = pubDer.subarray(12).toString('base64');
+  // The id is a fingerprint of the public key, so it is stable, derivable by
+  // anyone holding the key, and reveals nothing.
+  const kid = createHash('sha256').update(pubDer.subarray(12)).digest('hex').slice(0, 16);
+  cached = { priv, pubB64, kid };
   return cached;
+}
+
+/** Identifier for the key currently signing. */
+export function currentKid(): string {
+  return keypair().kid;
+}
+
+/**
+ * Record the public half of the current key so receipts signed with it stay
+ * verifiable after AUTH_SECRET is rotated away from it.
+ *
+ * A public key is not a secret, which is the whole reason rotation can work at
+ * all: we keep publishing old public keys forever while losing the ability to
+ * sign with them.
+ */
+export async function registerCurrentKey(): Promise<void> {
+  const { kid, pubB64 } = keypair();
+  await getPool().query(
+    `INSERT INTO receipt_keys (kid, public_key) VALUES ($1,$2)
+     ON CONFLICT (kid) DO UPDATE SET last_seen_at = now()`,
+    [kid, pubB64],
+  );
+}
+
+/** Every key we have ever signed with, so any receipt can still be verified. */
+export async function knownKeys(): Promise<
+  Array<{ kid: string; public_key: string; algorithm: string; current: boolean }>> {
+  const { rows } = await getPool().query<{ kid: string; public_key: string; algorithm: string }>(
+    `SELECT kid, public_key, algorithm FROM receipt_keys ORDER BY first_seen_at ASC`);
+  const now = currentKid();
+  return rows.map((r) => ({ ...r, current: r.kid === now }));
 }
 
 /** The public half, for anyone verifying a receipt without asking us. */
@@ -71,6 +106,8 @@ export interface ReceiptBody {
   payload_fingerprint: string;
   /** What the caller declared this effect would cost, in micro-USD. */
   cost_micros: number;
+  /** Which key signed this. Inside the signature, so it cannot be repointed. */
+  kid: string;
   decided_at: string;
 }
 
@@ -113,14 +150,19 @@ export function verifyReceipt(bodyJson: string, signatureB64: string, publicKeyB
  * Runs inside the caller's transaction so a decision and its receipt cannot
  * disagree: if the decision rolls back, so does the evidence for it.
  */
-export async function writeReceipt(tx: PoolClient, body: ReceiptBody): Promise<void> {
+export type ReceiptInput = Omit<ReceiptBody, 'kid'>;
+
+export async function writeReceipt(tx: PoolClient, input: ReceiptInput): Promise<void> {
+  // The caller should not have to know which key is current; that is our
+  // bookkeeping, and getting it wrong would be silent.
+  const body: ReceiptBody = { ...input, kid: currentKid() };
   const signed = signBody(body);
   await tx.query(
     `INSERT INTO receipts
-       (workspace_id, effect_id, decision, attempt, body, signature, body_hash, cost_micros)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+       (workspace_id, effect_id, decision, attempt, body, signature, body_hash, cost_micros, kid)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
     [body.workspace_id, body.effect_id, body.decision, body.attempt,
-     signed.body, signed.signature, signed.hash, body.cost_micros],
+     signed.body, signed.signature, signed.hash, body.cost_micros, body.kid],
   );
 }
 
@@ -234,7 +276,8 @@ export async function pruneReceipts(
       }
 
       const body = {
-        v: 'ratchet-checkpoint-v1',
+        v: 'ratchet-checkpoint-v2',
+        kid: currentKid(),
         workspace_id,
         up_to_seq: upTo,
         chain_hash: edge[0].chain_hash,
@@ -247,9 +290,9 @@ export async function pruneReceipts(
 
       await client.query(
         `INSERT INTO receipt_checkpoints
-           (workspace_id, up_to_seq, chain_hash, pruned_count, body, signature)
-         VALUES ($1,$2,$3,$4,$5,$6)`,
-        [workspace_id, upTo, edge[0].chain_hash, count, canonical, signature]);
+           (workspace_id, up_to_seq, chain_hash, pruned_count, body, signature, kid)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [workspace_id, upTo, edge[0].chain_hash, count, canonical, signature, currentKid()]);
 
       const del = await client.query(
         `DELETE FROM receipts WHERE workspace_id = $1 AND seq IS NOT NULL AND seq <= $2`,
@@ -315,6 +358,13 @@ export async function auditChain(
   db: Db, workspaceId: string, limit = 10_000,
 ): Promise<{ checked: number; ok: boolean; brokenAtSeq?: number; reason?: string;
              prunedThroughSeq?: number }> {
+  const keys = new Map((await knownKeys().catch(() => [])).map((k) => [k.kid, k.public_key]));
+  // The key we are signing with right now is always usable, whether or not the
+  // registry write has landed. The fallback is deliberately narrow: an unknown
+  // kid that is NOT the current key still fails, because that is the case where
+  // someone is pointing a receipt at a key nobody ever published.
+  keys.set(currentKid(), receiptPublicKey());
+
   // Resume from the newest checkpoint if the log has been pruned. Starting at
   // seq 1 unconditionally would report a truncated log as tampered, which is
   // the failure that would make every long-lived customer distrust the audit.
@@ -329,7 +379,8 @@ export async function auditChain(
   if (cp[0]) {
     // The checkpoint is itself signed, so a forged one cannot be used to hide a
     // gap: verify it before trusting the hash it hands us.
-    if (!verifyReceipt(cp[0].body, cp[0].signature)) {
+    const cpKid = (JSON.parse(cp[0].body) as { kid?: string }).kid;
+    if (!verifyReceipt(cp[0].body, cp[0].signature, cpKid ? keys.get(cpKid) : undefined)) {
       return { checked: 0, ok: false, reason: 'the pruning checkpoint does not verify' };
     }
     startAfter = Number(cp[0].up_to_seq);
@@ -350,7 +401,16 @@ export async function auditChain(
     if (createHash('sha256').update(r.body).digest('hex') !== r.body_hash) {
       return { checked, ok: false, brokenAtSeq: seq, reason: 'body does not match its hash' };
     }
-    if (!verifyReceipt(r.body, r.signature)) {
+    // Against the key named in the receipt, not whichever key is current.
+    // Verifying everything with the current key is precisely what made rotation
+    // destroy the whole history.
+    const kid = (JSON.parse(r.body) as { kid?: string }).kid;
+    const pub = kid ? keys.get(kid) : undefined;
+    if (kid && !pub) {
+      return { checked, ok: false, brokenAtSeq: seq,
+               reason: `signed by unknown key ${kid}` };
+    }
+    if (!verifyReceipt(r.body, r.signature, pub)) {
       return { checked, ok: false, brokenAtSeq: seq, reason: 'signature does not verify' };
     }
     if ((r.prev_hash ?? null) !== prev) {
