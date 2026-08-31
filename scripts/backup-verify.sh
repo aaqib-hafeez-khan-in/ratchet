@@ -20,6 +20,10 @@ PORT=${PORT:-5456}
 
 mkdir -p "$OUT"
 
+for tool in flyctl docker node; do
+  command -v "$tool" >/dev/null || { echo "  missing required tool: $tool"; exit 1; }
+done
+
 # The dump format version tracks the SERVER major version, so the restore side
 # must be equal or newer. A Postgres 18 dump cannot be read by 16 tooling —
 # found the hard way.

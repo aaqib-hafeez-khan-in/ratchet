@@ -1,0 +1,78 @@
+# Scheduled backup with a proven restore.
+#
+# Runs the same pipeline as `npm run backup:verify`: dump production, restore it
+# into a matching Postgres, re-verify every receipt against the published public
+# key, and only then ship the dump off-machine.
+#
+# SECURITY NOTE — this repository is PUBLIC.
+#
+# The workflow deliberately does NOT trigger on `pull_request`. A fork's PR can
+# propose arbitrary workflow changes, and any trigger that both runs fork code
+# and exposes repository secrets hands those secrets to anyone who opens a PR.
+# Schedule and manual dispatch only, both of which run trusted code from the
+# default branch.
+#
+# It also never echoes a secret, and the dump is retained as an artifact for a
+# short window only — it contains every workspace, key hash, and receipt in
+# production.
+name: backup
+
+on:
+  schedule:
+    # 04:00 UTC daily. Deliberately not midnight: everybody schedules midnight,
+    # and a queue is a bad place to be when you need the backup to have run.
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+# One at a time. Two concurrent dumps would race for the same machine and the
+# same bucket key prefix.
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Dump, restore, verify, upload
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          TIGRIS_ACCESS_KEY_ID: ${{ secrets.TIGRIS_ACCESS_KEY_ID }}
+          TIGRIS_SECRET_ACCESS_KEY: ${{ secrets.TIGRIS_SECRET_ACCESS_KEY }}
+          TIGRIS_BUCKET: ${{ secrets.TIGRIS_BUCKET }}
+          TIGRIS_ENDPOINT: https://fly.storage.tigris.dev
+          BASE: https://ratchetgate.com
+        run: |
+          set -euo pipefail
+          npm run backup:verify
+
+      # Only reached when the restore verified and the upload succeeded, so a
+      # green run means a backup that has been proven restorable — not merely
+      # a file that was produced.
+      - name: Summary
+        if: success()
+        run: echo "Backup dumped, restored, cryptographically verified, and uploaded." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report failure loudly
+        if: failure()
+        run: |
+          {
+            echo "## Backup FAILED"
+            echo
+            echo "The nightly backup did not complete. Until this is fixed there is no"
+            echo "fresh off-machine copy, and the most recent verified backup is whatever"
+            echo "the last green run produced."
+          } >> "$GITHUB_STEP_SUMMARY"
