@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terms — Ratchet</title>
+<meta name="description" content="What Ratchet promises, what it explicitly does not promise, and where responsibility sits.">
+<link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+<link rel="canonical" href="https://ratchetgate.com/terms">
+<meta name="theme-color" content="#1c5cff">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ratchet">
+<meta property="og:title" content="Terms — Ratchet">
+<meta property="og:description" content="What Ratchet promises, what it explicitly does not promise, and where responsibility sits.">
+<meta property="og:url" content="https://ratchetgate.com/terms">
+<meta property="og:image" content="https://ratchetgate.com/assets/og.svg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+<section>
+  <div class="wrap narrow post">
+    <p class="eyebrow">Terms</p>
+    <h1>Terms of service</h1>
+    <p class="meta">Last updated 31 August 2026</p>
+
+    <p class="lede">
+      Ratchet is operated by Deimos.MX. Using the service means accepting these terms. They
+      are written to be read, and the section that matters most is the one about what we do
+      not promise.
+    </p>
+
+    <h2>What the service is</h2>
+    <p>
+      Ratchet records decisions about side effects. You ask whether an action may be performed;
+      we return a durable answer and keep a record of it.
+    </p>
+    <p>
+      <strong>Ratchet never performs the action.</strong> It holds no credentials for your
+      vendors and has no access to your systems. Everything that reaches the outside world is
+      done by your code, on your authority.
+    </p>
+
+    <h2>What we promise</h2>
+    <ul>
+      <li><strong>At-most-once initiation.</strong> For a given workspace, effect type, and
+        idempotency key, at most one caller is told to <code>execute</code> at a time. This is
+        enforced by a database constraint, not by application logic.</li>
+      <li><strong>A durable record.</strong> Decisions are recorded before they are returned.</li>
+      <li><strong>Honest unknowns.</strong> When a lease expires unreported, the effect is
+        recorded as <code>indeterminate</code>. We will never guess it succeeded or failed.</li>
+      <li><strong>Tenant isolation.</strong> Every query is workspace-scoped. A lookup across
+        workspaces returns a 404 and discloses nothing.</li>
+    </ul>
+
+    <h2>What we explicitly do not promise</h2>
+    <p>
+      <strong>Exactly-once execution.</strong> It is not achievable in a distributed system and
+      we do not claim it. What we provide is at-most-once <em>initiation</em>. Where a vendor
+      honours idempotency keys and you send the key we derive, the vendor refuses the duplicate
+      — that is a compositional guarantee that holds only where the vendor supplies its half,
+      and we tell you in each response whether it does.
+    </p>
+    <p>
+      <strong>That your action succeeded.</strong> We record what you report. We cannot observe
+      your vendors, so a recorded outcome is your report, not our observation.
+    </p>
+    <p>
+      <strong>Uninterrupted availability.</strong> Ratchet sits in your critical path. Decide
+      before integrating what your agent does when we are unreachable, and be aware that
+      failing open re-admits the duplicates this service exists to prevent.
+    </p>
+
+    <h2>Your responsibilities</h2>
+    <ul>
+      <li>Derive idempotency keys from the work itself. A key from a random value or a
+        timestamp makes the gate useless, and no refund follows from that.</li>
+      <li>Keep API keys secret. Anyone holding one can act as your workspace.</li>
+      <li>Obey the decision returned. Only <code>execute</code> authorises action.</li>
+      <li>Do not send us data you would not want stored — particularly in
+        <code>result</code> and <code>request_summary</code>, which we keep verbatim.</li>
+      <li>Use the service lawfully, and not to coordinate anything you could not do directly.</li>
+    </ul>
+
+    <h2>Billing</h2>
+    <p>
+      The metered unit is a <strong>gated effect</strong>: the first <code>begin</code> for a
+      given effect type and idempotency key. Duplicate suppression, retries, reports, and reads
+      are free. Plans and prices are on the <a href="/pricing">pricing page</a>.
+    </p>
+    <p>
+      Subscriptions renew monthly until cancelled, and cancelling stops future charges rather
+      than refunding the current period. Prepaid credit is non-refundable once spent. Prices
+      are in USD, exclusive of any tax you may owe.
+    </p>
+    <p>
+      <strong>External spend is never ours.</strong> Budget ceilings limit what your agents
+      declare they will spend at third parties. We do not collect that money; we only count it,
+      and only when you declare it.
+    </p>
+
+    <h2>Suspension and termination</h2>
+    <p>
+      You may stop using the service at any time and delete your workspace. We may suspend an
+      account for non-payment, for abuse, or where continuing would break the law — and will
+      tell you why. We will give reasonable notice before discontinuing the service, and you
+      can export your data throughout.
+    </p>
+
+    <h2>Liability</h2>
+    <p>
+      The service is provided as is. To the maximum extent permitted by law, our total
+      liability for any claim is limited to the fees you paid us in the three months before it
+      arose. We are not liable for indirect or consequential loss, including the cost of an
+      action performed twice, or of one that was refused and should not have been.
+    </p>
+    <p class="dim">
+      That limit is not a way to disclaim the product's purpose. If the gate fails to do what
+      this page says it does, tell us — the receipts exist so you can prove it.
+    </p>
+
+    <h2>Changes</h2>
+    <p>
+      We will post material changes here with a new date, and email workspace owners before
+      changes that reduce what you get.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      <a href="mailto:support@ratchetgate.com">support@ratchetgate.com</a> ·
+      <a href="mailto:legal@ratchetgate.com">legal@ratchetgate.com</a> ·
+      <a href="/privacy">Privacy</a>
+    </p>
+
+    <p class="small dim" style="margin-top:2.5rem">
+      These terms describe how the service actually behaves, verified against the code. They
+      are not legal advice and have not been reviewed by a lawyer. Before relying on them
+      commercially, have your own counsel read them.
+    </p>
+  </div>
+</section>
+</main>
+<footer class="site"></footer>
+<script type="module" src="/assets/legal.js"></script>
+</body>
+</html>

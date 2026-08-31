@@ -16,6 +16,13 @@ import { closePool } from '../helpers.js';
 const WEB = join(import.meta.dirname, '../../web');
 const pages = readdirSync(WEB).filter((f) => f.endsWith('.html'));
 
+/**
+ * The nav and footer are rendered from JavaScript, so scanning only .html files
+ * missed every link in the site chrome — which is most of the links on every
+ * page. They were fine, but by luck rather than by test.
+ */
+const CHROME = ['assets/partials.js', 'assets/works-with.js'];
+
 let app: Awaited<ReturnType<typeof buildApp>>;
 before(async () => { app = await buildApp(); await app.ready(); });
 after(async () => { await app.close(); await closePool(); });
@@ -41,9 +48,14 @@ describe('site links', () => {
 
   test('every internal link resolves', async () => {
     const seen = new Set<string>();
-    for (const page of pages) {
-      for (const href of hrefsOf(readFileSync(join(WEB, page), 'utf8'))) {
+    const sources = [
+      ...pages.map((p) => [p, readFileSync(join(WEB, p), 'utf8')] as const),
+      ...CHROME.map((f) => [f, readFileSync(join(WEB, f), 'utf8')] as const),
+    ];
+    for (const [page, content] of sources) {
+      for (const href of hrefsOf(content)) {
         if (!href.startsWith('/')) continue;          // external links are not ours to guarantee
+        if (href.includes('${')) continue;            // template placeholder, not a real link
         const path = href.split('#')[0]!;
         if (!path || seen.has(path)) continue;
         seen.add(path);

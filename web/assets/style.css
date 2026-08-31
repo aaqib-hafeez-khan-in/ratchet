@@ -555,3 +555,9 @@ ul.checks li::before {
   font-size: .88rem; color: var(--text-dim); max-width: 62ch;
 }
 .verified-note .tag { margin-right: .4rem; }
+
+/* Legal pages: dense reference tables. */
+.post table { width: 100%; border-collapse: collapse; margin: 1.4rem 0; font-size: .9rem; }
+.post th, .post td { text-align: left; padding: .55rem .6rem; border-bottom: 1px solid var(--border); }
+.post th { color: var(--text-faint); font-weight: 600; font-size: .78rem;
+           text-transform: uppercase; letter-spacing: .04em; }

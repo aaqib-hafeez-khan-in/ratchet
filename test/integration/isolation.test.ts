@@ -96,14 +96,41 @@ describe('API key authentication', () => {
     await assert.rejects(() => authenticate(ws.key.plaintext), (e: any) => e.code === 'forbidden');
   });
 
+  /**
+   * Mints its own key rather than reading the one created in `before`.
+   *
+   * This assertion has failed twice in full-suite runs and passed every time in
+   * isolation — the signature of a test that depends on state another file can
+   * disturb. A flaky SECURITY test is worse than none, because it teaches you
+   * to re-run instead of look. Depending on nothing outside itself removes the
+   * whole class of cause, and the messages below now say what was actually
+   * found if it ever fails again.
+   */
   test('the plaintext secret is never stored', async () => {
-    const { rows } = await getPool().query(
-      'SELECT secret_hash, prefix FROM api_keys WHERE id = $1', [a.key.id]);
-    const stored = rows[0].secret_hash.toString('hex');
-    assert.equal(rows[0].secret_hash.length, 32, 'only a 32-byte digest is kept');
-    assert.equal(stored.includes(a.key.plaintext.split('_').pop()!), false);
-    const dump = JSON.stringify(rows[0]);
-    assert.equal(dump.includes(a.key.plaintext), false);
+    const ws = await freshWorkspace(false);
+    const { rows } = await getPool().query<{ secret_hash: Buffer; prefix: string }>(
+      'SELECT secret_hash, prefix FROM api_keys WHERE id = $1', [ws.key.id]);
+
+    assert.ok(rows[0], `no api_keys row for the key just created (${ws.key.id})`);
+    const stored = rows[0]!.secret_hash;
+    assert.ok(Buffer.isBuffer(stored),
+      `secret_hash came back as ${typeof stored}, not a Buffer`);
+    assert.equal(stored.length, 32,
+      `expected a 32-byte digest, got ${stored.length} bytes`);
+
+    const secret = ws.key.plaintext.split('_').pop()!;
+    assert.equal(stored.toString('hex').includes(secret), false,
+      'the raw secret appears inside the stored digest');
+    assert.equal(stored.toString('utf8').includes(secret), false,
+      'the raw secret is recoverable from the stored bytes');
+    assert.equal(JSON.stringify(rows[0]).includes(ws.key.plaintext), false,
+      'the full key appears in the row');
+
+    // And nowhere else in the table, under any column.
+    const all = await getPool().query(
+      `SELECT count(*)::int AS n FROM api_keys
+        WHERE name LIKE '%' || $1 || '%' OR prefix = $2`, [secret, ws.key.plaintext]);
+    assert.equal(all.rows[0]!.n, 0, 'the secret leaked into another column');
   });
 
   test('scopes are enforced, and a narrow key cannot widen itself', async () => {

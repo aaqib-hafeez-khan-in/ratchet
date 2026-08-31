@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy — Ratchet</title>
+<meta name="description" content="What Ratchet stores, what it deliberately does not store, who processes it, and how long it is kept.">
+<link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+<link rel="canonical" href="https://ratchetgate.com/privacy">
+<meta name="theme-color" content="#1c5cff">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ratchet">
+<meta property="og:title" content="Privacy — Ratchet">
+<meta property="og:description" content="What Ratchet stores, what it deliberately does not store, and who processes it.">
+<meta property="og:url" content="https://ratchetgate.com/privacy">
+<meta property="og:image" content="https://ratchetgate.com/assets/og.svg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+<section>
+  <div class="wrap narrow post">
+    <p class="eyebrow">Privacy</p>
+    <h1>What we store, and what we refuse to</h1>
+    <p class="meta">Last updated 31 August 2026</p>
+
+    <p class="lede">
+      Ratchet decides whether an agent may perform a side effect. Doing that well needs
+      surprisingly little of your data, and the design deliberately keeps it that way.
+    </p>
+
+    <h2>What we never store</h2>
+    <p>
+      <strong>The payload of a gated effect.</strong> When you call <code>begin</code>, the
+      payload you send is hashed and discarded. We keep
+      <code>sha256(canonicalize(payload))</code> and nothing else. That fingerprint lets us
+      detect a key reused for different work; it cannot be reversed into the recipient, the
+      amount, or the message.
+    </p>
+    <p>
+      <strong>Credentials for your vendors.</strong> Ratchet holds no Stripe key, no mail
+      provider key, no access to any system of yours. It cannot perform the effects it
+      authorises, which is the point — and it means a breach of Ratchet cannot be used to act
+      on your behalf.
+    </p>
+    <p>
+      <strong>API keys in a recoverable form.</strong> Keys are stored as an HMAC-SHA256 digest
+      under a server-side pepper. A copy of our database does not yield a usable key.
+    </p>
+
+    <h2>What we do store</h2>
+    <ul>
+      <li><strong>Workspace</strong> — name, owner email, plan, credit balance.</li>
+      <li><strong>Effects</strong> — the effect type, your idempotency key, the payload
+        fingerprint, decisions, attempts, outcomes, and any <code>result</code> you report so
+        later duplicate callers can replay it. <em>You choose what goes in a result; do not put
+        anything there you would not want stored.</em></li>
+      <li><strong>Receipts</strong> — a signed record of each decision, containing the same
+        fields plus the key that signed it.</li>
+      <li><strong>Audit events</strong> — operator actions such as key creation and policy
+        changes.</li>
+      <li><strong>Request metadata</strong> — method, path, and a request id. Logs redact
+        <code>authorization</code>, <code>x-api-key</code>, <code>cookie</code>, and payment
+        signature headers, and request bodies are never logged.</li>
+    </ul>
+    <p class="dim">
+      Idempotency keys are stored as you send them. If you derive them from something personal
+      — an email address, an account number — that value is stored. Deriving them from a hash
+      of the work avoids this entirely, and is good practice for other reasons too.
+    </p>
+
+    <h2>How long</h2>
+    <ul>
+      <li><strong>Effects</strong> — governed by the retention you set per effect type;
+        <strong>7 days</strong> by default. Deleted by an automated sweep after that.</li>
+      <li><strong>Receipts</strong> — <strong>90 days</strong>. Older ones are pruned behind a
+        signed checkpoint so the audit chain stays verifiable across the gap.</li>
+      <li><strong>Anonymous workspaces</strong> — deleted after <strong>7 days</strong> if never
+        claimed and never used.</li>
+      <li><strong>Backups</strong> — database snapshots retained 30 days; logical backups stored
+        off-machine.</li>
+    </ul>
+
+    <h2>Who else processes it</h2>
+    <table>
+      <tr><th>Processor</th><th>Purpose</th><th>Where</th></tr>
+      <tr><td>Fly.io</td><td>Application hosting and database</td><td>United States</td></tr>
+      <tr><td>Tigris</td><td>Encrypted database backups</td><td>United States</td></tr>
+      <tr><td>Stripe</td><td>Card payments</td><td>United States / global</td></tr>
+      <tr><td>Resend</td><td>Transactional email</td><td>United States</td></tr>
+      <tr><td>Cloudflare</td><td>DNS and inbound email routing</td><td>Global</td></tr>
+    </table>
+    <p class="dim">
+      Card details never touch our servers. Stripe collects them directly; we store only a
+      customer reference and a payment reference.
+    </p>
+
+    <h2>Where it lives</h2>
+    <p>
+      All application data is stored in the United States (Fly.io, region <code>sjc</code>).
+      <strong>There is currently no EU-resident option.</strong> If your obligations require
+      EU residency, Ratchet does not meet them today, and we would rather say so than let you
+      find out later.
+    </p>
+
+    <h2>Your rights</h2>
+    <p>
+      You can export or delete your workspace data at any time. Deleting a workspace removes
+      its effects, receipts, keys, and audit trail; backups age out on the schedule above.
+      Write to <a href="mailto:privacy@ratchetgate.com">privacy@ratchetgate.com</a> and we will
+      respond within 30 days.
+    </p>
+
+    <h2>Cookies</h2>
+    <p>
+      One: <code>rk_session</code>, set only when you sign in to the console. It is
+      <code>HttpOnly</code>, <code>SameSite=Lax</code>, <code>Secure</code>, and holds nothing
+      but a session reference. <strong>No analytics, no advertising, no third-party
+      trackers.</strong> There is no cookie banner because there is nothing to consent to.
+    </p>
+
+    <h2>Security reports</h2>
+    <p>
+      <a href="mailto:security@ratchetgate.com">security@ratchetgate.com</a>, also published in
+      <a href="/.well-known/security.txt">security.txt</a>. Our posture is described on the
+      <a href="/security">security page</a>.
+    </p>
+
+    <p class="small dim" style="margin-top:2.5rem">
+      This describes how the service actually behaves, verified against the code. It is not
+      legal advice, and it has not been reviewed by a lawyer. If you are relying on it for
+      compliance, have your own counsel read it.
+    </p>
+  </div>
+</section>
+</main>
+<footer class="site"></footer>
+<script type="module" src="/assets/legal.js"></script>
+</body>
+</html>

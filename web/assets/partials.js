@@ -63,6 +63,14 @@ export function mountChrome(current) {
           </ul>
         </div>
         <div>
+          <h3>Legal</h3>
+          <ul>
+            <li><a href="/terms">Terms of service</a></li>
+            <li><a href="/privacy">Privacy</a></li>
+            <li><a href="/.well-known/security.txt">Report a vulnerability</a></li>
+          </ul>
+        </div>
+        <div>
           <h3>Operations</h3>
           <ul>
             <li><a href="/security">Security posture</a></li>
