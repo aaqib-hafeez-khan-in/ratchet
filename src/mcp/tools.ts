@@ -36,7 +36,10 @@ export const MCP_TOOLS: McpToolDef[] = [
     description:
       'Call this IMMEDIATELY BEFORE performing any side effect that touches the outside world ' +
       '(sending a message, charging a card, creating a resource, writing to someone else\'s system). ' +
-      'Returns a decision you MUST obey:\n' +
+      'Returns a decision you MUST obey. If the response carries budget_warning, a spend '+
+      'ceiling exists but nothing was counted toward it — surface that to the operator '+
+      'rather than ignoring it.\n' +
+      'Decisions:\n' +
       '- "execute": you hold the lease. Perform the action now, then call ratchet_report_effect.\n' +
       '  If the response carries vendor_idempotency_key, send that key to the vendor as ITS own '+
       'idempotency key (the response says where it goes). Where enforced is true the vendor '+
@@ -66,7 +69,7 @@ export const MCP_TOOLS: McpToolDef[] = [
         },
         estimated_cost_micros: {
           type: 'integer', minimum: 0,
-          description: 'What this action will cost you at the third party, in micro-USD (1000000 = $1). Used only to enforce spend ceilings. Ratchet does not collect this.',
+          description: 'What this action will cost at the third party, in micro-USD (1000000 = $1). ALWAYS SEND THIS when the action costs money. Spend ceilings are computed from it, and a ceiling with nothing declared against it never fires — the operator would be relying on a limit that cannot trigger. If the response contains budget_warning, that is exactly what has happened: tell the operator. Ratchet does not collect this money; it only counts it.',
         },
         agent_id: { type: 'string', description: 'Identifier for you, the calling agent.' },
         run_id: { type: 'string', description: 'Groups all effects from one task or run.' },

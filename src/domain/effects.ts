@@ -112,8 +112,27 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
     // Every decision leaves evidence, not only the interesting ones. Writing it
     // here, inside the same transaction, means a decision and its receipt
     // cannot disagree: if one rolls back so does the other.
-    const decide = async (): Promise<BeginResult> => {
+    // Fetched once, above the wrapper, because the post-decision checks below
+    // need it too.
     const policy = await getPolicy(tx, input.workspaceId, input.effectType);
+
+    const decide = async (): Promise<BeginResult> => {
+
+    /**
+     * A ceiling that nothing counts toward is not a ceiling.
+     *
+     * reserveSpend returns immediately when the declared amount is zero, so an
+     * undeclared cost does not merely under-report — it skips the budget check
+     * entirely. An operator who has configured a limit and turned this on gets
+     * a refusal instead of false confidence.
+     */
+    if (policy.requireCost && input.estimatedCostMicros <= 0) {
+      throw new ApiError(400, 'cost_required',
+        `Effect type "${input.effectType}" requires a declared cost. Send `
+        + 'estimated_cost_micros (micro-USD, 1e-6 USD) so budget ceilings can count it. '
+        + 'Without it the ceiling on this effect type would never trigger.',
+        { effectType: input.effectType });
+    }
 
     if (policy.maxCostMicros !== null && input.estimatedCostMicros > policy.maxCostMicros) {
       throw new ApiError(403, 'cost_ceiling_exceeded',
@@ -312,6 +331,18 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
     };
 
     const decided = await decide();
+
+    // Warn where it actually matters: a limit is configured, and this call
+    // declared nothing, so the limit did not count it. Silence here is how an
+    // operator ends up trusting a ceiling that has never once fired.
+    if (input.estimatedCostMicros <= 0
+        && (policy.dailyBudgetMicros !== null || policy.maxCostMicros !== null)) {
+      decided.budgetWarning =
+        `A spend ceiling is configured for "${input.effectType}", but this call declared no `
+        + 'cost, so nothing was counted toward it. Send estimated_cost_micros, or the '
+        + 'ceiling will never trigger.';
+    }
+
     await writeReceipt(tx, {
       v: RECEIPT_VERSION,
       workspace_id: input.workspaceId,

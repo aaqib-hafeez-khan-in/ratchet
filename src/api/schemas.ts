@@ -50,7 +50,11 @@ export const beginBody = {
     },
     estimated_cost_micros: {
       type: 'integer', minimum: 0, maximum: 1_000_000_000, default: 0,
-      description: 'Declared external cost of this effect in micro-USD (1e-6 USD). Used only for budget ceilings; Ratchet never collects it.',
+      description: 'Declared external cost of this effect in micro-USD (1e-6 USD). '
+        + 'SEND THIS. Budget ceilings are computed from it, and a ceiling with nothing '
+        + 'declared against it never triggers — the spend limit you configured would be '
+        + 'silently inert. It is also what makes the prevented-loss figure meaningful. '
+        + 'Ratchet never collects this money; it only counts it.',
     },
     agent_id: { type: 'string', maxLength: 128, description: 'Which agent is acting. For operator visibility.' },
     run_id: { type: 'string', maxLength: 128, description: 'Groups effects belonging to one agent run.' },
@@ -110,6 +114,13 @@ export const beginResponse = {
     state: { type: 'string', enum: ['awaiting_approval', 'pending', 'succeeded', 'failed', 'indeterminate', 'denied', 'cancelled'] },
     attempt: { type: 'integer' },
     lease_token: { type: 'string', description: 'Present only when decision is "execute". Required to report the outcome.' },
+    budget_warning: {
+      type: 'string',
+      description:
+        'Present when a spend ceiling is configured for this effect type but this call '
+        + 'declared no cost, so nothing counted toward it. The ceiling cannot trigger '
+        + 'until callers send estimated_cost_micros.',
+    },
     workspace: {
       type: 'object',
       description:
@@ -212,6 +223,7 @@ export const policySchema = {
     max_cost_micros: { type: ['integer', 'null'] },
     daily_budget_micros: { type: ['integer', 'null'] },
     retention_days: { type: 'integer' },
+    require_cost: { type: 'boolean' },
     is_default: { type: 'boolean' },
   },
 } as const;

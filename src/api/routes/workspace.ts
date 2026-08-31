@@ -269,6 +269,10 @@ export default async function workspaceRoutes(app: FastifyInstance) {
           max_cost_micros: { type: ['integer', 'null'], minimum: 0 },
           daily_budget_micros: { type: ['integer', 'null'], minimum: 0 },
           retention_days: { type: 'integer', minimum: 1, maximum: 400 },
+          require_cost: { type: 'boolean',
+            description: 'Refuse a begin for this effect type unless it declares a cost. '
+              + 'Turn this on wherever you have set a spend ceiling, so the ceiling cannot '
+              + 'be bypassed by simply not declaring anything.' },
         },
       },
       response: { 200: policySchema, ...errorResponses },
@@ -290,6 +294,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
       leaseSeconds: b.lease_seconds, maxAttempts: b.max_attempts,
       maxCostMicros: b.max_cost_micros, dailyBudgetMicros: b.daily_budget_micros,
       retentionDays: b.retention_days,
+      requireCost: b.require_cost,
     });
     await audit(getPool(), workspaceId, 'policy.updated', actorOf(req), effectType, b);
     return policyOut(p);

@@ -15,6 +15,7 @@ export const DEFAULT_POLICY = {
   maxCostMicros: null,
   dailyBudgetMicros: null,
   retentionDays: 7,
+  requireCost: false,
 };
 
 const EFFECT_TYPE_RE = /^[a-z0-9]([a-z0-9._-]{0,62}[a-z0-9])?$/;
@@ -32,6 +33,7 @@ interface PolicyRow {
   max_cost_micros: number | null;
   daily_budget_micros: number | null;
   retention_days: number;
+  require_cost: boolean;
 }
 
 export async function getPolicy(
@@ -39,7 +41,7 @@ export async function getPolicy(
 ): Promise<Policy> {
   const { rows } = await db.query<PolicyRow>(
     `SELECT effect_type, mode, on_indeterminate, lease_seconds, max_attempts,
-            max_cost_micros, daily_budget_micros, retention_days
+            max_cost_micros, daily_budget_micros, retention_days, require_cost
        FROM effect_policies
       WHERE workspace_id = $1 AND effect_type = $2`,
     [workspaceId, effectType],
@@ -56,6 +58,7 @@ export async function getPolicy(
     maxCostMicros: row.max_cost_micros,
     dailyBudgetMicros: row.daily_budget_micros,
     retentionDays: row.retention_days,
+    requireCost: row.require_cost,
     isDefault: false,
   };
 }
@@ -63,7 +66,7 @@ export async function getPolicy(
 export async function listPolicies(db: Db, workspaceId: string): Promise<Policy[]> {
   const { rows } = await db.query<PolicyRow>(
     `SELECT effect_type, mode, on_indeterminate, lease_seconds, max_attempts,
-            max_cost_micros, daily_budget_micros, retention_days
+            max_cost_micros, daily_budget_micros, retention_days, require_cost
        FROM effect_policies WHERE workspace_id = $1 ORDER BY effect_type`,
     [workspaceId],
   );
@@ -77,6 +80,7 @@ export async function listPolicies(db: Db, workspaceId: string): Promise<Policy[
     maxCostMicros: row.max_cost_micros,
     dailyBudgetMicros: row.daily_budget_micros,
     retentionDays: row.retention_days,
+    requireCost: row.require_cost,
     isDefault: false,
   }));
 }
@@ -90,6 +94,7 @@ export interface PolicyUpsert {
   maxCostMicros?: number | null;
   dailyBudgetMicros?: number | null;
   retentionDays?: number;
+  requireCost?: boolean;
 }
 
 export async function upsertPolicy(
@@ -99,8 +104,8 @@ export async function upsertPolicy(
   await db.query(
     `INSERT INTO effect_policies
        (workspace_id, effect_type, mode, on_indeterminate, lease_seconds,
-        max_attempts, max_cost_micros, daily_budget_micros, retention_days)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        max_attempts, max_cost_micros, daily_budget_micros, retention_days, require_cost)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
      ON CONFLICT (workspace_id, effect_type) DO UPDATE SET
        mode                = EXCLUDED.mode,
        on_indeterminate    = EXCLUDED.on_indeterminate,
@@ -109,6 +114,7 @@ export async function upsertPolicy(
        max_cost_micros     = EXCLUDED.max_cost_micros,
        daily_budget_micros = EXCLUDED.daily_budget_micros,
        retention_days      = EXCLUDED.retention_days,
+       require_cost        = EXCLUDED.require_cost,
        updated_at          = now()`,
     [
       workspaceId, input.effectType,
@@ -119,6 +125,7 @@ export async function upsertPolicy(
       input.maxCostMicros ?? d.maxCostMicros,
       input.dailyBudgetMicros ?? d.dailyBudgetMicros,
       input.retentionDays ?? d.retentionDays,
+      input.requireCost ?? d.requireCost,
     ],
   );
   return getPolicy(db, workspaceId, input.effectType);

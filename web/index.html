@@ -353,6 +353,19 @@
       doesn't change that.
     </p>
 
+    <h3 style="margin-top:2rem">A ceiling nothing counts toward isn't a ceiling</h3>
+    <p style="max-width:66ch">
+      Spend limits are computed from the cost you declare on each call. Declare nothing and
+      the check doesn't merely under-count — it <strong>exits immediately</strong>. You can
+      configure a $100/day limit, believe you're protected, and have it never fire once.
+    </p>
+    <p class="dim" style="max-width:66ch">
+      So send <code>estimated_cost_micros</code> whenever an action costs money. If a limit
+      exists and you didn't, the response now carries a <code>budget_warning</code> saying
+      so — and setting <code>require_cost</code> on a policy refuses the call outright,
+      turning a silent gap into an explicit decision.
+    </p>
+
     <h3 style="margin-top:2rem">What it actually saved</h3>
     <p class="dim" style="max-width:66ch">
       <code>GET /v1/usage/prevented</code> counts the duplicates refused and what they

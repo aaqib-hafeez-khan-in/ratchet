@@ -28,6 +28,9 @@ const KEY_RULE =
   'Never from a UUID, a timestamp, or a retry counter: those differ on every attempt, so the ' +
   'gate would authorise every one of them.';
 
+const COST_RULE =
+  'Declare estimated_cost_micros whenever the action costs money. Spend ceilings are computed from it, and a ceiling with nothing declared against it never fires — the limit an operator configured would be silently inert.';
+
 const DECISIONS =
   'Only "execute" authorises the action. "duplicate", "in_flight", "blocked", ' +
   '"approval_required" and "denied" all mean do not act.';
@@ -53,7 +56,7 @@ Content-Type: application/json
   "effect_type": "email.send",
   "idempotency_key": "invoice:2026-08:acct_8812",
   "payload": { "to": "customer@example.com", "template": "invoice" },
-  "estimated_cost_micros": 0
+  "estimated_cost_micros": 2000
 }
 
 # → { "decision": "execute", "effect_id": "eff_...", "lease_token": "lt_..." }
@@ -69,7 +72,7 @@ Content-Type: application/json
 # If you crash between 1 and 2, the lease lapses and the effect becomes
 # "indeterminate" — a known unknown. The next caller is blocked rather than
 # waved through, which is the entire point.`,
-      notes: [KEY_RULE, DECISIONS],
+      notes: [KEY_RULE, DECISIONS, COST_RULE],
     },
     {
       runtime: 'python',
@@ -159,7 +162,7 @@ export async function gated(effectType, idempotencyKey, payload, doIt) {
 // Key derived from the work — the same refund yields the same key on every retry.
 await gated('payment.refund', \`refund:\${orderId}:\${amount}\`,
             { orderId, amount }, () => stripe.refunds.create({ /* … */ }));`,
-      notes: [KEY_RULE, DECISIONS],
+      notes: [KEY_RULE, DECISIONS, COST_RULE],
     },
     {
       runtime: 'langchain',

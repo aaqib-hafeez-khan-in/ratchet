@@ -32,6 +32,8 @@ export interface Policy {
   maxCostMicros: number | null;
   dailyBudgetMicros: number | null;
   retentionDays: number;
+  /** Refuse a begin for this effect type unless it declares a cost. */
+  requireCost: boolean;
   /** True when no explicit row exists and workspace defaults were applied. */
   isDefault: boolean;
 }
@@ -105,6 +107,11 @@ export interface BeginResult {
   attempt: number;
   /** Present only when decision === 'execute'. Required to report an outcome. */
   leaseToken?: string;
+  /**
+   * Set when a ceiling exists for this effect type but nothing was declared to
+   * count toward it, so the ceiling cannot fire. Advisory, not an error.
+   */
+  budgetWarning?: string;
   /** Present only with a lease: the key the vendor itself deduplicates on. */
   vendorKey?: import('./vendor-keys.js').VendorKey;
   leaseExpiresAt?: string;

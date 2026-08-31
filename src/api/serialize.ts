@@ -27,6 +27,7 @@ export function beginOut(r: BeginResult) {
     ...(r.decision === 'duplicate' ? { result: r.result ?? null } : {}),
     ...(r.retryAfterSeconds ? { retry_after_seconds: r.retryAfterSeconds } : {}),
     ...(r.reason ? { reason: r.reason } : {}),
+    ...(r.budgetWarning ? { budget_warning: r.budgetWarning } : {}),
     ...(r.priorAttempt ? {
       prior_attempt: {
         attempt: r.priorAttempt.attempt,

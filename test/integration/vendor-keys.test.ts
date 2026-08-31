@@ -8,10 +8,11 @@
  */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { freshWorkspace, closePool } from '../helpers.js';
+import { freshWorkspace, closePool, getPool } from '../helpers.js';
 import { vendorIdempotencyKey, VENDOR_PROFILES } from '../../src/domain/vendor-keys.js';
 
 const { beginEffect, reportEffect } = await import('../../src/domain/effects.js');
+const { upsertPolicy } = await import('../../src/domain/policy.js');
 
 let ws: Awaited<ReturnType<typeof freshWorkspace>>;
 before(async () => { ws = await freshWorkspace(); });
@@ -125,5 +126,81 @@ describe('vendor key through the gate', () => {
     assert.equal(retry.decision, 'execute');
     assert.notEqual(retry.vendorKey!.key, firstKey,
       'reusing the key would make the vendor replay the decline forever');
+  });
+});
+
+/**
+ * Cost declaration.
+ *
+ * A ceiling computed from a field nobody sends is a safety feature that never
+ * runs. reserveSpend returns immediately at zero, so an undeclared cost does
+ * not under-report — it skips the check entirely.
+ */
+describe('declared cost', () => {
+
+  test('a configured ceiling with no declared cost warns rather than staying silent', async () => {
+    const w = await freshWorkspace();
+    await upsertPolicy(getPool(), w.workspaceId, {
+      effectType: 'payment.charge', dailyBudgetMicros: 100_000_000,
+    });
+    const r = await beginEffect({
+      workspaceId: w.workspaceId, apiKeyId: w.key.id, apiKeyPrefix: w.key.prefix,
+      keyDailyBudgetMicros: null, effectType: 'payment.charge',
+      idempotencyKey: `warn-${Date.now()}`, payload: {}, estimatedCostMicros: 0,
+    });
+    assert.equal(r.decision, 'execute');
+    assert.ok(r.budgetWarning, 'an inert ceiling must be surfaced, not left silent');
+    assert.match(r.budgetWarning!, /never trigger/);
+  });
+
+  test('no warning when the cost is declared', async () => {
+    const w = await freshWorkspace();
+    await upsertPolicy(getPool(), w.workspaceId, {
+      effectType: 'payment.charge', dailyBudgetMicros: 100_000_000,
+    });
+    const r = await beginEffect({
+      workspaceId: w.workspaceId, apiKeyId: w.key.id, apiKeyPrefix: w.key.prefix,
+      keyDailyBudgetMicros: null, effectType: 'payment.charge',
+      idempotencyKey: `nowarn-${Date.now()}`, payload: {}, estimatedCostMicros: 5_000_000,
+    });
+    assert.equal(r.budgetWarning, undefined);
+  });
+
+  test('no warning when no ceiling exists — silence should mean nothing is wrong', async () => {
+    const w = await freshWorkspace();
+    const r = await beginEffect({
+      workspaceId: w.workspaceId, apiKeyId: w.key.id, apiKeyPrefix: w.key.prefix,
+      keyDailyBudgetMicros: null, effectType: 'email.send',
+      idempotencyKey: `noceil-${Date.now()}`, payload: {}, estimatedCostMicros: 0,
+    });
+    assert.equal(r.budgetWarning, undefined, 'warning on every call would train people to ignore it');
+  });
+
+  test('require_cost refuses an undeclared cost outright', async () => {
+    const w = await freshWorkspace();
+    await upsertPolicy(getPool(), w.workspaceId, {
+      effectType: 'payment.charge', requireCost: true, dailyBudgetMicros: 100_000_000,
+    });
+    await assert.rejects(
+      () => beginEffect({
+        workspaceId: w.workspaceId, apiKeyId: w.key.id, apiKeyPrefix: w.key.prefix,
+        keyDailyBudgetMicros: null, effectType: 'payment.charge',
+        idempotencyKey: `req-${Date.now()}`, payload: {}, estimatedCostMicros: 0,
+      }),
+      (e: { code?: string }) => e.code === 'cost_required',
+    );
+  });
+
+  test('require_cost still admits a declared cost', async () => {
+    const w = await freshWorkspace();
+    await upsertPolicy(getPool(), w.workspaceId, {
+      effectType: 'payment.charge', requireCost: true,
+    });
+    const r = await beginEffect({
+      workspaceId: w.workspaceId, apiKeyId: w.key.id, apiKeyPrefix: w.key.prefix,
+      keyDailyBudgetMicros: null, effectType: 'payment.charge',
+      idempotencyKey: `reqok-${Date.now()}`, payload: {}, estimatedCostMicros: 1_000_000,
+    });
+    assert.equal(r.decision, 'execute');
   });
 });
