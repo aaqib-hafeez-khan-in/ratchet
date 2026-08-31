@@ -284,6 +284,60 @@ export const MCP_TOOLS: McpToolDef[] = [
       'a long run exhausts an allowance or a budget.',
     inputSchema: { type: 'object', properties: {} },
   },
+  {
+    name: 'ratchet_effect_receipts',
+    title: 'Get signed proof of the decisions on an effect',
+    scope: 'effects:read',
+    readOnly: true,
+    description:
+      'Returns a signed receipt for every decision made about one effect, refusals included. ' +
+      'Each signature is over the exact bytes in `body` and verifies offline against the ' +
+      'Ed25519 key published at /.well-known/ratchet-receipt-key — you do not have to trust ' +
+      'this server to check them. Use this when a human asks you to PROVE an action was or ' +
+      'was not authorised, rather than asserting it.',
+    inputSchema: {
+      type: 'object',
+      required: ['effect_id'],
+      properties: {
+        effect_id: { type: 'string', description: 'The effect to fetch receipts for.' },
+      },
+    },
+  },
+  {
+    name: 'ratchet_reconcile',
+    title: 'Find real-world actions that bypassed the gate',
+    scope: 'effects:read',
+    readOnly: true,
+    description:
+      'Given the idempotency keys for actions a vendor says actually happened, returns which ' +
+      'ones went through Ratchet and which it has never seen. The unseen ones are code paths ' +
+      'that acted WITHOUT asking, so a retry there can act twice — a bug the operator almost ' +
+      'certainly does not know about. Send references only; never send credentials.',
+    inputSchema: {
+      type: 'object',
+      required: ['effect_type', 'keys'],
+      properties: {
+        effect_type: { type: 'string' },
+        keys: {
+          type: 'array', items: { type: 'string' }, maxItems: 1000,
+          description: 'Idempotency keys your system should have used for those actions.',
+        },
+      },
+    },
+  },
+  {
+    name: 'ratchet_prevented_loss',
+    title: 'What the gate has actually saved',
+    scope: 'effects:read',
+    readOnly: true,
+    description:
+      'Counts duplicate actions refused in the last 30 days and what they would have cost. ' +
+      'Only counts refusals where a cost was declared on the effect, so it under-reports ' +
+      'rather than flatters. IMPORTANT: pass estimated_cost_micros on ratchet_begin_effect ' +
+      'or this reads zero — the number is only as good as what callers declare. This is ' +
+      'money not spent at your vendors, never money paid to Ratchet.',
+    inputSchema: { type: 'object', properties: {} },
+  },
 ];
 
 export const toolByName = new Map(MCP_TOOLS.map((t) => [t.name, t]));

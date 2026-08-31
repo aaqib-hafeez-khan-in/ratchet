@@ -1,4 +1,6 @@
 import { getPool } from '../db/pool.js';
+import { receiptsFor, receiptPublicKey } from '../domain/receipts.js';
+import { normalizeText } from '../lib/ids.js';
 import { unwindGroup, getGroup } from '../domain/groups.js';
 import { ApiError, errors } from '../lib/errors.js';
 import { beginEffect, reportEffect, extendLease, resolveEffect, lookupEffect, listEffects } from '../domain/effects.js';
@@ -115,6 +117,72 @@ export async function callTool(
       const plan = await getGroup(getPool(), ctx.workspaceId, args.group_key);
       if (!plan) throw errors.notFound('No such group in this workspace.');
       return planOut(plan);
+    }
+
+    case 'ratchet_effect_receipts': {
+      const rows = await receiptsFor(getPool(), ctx.workspaceId, args.effect_id);
+      if (!rows.length) {
+        return {
+          effect_id: args.effect_id, receipts: [],
+          note: 'No receipts for that effect in this workspace. Either it does not exist here, '
+              + 'or it predates receipts. This is NOT evidence that nothing happened.',
+        };
+      }
+      return {
+        effect_id: args.effect_id,
+        public_key: receiptPublicKey(),
+        verify: 'ed25519_verify(public_key, body_bytes, signature). The signature covers the '
+              + 'exact bytes shown in `body`.',
+        receipts: rows.map((r) => ({
+          seq: r.seq, decision: r.decision, attempt: r.attempt,
+          body: r.body, signature: r.signature, chained: r.chained,
+        })),
+      };
+    }
+
+    case 'ratchet_reconcile': {
+      const keys: string[] = [...new Set((args.keys as string[]).map(normalizeText))];
+      const { rows } = await getPool().query<{ idempotency_key: string }>(
+        `SELECT idempotency_key FROM effects
+          WHERE workspace_id=$1 AND effect_type=$2 AND idempotency_key = ANY($3)`,
+        [ctx.workspaceId, args.effect_type, keys]);
+      const seen = new Set(rows.map((r) => r.idempotency_key));
+      const ungated = keys.filter((k) => !seen.has(k));
+      return {
+        effect_type: args.effect_type,
+        checked: keys.length,
+        gated: seen.size,
+        ungated: ungated.length,
+        ungated_keys: ungated.slice(0, 100),
+        next_step: ungated.length
+          ? `${ungated.length} action(s) reached the vendor without asking Ratchet. Report this `
+            + 'to the operator: those code paths are unprotected and a retry there can act twice.'
+          : 'Every action listed went through the gate.',
+      };
+    }
+
+    case 'ratchet_prevented_loss': {
+      const { rows } = await getPool().query<{ decision: string; n: string; micros: string }>(
+        `SELECT r.decision, count(*)::text AS n,
+                COALESCE(sum(e.reserved_micros),0)::text AS micros
+           FROM receipts r JOIN effects e ON e.id = r.effect_id
+          WHERE r.workspace_id=$1
+            AND r.decision IN ('duplicate','in_flight','blocked')
+            AND r.created_at > now() - interval '30 days'
+          GROUP BY r.decision`, [ctx.workspaceId]);
+      const refused = rows.reduce((a, r) => a + Number(r.n), 0);
+      const micros = rows.reduce((a, r) => a + Number(r.micros), 0);
+      return {
+        window: '30 days',
+        duplicate_actions_refused: refused,
+        would_have_cost_micros: micros,
+        would_have_cost_usd: (micros / 1e6).toFixed(2),
+        note: micros === 0 && refused > 0
+          ? 'Refusals happened but no cost was declared on them, so the figure reads zero. '
+            + 'Pass estimated_cost_micros on ratchet_begin_effect to make this meaningful.'
+          : 'Money not spent at your vendors. Counts only refusals with a declared cost, so '
+            + 'the real figure is at least this.',
+      };
     }
 
     case 'ratchet_usage': {

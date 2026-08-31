@@ -292,3 +292,96 @@ describe('MCP stdio transport', () => {
     }
   });
 });
+
+/**
+ * The prevented-loss endpoint shipped broken because nothing ran its query.
+ * These exercise each new tool against a real database for the same reason: a
+ * handler whose SQL never executes is a handler that is probably wrong.
+ */
+describe('proof and reconciliation tools over MCP', () => {
+  test('receipts come back verifiable, with the key needed to check them', async () => {
+    const key = `mcp-rcpt-${Date.now()}`;
+    const begun = await call('ratchet_begin_effect', {
+      effect_type: 'payment.charge', idempotency_key: key,
+      payload: { a: 1 }, estimated_cost_micros: 4_999_000,
+    });
+    assert.equal(begun.data.decision, 'execute');
+
+    const r = await call('ratchet_effect_receipts', { effect_id: begun.data.effect_id });
+    assert.equal(r.isError, false);
+    assert.ok(r.data.receipts.length >= 1, 'a decision must leave a receipt');
+    assert.ok(r.data.public_key, 'without the key the receipt cannot be checked');
+
+    const { verifyReceipt } = await import('../../src/domain/receipts.js');
+    const rec = r.data.receipts[0];
+    assert.ok(verifyReceipt(JSON.stringify(rec.body), rec.signature, r.data.public_key),
+      'a receipt handed to a model must verify with the key handed alongside it');
+  });
+
+  test('an unknown effect says so rather than implying nothing happened', async () => {
+    const r = await call('ratchet_effect_receipts', { effect_id: 'eff_does_not_exist' });
+    assert.equal(r.isError, false);
+    assert.deepEqual(r.data.receipts, []);
+    // A model must not read an empty list as proof of absence.
+    assert.match(r.data.note, /NOT evidence/);
+  });
+
+  test('reconcile separates gated actions from ungated ones', async () => {
+    const gated = `mcp-recon-${Date.now()}`;
+    await call('ratchet_begin_effect', {
+      effect_type: 'email.send', idempotency_key: gated, payload: {},
+    });
+    const r = await call('ratchet_reconcile', {
+      effect_type: 'email.send',
+      keys: [gated, 'never-asked-1', 'never-asked-2'],
+    });
+    assert.equal(r.isError, false);
+    assert.equal(r.data.checked, 3);
+    assert.equal(r.data.gated, 1);
+    assert.equal(r.data.ungated, 2);
+    assert.ok(r.data.ungated_keys.includes('never-asked-1'));
+    assert.match(r.data.next_step, /without asking/);
+  });
+
+  test('reconcile is workspace-scoped', async () => {
+    const mine = `mcp-scope-${Date.now()}`;
+    await call('ratchet_begin_effect', {
+      effect_type: 'email.send', idempotency_key: mine, payload: {},
+    });
+    const other = await createWorkspace('Other Co', `other-${Date.now()}@example.test`);
+    const r = await call('ratchet_reconcile',
+      { effect_type: 'email.send', keys: [mine] }, other.key.plaintext);
+    // Another tenant must not learn that this key was gated by someone else.
+    assert.equal(r.data.gated, 0);
+    assert.equal(r.data.ungated, 1);
+  });
+
+  test('prevented loss runs its query and counts refusals', async () => {
+    const key = `mcp-prevent-${Date.now()}`;
+    const args = {
+      effect_type: 'payment.charge', idempotency_key: key,
+      payload: {}, estimated_cost_micros: 2_500_000,
+    };
+    await call('ratchet_begin_effect', args);
+    await call('ratchet_begin_effect', args);   // refused
+
+    const r = await call('ratchet_prevented_loss');
+    assert.equal(r.isError, false);
+    assert.ok(r.data.duplicate_actions_refused >= 1);
+    assert.ok(Number(r.data.would_have_cost_micros) >= 2_500_000,
+      'a declared cost must reach the ledger');
+    assert.match(r.data.would_have_cost_usd, /^\d+\.\d{2}$/);
+  });
+
+  test('every tool is reachable and none is only a definition', async () => {
+    const listed = (await rpc('tools/list')).body.result.tools.map((t: { name: string }) => t.name);
+    for (const t of MCP_TOOLS) {
+      assert.ok(listed.includes(t.name), `${t.name} is defined but not listed`);
+    }
+    // A tool that is advertised but throws on every call is worse than absent.
+    for (const name of ['ratchet_prevented_loss', 'ratchet_usage']) {
+      const r = await call(name);
+      assert.notEqual(r.isError, true, `${name} errored on a plain call`);
+    }
+  });
+});
