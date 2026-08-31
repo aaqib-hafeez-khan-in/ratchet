@@ -82,6 +82,12 @@ export interface BeginInput {
   requestSummary?: Record<string, unknown>;
   /** Overrides the policy lease, clamped to [5, policy.leaseSeconds]. */
   leaseSeconds?: number | null;
+  /**
+   * Which vendor will actually perform this effect, so the returned
+   * idempotency key matches that vendor's length and placement rules. Omitted
+   * means a generic key, still useful for reconciliation.
+   */
+  vendor?: string | null;
   /** Declares this effect part of a unit of work that can be rolled back. */
   groupKey?: string | null;
   /** How to undo this effect, declared while the caller still knows. */
@@ -99,6 +105,8 @@ export interface BeginResult {
   attempt: number;
   /** Present only when decision === 'execute'. Required to report an outcome. */
   leaseToken?: string;
+  /** Present only with a lease: the key the vendor itself deduplicates on. */
+  vendorKey?: import('./vendor-keys.js').VendorKey;
   leaseExpiresAt?: string;
   /** Present when decision === 'duplicate'. The recorded outcome to replay. */
   result?: unknown;

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ratchet — the effect gate for AI agents</title>
-<meta name="description" content="Agents retry. Ratchet makes sure the real-world action behind the retry happens at most once — with a durable record, a spend ceiling, and an honest answer when the outcome is unknown.">
+<meta name="description" content="Agents retry. Ratchet makes sure the real-world action behind the retry happens at most once — and hands you the key the vendor itself deduplicates on, so the duplicate is refused even when nobody asked us first.">
 <link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/assets/mark.svg">
 <link rel="canonical" href="https://ratchetgate.com/">
@@ -12,12 +12,12 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Ratchet">
 <meta property="og:title" content="Ratchet — the effect gate for AI agents">
-<meta property="og:description" content="Agents retry. Ratchet makes sure the real-world action behind the retry happens at most once — with a durable record, a spend ceiling, and an honest answer when the outcome is unknown.">
+<meta property="og:description" content="Agents retry. Ratchet makes sure the real-world action behind the retry happens at most once — and hands you the key the vendor itself deduplicates on, so the duplicate is refused even when nobody asked us first.">
 <meta property="og:url" content="https://ratchetgate.com/">
 <meta property="og:image" content="https://ratchetgate.com/assets/og.svg">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Ratchet — the effect gate for AI agents">
-<meta name="twitter:description" content="Agents retry. Ratchet makes sure the real-world action behind the retry happens at most once — with a durable record, a spend ceiling, and an honest answer when the outcome is unknown.">
+<meta name="twitter:description" content="Agents retry. Ratchet makes sure the real-world action behind the retry happens at most once — and hands you the key the vendor itself deduplicates on, so the duplicate is refused even when nobody asked us first.">
 <meta name="twitter:image" content="https://ratchetgate.com/assets/og.svg">
 <link rel="stylesheet" href="/assets/style.css">
 <script type="application/ld+json">
@@ -286,6 +286,53 @@
       Exactly-once delivery is not achievable in a distributed system, and we won't claim it.
       What Ratchet guarantees is at-most-once <em>initiation</em>, a recorded outcome that later
       callers replay, and an explicit state for the case nobody else admits exists.
+    </p>
+  </div>
+</section>
+
+<section class="sunk">
+  <div class="wrap">
+    <p class="eyebrow">Vendor-enforced idempotency</p>
+    <h2>A gate only stops the agents that ask</h2>
+    <p class="lede" style="max-width:66ch">
+      Here is the weakness every product in this category shares, and most don't mention.
+      A well-behaved agent asks permission. The agent you're actually afraid of — the one
+      in a retry loop, the cron job someone wrote last year, the colleague's script — just
+      doesn't call. Ask-first protection is advisory, and advisory protection fails exactly
+      when you need it.
+    </p>
+    <p style="max-width:66ch">
+      So don't rely on being asked. When Ratchet authorises an effect it now hands back
+      <strong>the idempotency key the vendor itself deduplicates on</strong>. You pass it to
+      Stripe, or Square, or Adyen. The duplicate is then refused by
+      <em>the vendor</em> — not prevented by your agent's good manners, and not dependent on
+      anything reaching us at all.
+    </p>
+
+    <pre class="snippet"><code>POST /v1/effects/begin   { "effect_type": "payment.charge",
+                           "idempotency_key": "refund:A-771:49.99",
+                           "vendor": "stripe" }
+
+→ { "decision": "execute",
+    "vendor_idempotency_key": {
+      "key":       "rtk_9f2c…",
+      "placement": "Idempotency-Key header",
+      "enforced":  true } }
+
+# Send that key to Stripe. Stripe now refuses the second charge itself.</code></pre>
+
+    <p class="dim" style="max-width:66ch">
+      The key is derived per <em>attempt</em>, which is the part that matters. Retrying the
+      same attempt reuses it, so the vendor refuses the duplicate. A genuine retry after a
+      reported failure gets a fresh key, so the vendor doesn't replay the old failure forever
+      and leave the effect permanently stuck.
+    </p>
+    <p class="small dim" style="max-width:66ch">
+      Composed with a vendor that honours idempotency keys, at-most-once <em>initiation</em>
+      becomes at-most-once <em>execution at that vendor</em>. Where a vendor does not
+      deduplicate, the response says <code>enforced: false</code> and the gate stays advisory —
+      we'd rather tell you than let you assume. The
+      <a href="/v1/vendors">free vendor directory</a> lists which is which, no account needed.
     </p>
   </div>
 </section>

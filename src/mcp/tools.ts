@@ -38,6 +38,10 @@ export const MCP_TOOLS: McpToolDef[] = [
       '(sending a message, charging a card, creating a resource, writing to someone else\'s system). ' +
       'Returns a decision you MUST obey:\n' +
       '- "execute": you hold the lease. Perform the action now, then call ratchet_report_effect.\n' +
+      '  If the response carries vendor_idempotency_key, send that key to the vendor as ITS own '+
+      'idempotency key (the response says where it goes). Where enforced is true the vendor '+
+      'itself will then refuse a duplicate, which protects the action even if some other '+
+      'caller skips this gate entirely.\n' +
       '- "duplicate": this action ALREADY HAPPENED. Do NOT perform it. Use the returned `result` as ' +
       'though you had just done the work.\n' +
       '- "in_flight": another process is doing it right now. Do NOT perform it. Wait `retry_after_seconds` and ask again.\n' +
@@ -69,6 +73,11 @@ export const MCP_TOOLS: McpToolDef[] = [
         lease_seconds: {
           type: 'integer', minimum: 5, maximum: 3600,
           description: 'How long you expect the action to take. Report before this elapses or the effect becomes indeterminate.',
+        },
+        vendor: {
+          type: 'string', maxLength: 32,
+          description: 'Which vendor performs this effect (e.g. "stripe", "square", "adyen"). '
+            + 'Shapes vendor_idempotency_key so it satisfies that vendor\'s rules.',
         },
         group_key: {
           type: 'string',

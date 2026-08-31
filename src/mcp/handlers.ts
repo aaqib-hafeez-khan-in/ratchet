@@ -34,6 +34,7 @@ export async function callTool(
         estimatedCostMicros: args.estimated_cost_micros ?? 0,
         agentId: args.agent_id ?? null,
         runId: args.run_id ?? null,
+        vendor: args.vendor ?? null,
         requestSummary: {},
         leaseSeconds: args.lease_seconds ?? null,
         groupKey: args.group_key ?? null,

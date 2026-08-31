@@ -6,6 +6,7 @@ import { SCOPES } from '../../domain/auth.js';
 import { EVENT_TYPES } from '../../domain/events.js';
 import { MCP_TOOLS } from '../../mcp/tools.js';
 import { recipes } from '../../domain/integrate.js';
+import { VENDOR_PROFILES } from '../../domain/vendor-keys.js';
 
 const startedAt = Date.now();
 
@@ -222,6 +223,65 @@ export default async function metaRoutes(app: FastifyInstance) {
     reply.type('text/plain; charset=utf-8')
       .send('v=MCPv1; k=ed25519; p=IC9xQtYEB/1lEKpfc1JcuEajLfXiVuyvPL3tS8U6Y7E=\n'));
 
+  /**
+   * Free, keyless reference: does this vendor deduplicate, and how?
+   *
+   * Deliberately requires no account. Every product in this category gates its
+   * usefulness behind a signup, and every one of them has no users; the
+   * services agents actually adopt answer on the first call. This answers a
+   * question any agent about to charge a card genuinely needs answered, and
+   * costs us nothing to give away.
+   *
+   * It is also honest where it hurts: vendors that do NOT deduplicate are
+   * listed as not deduplicating, including ones we would rather claim.
+   */
+  app.get('/v1/vendors', {
+    schema: {
+      tags: ['Meta'], operationId: 'listVendors',
+      summary: 'Which vendors enforce idempotency, and how (free, no key)',
+      response: { 200: { type: 'object', additionalProperties: true } },
+    },
+  }, async (req, reply) => {
+    const base = config.publicUrl.replace(/\/+$/, '');
+    const rows = Object.values(VENDOR_PROFILES).filter((v) => v.vendor !== 'generic');
+    if (String(req.headers.accept ?? '').includes('text/plain')) {
+      return reply.type('text/plain; charset=utf-8').send(
+        ['# Does this vendor deduplicate a repeated request?', '',
+         ...rows.map((v) => `${v.vendor.padEnd(10)} ${v.enforced ? 'YES' : 'no '}  `
+           + `${v.placement} (max ${v.maxLength}, kept ${v.retention})`),
+         '', `# ${base}/v1/vendors/<name> for one vendor.`, ''].join('\n'));
+    }
+    return {
+      summary: 'Whether each vendor refuses a repeated request, and where its key goes.',
+      note: 'An idempotency key only helps where the vendor honours it. Where "enforced" is '
+        + 'false, retrying really can perform the action twice, whatever your code does.',
+      vendors: rows,
+      detail: `${base}/v1/vendors/{vendor}`,
+    };
+  });
+
+  app.get('/v1/vendors/:vendor', {
+    schema: {
+      tags: ['Meta'], operationId: 'getVendor',
+      summary: 'Idempotency behaviour for one vendor (free, no key)',
+      response: { 200: { type: 'object', additionalProperties: true },
+                  404: { type: 'object', additionalProperties: true } },
+    },
+  }, async (req, reply) => {
+    const name = String((req.params as { vendor: string }).vendor).toLowerCase();
+    const v = VENDOR_PROFILES[name];
+    if (!v) {
+      reply.code(404);
+      return { error: { code: 'unknown_vendor',
+        message: `No profile for "${name}".`,
+        detail: { known: Object.keys(VENDOR_PROFILES) } } };
+    }
+    return {
+      ...v,
+      how_to_get_a_key: `${config.publicUrl.replace(/\/+$/, '')}/v1/integrate?runtime=http`,
+    };
+  });
+
   app.get('/llms.txt', {
     schema: {
       tags: ['Meta'], operationId: 'llmsTxt',
@@ -291,6 +351,12 @@ Tools: ${MCP_TOOLS.map((t) => t.name).join(', ')}
 Meter: one "gated effect" = the first begin() for an (effect_type, idempotency_key).
 Duplicate suppression, retries, reports, and reads are free.
 Free plan: ${PLANS.free.includedEffects.toLocaleString('en-US')} gated effects per month.
+
+## Free, no key required
+Does a vendor actually refuse a repeated request? Most callers assume yes and are wrong.
+  GET ${config.publicUrl}/v1/vendors            -> every vendor we have profiled
+  GET ${config.publicUrl}/v1/vendors/stripe     -> one vendor, with placement and retention
+No account, no key. Where "enforced" is false, retrying really can act twice.
 
 ## Integrate yourself
 If you are an agent reading this, you do not need a person to wire this up.

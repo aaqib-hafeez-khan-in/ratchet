@@ -4,6 +4,7 @@ import { newId, canonicalFingerprint, constantTimeEqual, normalizeText } from '.
 import { ApiError, errors } from '../lib/errors.js';
 import { getPolicy } from './policy.js';
 import { reserveSpend, adjustSpend, BudgetExceeded } from './budget.js';
+import { vendorIdempotencyKey } from './vendor-keys.js';
 import { meterEffect, InsufficientCredit } from './metering.js';
 import { enqueueEvent } from './events.js';
 import { recordActivity, recordMilestone } from './activity.js';
@@ -224,7 +225,7 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
 
       effect = await grantLeaseGuarded(tx, effect!, input, policy, now);
       const metered = await meter(tx, input, effect.id, now);
-      return executeResult(effect, metered);
+      return executeResult(effect, metered, input.vendor ?? undefined);
     }
 
     // ---- Existing effect: branch on its recorded state. --------------------
@@ -250,7 +251,8 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
       case 'awaiting_approval':
         if (effect.approval_state === 'approved') {
           effect = await grantLeaseGuarded(tx, effect, input, policy, now);
-          return executeResult(effect, { metered: false, decisionsRemaining: null });
+          return executeResult(effect, { metered: false, decisionsRemaining: null },
+          input.vendor ?? undefined);
         }
         return {
           decision: 'approval_required' as Decision,
@@ -295,7 +297,8 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
             `Attempt limit of ${policy.maxAttempts} reached for this idempotency key.`, null);
         }
         effect = await grantLeaseGuarded(tx, effect, input, policy, now);
-        return executeResult(effect, { metered: false, decisionsRemaining: null });
+        return executeResult(effect, { metered: false, decisionsRemaining: null },
+          input.vendor ?? undefined);
       }
 
       default:
@@ -404,7 +407,8 @@ async function handleIndeterminate(
   if (policy.onIndeterminate === 'retry' && effect.attempt < policy.maxAttempts) {
     const leased = await grantLeaseGuarded(tx, effect, input, policy, now);
     return {
-      ...executeResult(leased, { metered: false, decisionsRemaining: null }),
+      ...executeResult(leased, { metered: false, decisionsRemaining: null },
+        input.vendor ?? undefined),
       reason: 'Prior attempt was indeterminate; policy for this effect type permits a retry.',
       priorAttempt: prior,
     };
@@ -426,7 +430,9 @@ async function handleIndeterminate(
   };
 }
 
-function executeResult(effect: EffectRow, billing: BeginResult['billing']): BeginResult {
+function executeResult(
+  effect: EffectRow, billing: BeginResult['billing'], vendor?: string,
+): BeginResult {
   return {
     decision: 'execute',
     effectId: effect.id,
@@ -436,6 +442,17 @@ function executeResult(effect: EffectRow, billing: BeginResult['billing']): Begi
     attempt: effect.attempt,
     leaseToken: effect.lease_token!,
     leaseExpiresAt: iso(effect.lease_expires_at),
+    // Derived per ATTEMPT, not per effect. A caller retrying this attempt sends
+    // the same key and the vendor refuses the duplicate; a legitimate retry
+    // after a reported failure is a new attempt and gets a new key, so the
+    // vendor does not replay the old failure forever.
+    vendorKey: vendorIdempotencyKey({
+      workspaceId: effect.workspace_id,
+      effectType: effect.effect_type,
+      idempotencyKey: effect.idempotency_key,
+      attempt: effect.attempt,
+      vendor,
+    }),
     reason: 'You hold the lease. Perform the effect, then report the outcome before the lease expires.',
     billing,
   };

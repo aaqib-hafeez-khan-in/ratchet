@@ -8,6 +8,7 @@ Disallow: /v1/
 # …except the integration guide, which is public, static, and the whole point:
 # an agent or a crawler that finds it can wire this up without a person.
 Allow: /v1/integrate
+Allow: /v1/vendors
 Disallow: /mcp
 
 Sitemap: https://ratchetgate.com/sitemap.xml

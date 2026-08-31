@@ -12,6 +12,17 @@ export function beginOut(r: BeginResult) {
     state: r.state,
     attempt: r.attempt,
     ...(r.leaseToken ? { lease_token: r.leaseToken } : {}),
+    // Only ever alongside a lease. A caller who was NOT authorised must not
+    // receive the key that would let the vendor accept the call anyway.
+    ...(r.vendorKey ? {
+      vendor_idempotency_key: {
+        key: r.vendorKey.key,
+        vendor: r.vendorKey.vendor,
+        placement: r.vendorKey.placement,
+        enforced: r.vendorKey.enforced,
+        note: r.vendorKey.note,
+      },
+    } : {}),
     ...(r.leaseExpiresAt ? { lease_expires_at: r.leaseExpiresAt } : {}),
     ...(r.decision === 'duplicate' ? { result: r.result ?? null } : {}),
     ...(r.retryAfterSeconds ? { retry_after_seconds: r.retryAfterSeconds } : {}),

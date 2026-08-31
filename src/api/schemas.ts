@@ -62,6 +62,12 @@ export const beginBody = {
       type: 'integer', minimum: 5, maximum: 3600,
       description: 'Requested lease length. Clamped to the policy maximum for this effect type.',
     },
+    vendor: {
+      type: 'string', maxLength: 32, pattern: '^[a-z0-9][a-z0-9._-]{0,31}$',
+      description: 'Which vendor performs this effect (e.g. "stripe", "square", "adyen"). '
+        + 'Shapes the vendor_idempotency_key returned with an execute decision so it '
+        + 'satisfies that vendor\'s length and placement rules.',
+    },
     group_key: {
       type: 'string', maxLength: 255,
       description: 'Declares this effect part of a unit of work that can be rolled back as a whole. Use one stable key per logical workflow, e.g. "booking:trip_8812".',
@@ -104,6 +110,22 @@ export const beginResponse = {
     state: { type: 'string', enum: ['awaiting_approval', 'pending', 'succeeded', 'failed', 'indeterminate', 'denied', 'cancelled'] },
     attempt: { type: 'integer' },
     lease_token: { type: 'string', description: 'Present only when decision is "execute". Required to report the outcome.' },
+    vendor_idempotency_key: {
+      type: 'object',
+      description:
+        'Present only with an "execute" decision. Send `key` to the vendor as its own '
+        + 'idempotency key. Where `enforced` is true the VENDOR refuses the duplicate, so '
+        + 'the guarantee no longer depends on the agent choosing to ask us first. Derived '
+        + 'per attempt: retrying this attempt reuses the key, while a genuine retry after '
+        + 'a reported failure gets a new one so the vendor does not replay the old failure.',
+      properties: {
+        key: { type: 'string' },
+        vendor: { type: 'string' },
+        placement: { type: 'string', description: 'Where to put it in the vendor request.' },
+        enforced: { type: 'boolean', description: 'True only where the vendor actually deduplicates on it.' },
+        note: { type: 'string' },
+      },
+    },
     lease_expires_at: { type: 'string', format: 'date-time' },
     result: { description: 'Present when decision is "duplicate": the recorded outcome to replay.' },
     retry_after_seconds: { type: 'integer' },

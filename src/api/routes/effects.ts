@@ -47,6 +47,7 @@ export default async function effectRoutes(app: FastifyInstance) {
       runId: b.run_id ?? null,
       requestSummary: b.request_summary ?? {},
       leaseSeconds: b.lease_seconds ?? null,
+      vendor: b.vendor ?? null,
       groupKey: b.group_key ?? null,
       compensation: b.compensation
         ? { effectType: b.compensation.effect_type, payload: b.compensation.payload }
