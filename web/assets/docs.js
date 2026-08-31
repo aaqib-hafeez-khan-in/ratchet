@@ -58,6 +58,40 @@ const S = {
     "retention_days": 7
   }'`,
 
+  circuit: `# Stop this effect type if it suddenly runs far more than usual.
+# 200/hour is normal here; 400 means something is looping.
+curl -X PUT ${BASE}/v1/policies/email.send \\
+  -H "Authorization: Bearer $RATCHET_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "mode": "allow",
+    "surge_per_hour": 400,
+    "surge_action": "require_approval",
+    "surge_cooldown_seconds": 3600
+  }'
+
+# What volume am I actually running? Set a threshold from this.
+curl ${BASE}/v1/circuits -H "Authorization: Bearer $RATCHET_API_KEY"
+
+# -> { "circuits": [],
+#      "rates": [ { "effect_type": "email.send",
+#                   "this_hour": 187, "peak_hour": 213 } ] }`,
+
+  'circuit-stop': `# Halt every effect type in the workspace, now.
+curl -X POST ${BASE}/v1/circuits/*/open \\
+  -H "Authorization: Bearer $RATCHET_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "action": "deny", "reason": "agent looping on support inbox" }'
+
+# Every begin now returns:
+# -> { "decision": "denied",
+#      "reason": "Circuit breaker open for *: agent looping on support inbox" }
+
+# Back to normal once you have looked at it. This gives the effect type a
+# fresh allowance; it does not disarm the breaker.
+curl -X POST ${BASE}/v1/circuits/*/close \\
+  -H "Authorization: Bearer $RATCHET_API_KEY"`,
+
   resolve: `# You checked Stripe. The charge did land.
 curl -X POST ${BASE}/v1/effects/eff_a3emswr6v37zey5p/resolve \\
   -H "Authorization: Bearer $RATCHET_API_KEY" \\
@@ -160,7 +194,8 @@ curl -X POST ${BASE}/v1/billing/crypto/intents \\
 
 for (const [id, key] of [['c-signup','signup'], ['c-begin','begin'], ['c-report','report'],
                          ['c-policy','policy'], ['c-resolve','resolve'],
-                         ['c-group','group'], ['c-unwind','unwind'], ['c-crypto','crypto']]) {
+                         ['c-group','group'], ['c-unwind','unwind'], ['c-crypto','crypto'],
+                           ['c-circuit','circuit'], ['c-circuit-stop','circuit-stop']]) {
   const el = document.getElementById(id);
   if (el) el.innerHTML = highlight(S[key]);
 }
