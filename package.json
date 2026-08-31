@@ -33,7 +33,8 @@
     "deploy:preflight": "bash scripts/deploy-preflight.sh",
     "deploy:fly": "bash scripts/deploy-fly.sh",
     "pg:swap-unmanaged": "bash scripts/swap-to-unmanaged-pg.sh",
-    "x402:check": "tsx scripts/x402-check.ts"
+    "x402:check": "tsx scripts/x402-check.ts",
+    "backup:verify": "bash scripts/backup-verify.sh"
   },
   "dependencies": {
     "@fastify/cookie": "11.1.2",

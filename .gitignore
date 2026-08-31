@@ -7,3 +7,8 @@ coverage/
 .DS_Store
 tmp/
 openapi.json
+
+# Database dumps. Never commit these: they contain every workspace,
+# key hash, and receipt in production.
+backups/
+*.dump
