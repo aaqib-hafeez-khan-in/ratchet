@@ -136,9 +136,15 @@ is an operator key and has to be. What there is instead is prominence — the do
 section now ends with the two-scope agent key and the reason for it, because a
 safety control the user configures wrongly is worse than one they never enabled.
 
-Worth revisiting: the console could offer an "agent key" preset, and signup could
-issue a scoped key alongside the operator one so the right thing is also the
-easy thing.
+The console already helps here more than this section first claimed: the key
+form defaults to **"Gate only (least privilege)"** — `effects:begin` plus
+`effects:report` and nothing else. The remaining exposure is narrower than
+"operators must know to scope keys": it is specifically the key handed over at
+**signup**, which is full-scope and is the one a quickstart invites you to paste
+straight into an agent.
+
+Worth doing: issue a gate-only key alongside the operator key at signup, so the
+key that lands in an agent is the right one by default.
 
 ## Reaching a person
 

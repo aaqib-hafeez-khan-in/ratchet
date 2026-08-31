@@ -138,11 +138,14 @@ Circuit routes require `policies:write`, and the key issued at signup holds ever
 scope. An operator who hands that key to an agent has an agent that can close its
 own breaker.
 
+The console's key form already defaults to "Gate only (least privilege)", so the
+exposure is narrower than it first appears: it is specifically the signup key,
+which is full-scope and is what a quickstart invites you to paste into an agent.
+
 There is no code fix that does not break legitimate use — the default key is an
-operator key and has to be. The docs now end the containment section with the
-two-scope agent key and the reason for it. Worth doing properly: an "agent key"
-preset in the console, and a scoped key issued alongside the operator one at
-signup, so the right thing is also the easy thing.
+operator key and has to be. The docs end the containment section with the
+two-scope agent key and the reason for it. Worth doing properly: issue a
+gate-only key alongside the operator key at signup.
 
 ---
 
