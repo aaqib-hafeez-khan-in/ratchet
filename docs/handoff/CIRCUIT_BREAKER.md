@@ -172,6 +172,42 @@ a panic should not require writing curl.
 unrelated effect types. There is no overshoot because the counter is incremented
 inside the transaction that already holds the workspace row exclusively.
 
+## Relative thresholds (migration 024)
+
+`surge_per_hour` requires knowing your own traffic. Most people do not, which
+made the safest setting the one hardest to choose — and the workspaces least
+likely to have configured anything are exactly the ones a runaway hurts most.
+
+`surge_multiplier` asks a question anyone can answer: **how many times normal is
+definitely wrong?** Normal is the median hourly volume of that effect type over
+the last seven days.
+
+Four decisions worth keeping:
+
+- **Median, not mean.** One runaway hour would drag a mean upward and quietly
+  raise the very ceiling meant to catch the next one.
+- **The current hour is excluded.** It is incomplete, and including it would let
+  a surge in progress inflate its own baseline — the ceiling would chase the
+  runaway upward.
+- **A floor of 30.** Two an hour times ten is twenty, and twenty is noise. A
+  quiet effect type must not trip on one busy afternoon.
+- **Six hours of history minimum.** A brand new effect type has no normal to be
+  a multiple of, and guessing one means refusing real work on day one.
+
+`surge_per_hour` wins when both are set: you asked for a number, you get that
+number.
+
+**The baseline is a stored column, recomputed by the worker** (`surge-baseline`,
+every 15 minutes), not derived on demand. A median over a growing history is
+exactly the kind of aggregate that must never sit in front of a decision — the
+busiest callers would pay most for the check that protects them. Measured:
+`begin (new effect)` p50 stayed at ~2.9 ms across three runs, unchanged.
+
+The policy response resolves it for you — `surge_effective_ceiling` and
+`surge_ceiling_source` say which rule is actually in force, because guessing
+that from the inputs is how people end up believing they are protected when they
+are not.
+
 ## Not done yet
 
 - **No learned baseline.** Thresholds are absolute, chosen by the operator from

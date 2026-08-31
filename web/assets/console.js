@@ -432,9 +432,11 @@ const PANELS = {
           <p class="small dim" style="max-width:74ch">
             Surge containment stops an effect type that is suddenly running far more often than
             usual — the loop that sends five thousand emails instead of three. It is off until you
-            set <code>surge_per_hour</code> on a policy. The suggested ceiling below is three times
-            your busiest hour in the last thirty days, which leaves real headroom while still
-            catching a runaway.
+            set a threshold on a policy. Two ways to do that:
+            <code>surge_per_hour</code> if you know your traffic, or
+            <code>surge_multiplier</code> if you do not — the latter asks how many times normal
+            is definitely wrong, and works out "normal" from your own history. The suggested
+            ceiling below is three times your busiest hour in the last thirty days.
           </p>
         </div>
         ${openTable}
@@ -487,7 +489,10 @@ const PANELS = {
               <td>${p.max_attempts}</td>
               <td class="mono">${p.max_cost_micros == null ? '—' : usd(p.max_cost_micros)}</td>
               <td class="mono">${p.daily_budget_micros == null ? '—' : usd(p.daily_budget_micros)}</td>
-              <td class="mono">${p.surge_per_hour == null ? '—' : p.surge_per_hour}</td>
+              <td class="mono">${p.surge_effective_ceiling == null ? '—'
+                : `${p.surge_effective_ceiling}<span class="faint small">${
+                    p.surge_ceiling_source === 'learned'
+                      ? ` (${p.surge_multiplier}× ${p.surge_baseline_per_hour}/hr)` : ''}</span>`}</td>
               <td>${p.retention_days}d</td>
             </tr>`))
         : empty('No explicit policies.', 'Every effect type is using the safe defaults.')));

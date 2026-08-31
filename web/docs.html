@@ -161,8 +161,12 @@
               <td class="small">Refuse a begin that declares no cost, so a spend ceiling
                 cannot be bypassed by simply not declaring anything.</td></tr>
           <tr><td class="mono">surge_per_hour</td><td class="mono small">integer · null</td>
-              <td class="small"><strong>Surge containment.</strong> New effects of this type per
-                hour above which the circuit breaker opens. Null (the default) is off.</td></tr>
+              <td class="small"><strong>Surge containment.</strong> Absolute ceiling: new effects
+                of this type per hour above which the breaker opens. Null (the default) is off.</td></tr>
+          <tr><td class="mono">surge_multiplier</td><td class="mono small">integer ≥ 2 · null</td>
+              <td class="small">Relative ceiling, for when you don't know your traffic: how many
+                times normal is definitely wrong. Normal is the median hourly volume over 7 days,
+                computed for you. <code>surge_per_hour</code> wins if both are set.</td></tr>
           <tr><td class="mono">surge_action</td><td class="mono small">monitor · require_approval · deny</td>
               <td class="small">What an open breaker does. Defaults to
                 <code>require_approval</code>.</td></tr>
@@ -193,7 +197,17 @@
       happens.
     </p>
     <p>
-      Set <code>surge_per_hour</code> on an effect type. Go past it and the breaker opens.
+      Two ways to set a threshold, and most people should reach for the second.
+      <code>surge_per_hour</code> is an absolute ceiling, which requires knowing your own
+      traffic. <code>surge_multiplier</code> asks a question you can actually answer — how many
+      times normal is definitely wrong — and works out "normal" from your own history: the
+      median hourly volume of that effect type over the last seven days.
+    </p>
+    <p class="small dim">
+      A learned ceiling never drops below 30, so a quiet effect type is not tripped by one busy
+      afternoon, and it does nothing at all until six hours of history exist — a brand new
+      effect type has no normal to be a multiple of. The baseline is a median rather than a
+      mean, so a single runaway hour cannot raise the ceiling meant to catch the next one.
     </p>
     <pre><code id="c-circuit"></code></pre>
     <div class="table-scroll">

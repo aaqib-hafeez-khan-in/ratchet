@@ -26,13 +26,83 @@
  * way past is worse than no breaker at all.
  */
 import type { PoolClient } from 'pg';
-import type { Db } from '../db/pool.js';
+import { getPool, type Db } from '../db/pool.js';
 import type { Policy } from './types.js';
 
 export type CircuitAction = 'monitor' | 'require_approval' | 'deny';
 
 /** The workspace-wide stop. Reserved: no real effect type may be named this. */
 export const ALL_EFFECT_TYPES = '*';
+
+/**
+ * A learned ceiling never falls below this.
+ *
+ * Without a floor, an effect type that normally runs twice an hour would trip at
+ * forty with a 20x multiplier — and small numbers are noisy, so a quiet Tuesday
+ * followed by a normal Wednesday would look like a runaway. The floor makes a
+ * relative threshold safe to enable on traffic you have not characterised.
+ */
+export const LEARNED_CEILING_FLOOR = 30;
+
+/** Hours of history required before a learned ceiling is trusted at all. */
+export const MIN_BASELINE_SAMPLES = 6;
+
+/**
+ * The hourly ceiling actually in force, and where it came from.
+ *
+ * An explicit `surge_per_hour` wins when set: you asked for a number, you get
+ * that number. `surge_multiplier` is the option for people who do not know
+ * their own traffic, and it does nothing until the worker has computed a
+ * baseline from real history — a brand new effect type has no normal to be a
+ * multiple of.
+ */
+export function effectiveCeiling(policy: Policy): {
+  ceiling: number | null;
+  source: 'absolute' | 'learned' | null;
+  baseline: number | null;
+} {
+  if (policy.surgePerHour !== null) {
+    return { ceiling: policy.surgePerHour, source: 'absolute', baseline: null };
+  }
+  if (policy.surgeMultiplier !== null && policy.surgeBaselinePerHour !== null) {
+    return {
+      ceiling: Math.max(LEARNED_CEILING_FLOOR,
+        policy.surgeMultiplier * policy.surgeBaselinePerHour),
+      source: 'learned',
+      baseline: policy.surgeBaselinePerHour,
+    };
+  }
+  return { ceiling: null, source: null, baseline: null };
+}
+
+/**
+ * Recompute learned baselines. Called by the worker, never on the request path.
+ *
+ * The median rather than the mean, because one runaway hour would drag a mean
+ * upward and quietly raise the very ceiling meant to catch the next one. The
+ * current hour is excluded — it is incomplete, and including it would let a
+ * surge in progress inflate its own baseline.
+ */
+export async function refreshSurgeBaselines(db: Db = getPool()): Promise<number> {
+  const res = await db.query(
+    `UPDATE effect_policies p
+        SET surge_baseline_per_hour = b.median,
+            surge_baseline_at = now()
+       FROM (
+         SELECT w.workspace_id, w.effect_type,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY w.count)::int AS median
+           FROM effect_rate_windows w
+          WHERE w.hour_start >= now() - interval '7 days'
+            AND w.hour_start <  date_trunc('hour', now())
+          GROUP BY w.workspace_id, w.effect_type
+         HAVING count(*) >= $1
+       ) b
+      WHERE p.workspace_id = b.workspace_id
+        AND p.effect_type  = b.effect_type
+        AND p.surge_multiplier IS NOT NULL`,
+    [MIN_BASELINE_SAMPLES]);
+  return res.rowCount ?? 0;
+}
 
 export interface CircuitState {
   effectType: string;

@@ -12,6 +12,7 @@ import { config, assertProductionSafety } from '../lib/config.js';
 import { closePool, getPool } from '../db/pool.js';
 import { drainExpiredLeases, collectExpiredEffects, collectStaleRecords } from './reaper.js';
 import { chainPendingReceipts, pruneReceipts } from '../domain/receipts.js';
+import { refreshSurgeBaselines } from '../domain/circuit.js';
 import { deliverDue } from './webhooks.js';
 import { watchChainOnce, expireQuotes } from './chain.js';
 import { deliverEmails, generateAlerts } from './email.js';
@@ -131,6 +132,12 @@ async function main() {
   // Digests current state rather than firing per event, which is what keeps
   // five hundred indeterminate effects to one email.
   loop('email-alerts', 5 * 60_000, () => generateAlerts());
+
+  // What "normal" looks like for each effect type, so a relative surge
+  // threshold has something to be a multiple of. Recomputed here rather than on
+  // the request path: a median over a growing history is exactly the kind of
+  // aggregate that must never sit in front of a decision.
+  loop('surge-baseline', 15 * 60_000, () => refreshSurgeBaselines());
 
   loop('retention-gc', config.worker.gcIntervalMs, async () => {
     const effects = await collectExpiredEffects();

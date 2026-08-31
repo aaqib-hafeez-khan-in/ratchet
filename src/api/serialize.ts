@@ -1,3 +1,4 @@
+import { effectiveCeiling } from '../domain/circuit.js';
 import type { EffectView, ReportResult } from '../domain/effects.js';
 import type { BeginResult, Policy } from '../domain/types.js';
 
@@ -93,6 +94,13 @@ export function policyOut(p: Policy) {
     surge_per_hour: p.surgePerHour,
     surge_action: p.surgeAction,
     surge_cooldown_seconds: p.surgeCooldownSeconds,
+    surge_multiplier: p.surgeMultiplier,
+    surge_baseline_per_hour: p.surgeBaselinePerHour,
+    // Resolved for the caller: which of the two rules is actually in force is
+    // not obvious from the inputs, and guessing it is how people end up
+    // believing they are protected when they are not.
+    surge_effective_ceiling: effectiveCeiling(p).ceiling,
+    surge_ceiling_source: effectiveCeiling(p).source,
     is_default: p.isDefault,
   };
 }

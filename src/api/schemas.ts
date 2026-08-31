@@ -229,6 +229,15 @@ export const policySchema = {
         + 'Null disables surge containment, which is the default.' },
     surge_action: { type: 'string', enum: ['monitor', 'require_approval', 'deny'] },
     surge_cooldown_seconds: { type: 'integer' },
+    surge_multiplier: { type: ['integer', 'null'],
+      description: 'Relative surge threshold: how many times normal is definitely wrong. '
+        + 'Use when you do not know your own traffic. Does nothing until enough history '
+        + 'exists to compute a baseline.' },
+    surge_baseline_per_hour: { type: ['integer', 'null'],
+      description: 'Median hourly volume over the last 7 days. Computed for you.' },
+    surge_effective_ceiling: { type: ['integer', 'null'],
+      description: 'The hourly ceiling actually in force, whichever rule produced it.' },
+    surge_ceiling_source: { type: ['string', 'null'], enum: ['absolute', 'learned', null] },
     is_default: { type: 'boolean' },
   },
 } as const;

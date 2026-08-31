@@ -283,6 +283,12 @@ export default async function workspaceRoutes(app: FastifyInstance) {
               + 'the work for a human rather than killing the agent, so nothing irreversible '
               + 'happens and no context is lost. "monitor" records and alerts but changes no '
               + 'decision — use it to watch before you enforce. "deny" refuses outright.' },
+          surge_multiplier: { type: ['integer', 'null'], minimum: 2,
+            description: 'Relative alternative to surge_per_hour, for when you do not know '
+              + 'your own traffic: how many times normal is definitely wrong. The baseline '
+              + 'is the median hourly volume over the last 7 days, computed for you, and a '
+              + 'learned ceiling never drops below 30 so quiet effect types are not tripped '
+              + 'by an ordinary busy afternoon. surge_per_hour wins if both are set.' },
           surge_cooldown_seconds: { type: 'integer', minimum: 60, maximum: 86400,
             description: 'How long a tripped breaker stays open before closing itself. '
               + 'Closing grants a fresh allowance, so a cooldown is a real second chance.' },
@@ -311,6 +317,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
       surgePerHour: b.surge_per_hour,
       surgeAction: b.surge_action,
       surgeCooldownSeconds: b.surge_cooldown_seconds,
+      surgeMultiplier: b.surge_multiplier,
     });
     await audit(getPool(), workspaceId, 'policy.updated', actorOf(req), effectType, b);
     return policyOut(p);
