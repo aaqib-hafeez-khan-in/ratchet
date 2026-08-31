@@ -11,7 +11,7 @@
 import { config, assertProductionSafety } from '../lib/config.js';
 import { closePool, getPool } from '../db/pool.js';
 import { sweepExpiredLeases, collectExpiredEffects, collectStaleRecords } from './reaper.js';
-import { chainPendingReceipts } from '../domain/receipts.js';
+import { chainPendingReceipts, pruneReceipts } from '../domain/receipts.js';
 import { deliverDue } from './webhooks.js';
 import { watchChainOnce, expireQuotes } from './chain.js';
 import { deliverEmails, generateAlerts } from './email.js';
@@ -93,6 +93,13 @@ async function main() {
   // because an unchained receipt is still individually verifiable but does not
   // yet prove that nothing around it was removed.
   loop('receipt-chain', 5_000, () => chainPendingReceipts());
+
+  // Checkpoint-then-prune. Runs on the GC cadence because it deletes, and a
+  // deletion bug should have a slow blast radius rather than a fast one.
+  loop('receipt-prune', config.worker.gcIntervalMs, async () => {
+    const r = await pruneReceipts(config.receiptRetentionDays);
+    return r.pruned;
+  });
 }
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {

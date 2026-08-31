@@ -28,7 +28,7 @@ import type { PoolClient } from 'pg';
 import { getPool, type Db } from '../db/pool.js';
 import { config } from '../lib/config.js';
 
-export const RECEIPT_VERSION = 'ratchet-receipt-v1';
+export const RECEIPT_VERSION = 'ratchet-receipt-v2';
 
 /**
  * Ed25519 keypair derived deterministically from AUTH_SECRET.
@@ -69,6 +69,8 @@ export interface ReceiptBody {
   state: string;
   attempt: number;
   payload_fingerprint: string;
+  /** What the caller declared this effect would cost, in micro-USD. */
+  cost_micros: number;
   decided_at: string;
 }
 
@@ -115,10 +117,10 @@ export async function writeReceipt(tx: PoolClient, body: ReceiptBody): Promise<v
   const signed = signBody(body);
   await tx.query(
     `INSERT INTO receipts
-       (workspace_id, effect_id, decision, attempt, body, signature, body_hash)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+       (workspace_id, effect_id, decision, attempt, body, signature, body_hash, cost_micros)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
     [body.workspace_id, body.effect_id, body.decision, body.attempt,
-     signed.body, signed.signature, signed.hash],
+     signed.body, signed.signature, signed.hash, body.cost_micros],
   );
 }
 
@@ -179,6 +181,93 @@ export async function chainPendingReceipts(batch = 500): Promise<number> {
   return linked;
 }
 
+/**
+ * Prune receipts older than the retention window, preserving verifiability.
+ *
+ * The order matters and is the whole design: CHECKPOINT FIRST, then delete.
+ * A checkpoint is a signed statement that the chain ran unbroken up to seq N
+ * and ended at hash H. The audit resumes from there, so a pruned gap does not
+ * read as tampering.
+ *
+ * Doing it the other way round — delete then attest — would mean a crash
+ * between the two steps leaves a broken chain with nothing explaining it, and
+ * the customer's audit fails with no way to tell truncation from an attack.
+ * Both steps run in one transaction for the same reason.
+ *
+ * What is lost is stated plainly: a pruned receipt cannot be re-verified
+ * individually afterwards. The checkpoint attests that the chain was intact
+ * when we signed it, not that any particular removed receipt said what someone
+ * later claims. A customer needing more must keep their own copies.
+ */
+export async function pruneReceipts(
+  retentionDays: number, batch = 1000,
+): Promise<{ pruned: number; checkpoints: number }> {
+  const pool = getPool();
+  const { rows: workspaces } = await pool.query<{ workspace_id: string }>(
+    `SELECT DISTINCT workspace_id FROM receipts
+      WHERE created_at < now() - make_interval(days => $1) AND seq IS NOT NULL
+      LIMIT 50`, [retentionDays]);
+
+  let pruned = 0;
+  let checkpoints = 0;
+  for (const { workspace_id } of workspaces) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // The boundary: the highest chained seq old enough to remove. Unchained
+      // receipts are never pruned — they are not yet attested by anything.
+      const { rows: edge } = await client.query<{ seq: string; chain_hash: string; n: string }>(
+        `SELECT max(seq)::text AS seq,
+                (array_agg(chain_hash ORDER BY seq DESC))[1] AS chain_hash,
+                count(*)::text AS n
+           FROM (SELECT seq, chain_hash FROM receipts
+                  WHERE workspace_id = $1 AND seq IS NOT NULL
+                    AND created_at < now() - make_interval(days => $2)
+                  ORDER BY seq ASC LIMIT $3) t`,
+        [workspace_id, retentionDays, batch]);
+
+      const upTo = edge[0]?.seq ? Number(edge[0].seq) : 0;
+      const count = edge[0]?.n ? Number(edge[0].n) : 0;
+      if (!upTo || !count || !edge[0]?.chain_hash) {
+        await client.query('ROLLBACK');
+        continue;
+      }
+
+      const body = {
+        v: 'ratchet-checkpoint-v1',
+        workspace_id,
+        up_to_seq: upTo,
+        chain_hash: edge[0].chain_hash,
+        pruned_count: count,
+        signed_at: new Date().toISOString(),
+      };
+      const canonical = JSON.stringify(
+        Object.fromEntries(Object.keys(body).sort().map((k) => [k, (body as never)[k]])));
+      const signature = edSign(null, Buffer.from(canonical), keypair().priv).toString('base64');
+
+      await client.query(
+        `INSERT INTO receipt_checkpoints
+           (workspace_id, up_to_seq, chain_hash, pruned_count, body, signature)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [workspace_id, upTo, edge[0].chain_hash, count, canonical, signature]);
+
+      const del = await client.query(
+        `DELETE FROM receipts WHERE workspace_id = $1 AND seq IS NOT NULL AND seq <= $2`,
+        [workspace_id, upTo]);
+
+      await client.query('COMMIT');
+      pruned += del.rowCount ?? 0;
+      checkpoints += 1;
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+  return { pruned, checkpoints };
+}
+
 export interface ReceiptView {
   seq: number | null;
   effectId: string;
@@ -224,15 +313,37 @@ export async function receiptsFor(
  */
 export async function auditChain(
   db: Db, workspaceId: string, limit = 10_000,
-): Promise<{ checked: number; ok: boolean; brokenAtSeq?: number; reason?: string }> {
+): Promise<{ checked: number; ok: boolean; brokenAtSeq?: number; reason?: string;
+             prunedThroughSeq?: number }> {
+  // Resume from the newest checkpoint if the log has been pruned. Starting at
+  // seq 1 unconditionally would report a truncated log as tampered, which is
+  // the failure that would make every long-lived customer distrust the audit.
+  const { rows: cp } = await db.query<{
+    up_to_seq: string; chain_hash: string; body: string; signature: string;
+  }>(`SELECT up_to_seq, chain_hash, body, signature FROM receipt_checkpoints
+       WHERE workspace_id=$1 ORDER BY up_to_seq DESC LIMIT 1`, [workspaceId]);
+
+  let startAfter = 0;
+  let prev: string | null = null;
+  let prunedTo: number | null = null;
+  if (cp[0]) {
+    // The checkpoint is itself signed, so a forged one cannot be used to hide a
+    // gap: verify it before trusting the hash it hands us.
+    if (!verifyReceipt(cp[0].body, cp[0].signature)) {
+      return { checked: 0, ok: false, reason: 'the pruning checkpoint does not verify' };
+    }
+    startAfter = Number(cp[0].up_to_seq);
+    prev = cp[0].chain_hash;
+    prunedTo = startAfter;
+  }
+
   const { rows } = await db.query<{
     seq: string; body: string; signature: string; body_hash: string;
     prev_hash: string | null; chain_hash: string;
   }>(`SELECT seq, body, signature, body_hash, prev_hash, chain_hash
-        FROM receipts WHERE workspace_id=$1 AND seq IS NOT NULL
-        ORDER BY seq ASC LIMIT $2`, [workspaceId, limit]);
+        FROM receipts WHERE workspace_id=$1 AND seq IS NOT NULL AND seq > $3
+        ORDER BY seq ASC LIMIT $2`, [workspaceId, limit, startAfter]);
 
-  let prev: string | null = null;
   let checked = 0;
   for (const r of rows) {
     const seq = Number(r.seq);
@@ -252,5 +363,5 @@ export async function auditChain(
     prev = r.chain_hash;
     checked += 1;
   }
-  return { checked, ok: true };
+  return { checked, ok: true, ...(prunedTo ? { prunedThroughSeq: prunedTo } : {}) };
 }

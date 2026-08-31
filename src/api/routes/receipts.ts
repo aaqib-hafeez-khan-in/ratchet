@@ -112,9 +112,8 @@ export default async function receiptRoutes(app: FastifyInstance) {
     }>(
       `SELECT r.decision,
               count(*)::text AS n,
-              COALESCE(sum(e.reserved_micros), 0)::text AS micros
+              COALESCE(sum(r.cost_micros), 0)::text AS micros
          FROM receipts r
-         JOIN effects e ON e.id = r.effect_id
         WHERE r.workspace_id = $1
           AND r.decision IN ('duplicate','in_flight','blocked')
           AND r.created_at > now() - interval '30 days'

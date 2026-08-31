@@ -14,6 +14,7 @@ import {
 } from '../../src/domain/receipts.js';
 
 const { beginEffect } = await import('../../src/domain/effects.js');
+const { pruneReceipts } = await import('../../src/domain/receipts.js');
 
 let ws: Awaited<ReturnType<typeof freshWorkspace>>;
 before(async () => { ws = await freshWorkspace(); });
@@ -180,5 +181,108 @@ describe('prevented-loss ledger', () => {
     assert.equal(Number(rows[0]!.n), 1, 'the refusal should be counted');
     assert.ok(Number(rows[0]!.micros) > 0,
       'a declared cost must survive into the ledger, or the number reads $0.00 forever');
+  });
+});
+
+describe('retention', () => {
+
+  async function seed(ws: Awaited<ReturnType<typeof freshWorkspace>>, n: number) {
+    for (let i = 0; i < n; i++) {
+      await beginEffect({
+        workspaceId: ws.workspaceId, apiKeyId: ws.key.id, apiKeyPrefix: ws.key.prefix,
+        keyDailyBudgetMicros: null, effectType: 'payment.charge',
+        idempotencyKey: `ret-${i}-${Date.now()}-${Math.random()}`,
+        payload: {}, estimatedCostMicros: 1_000_000,
+      });
+    }
+    await chainPendingReceipts();
+  }
+
+  test('the declared cost is signed into the receipt, not looked up', async () => {
+    const ws2 = await freshWorkspace();
+    await seed(ws2, 1);
+    const { rows } = await getPool().query<{ body: string; cost_micros: string }>(
+      `SELECT body, cost_micros FROM receipts WHERE workspace_id=$1`, [ws2.workspaceId]);
+    assert.equal(Number(rows[0]!.cost_micros), 1_000_000);
+    // In the signed body too, so the basis of the prevented-loss claim is
+    // evidence rather than a join that can vanish.
+    assert.equal(JSON.parse(rows[0]!.body).cost_micros, 1_000_000);
+  });
+
+  test('prevented loss survives the effect being deleted', async () => {
+    const ws2 = await freshWorkspace();
+    const key = `survive-${Date.now()}`;
+    const call = () => beginEffect({
+      workspaceId: ws2.workspaceId, apiKeyId: ws2.key.id, apiKeyPrefix: ws2.key.prefix,
+      keyDailyBudgetMicros: null, effectType: 'payment.charge', idempotencyKey: key,
+      payload: {}, estimatedCostMicros: 3_000_000,
+    });
+    await call();
+    await call();
+    // Effects expire after seven days by default while the prevented-loss
+    // window is thirty, so this is the normal case, not an edge case.
+    await getPool().query('DELETE FROM effects WHERE workspace_id=$1', [ws2.workspaceId]);
+
+    const { rows } = await getPool().query<{ micros: string }>(
+      `SELECT COALESCE(sum(cost_micros),0)::text AS micros FROM receipts
+        WHERE workspace_id=$1 AND decision IN ('duplicate','in_flight','blocked')`,
+      [ws2.workspaceId]);
+    assert.ok(Number(rows[0]!.micros) > 0,
+      'the figure must not shrink just because the effect was garbage collected');
+  });
+
+  test('pruning writes a checkpoint and the audit still passes', async () => {
+    const ws2 = await freshWorkspace();
+    await seed(ws2, 4);
+    assert.equal((await auditChain(getPool(), ws2.workspaceId)).ok, true);
+
+    // Age them past the window.
+    await getPool().query(
+      `UPDATE receipts SET created_at = now() - interval '200 days' WHERE workspace_id=$1`,
+      [ws2.workspaceId]);
+    const r = await pruneReceipts(90);
+    assert.ok(r.pruned > 0, 'nothing was pruned');
+    assert.equal(r.checkpoints, 1);
+
+    // The critical property: a truncated log must NOT read as tampered.
+    const audit = await auditChain(getPool(), ws2.workspaceId);
+    assert.equal(audit.ok, true, `audit broke after pruning: ${audit.reason}`);
+    assert.ok(audit.prunedThroughSeq! > 0);
+  });
+
+  test('a forged checkpoint cannot hide a gap', async () => {
+    const ws2 = await freshWorkspace();
+    await seed(ws2, 3);
+    await getPool().query(
+      `UPDATE receipts SET created_at = now() - interval '200 days' WHERE workspace_id=$1`,
+      [ws2.workspaceId]);
+    await pruneReceipts(90);
+
+    // Rewrite the checkpoint the way someone covering a deletion would.
+    await getPool().query(
+      `UPDATE receipt_checkpoints SET body = replace(body, '"up_to_seq"', '"up_to_seq_x"')
+        WHERE workspace_id=$1`, [ws2.workspaceId]);
+
+    const audit = await auditChain(getPool(), ws2.workspaceId);
+    assert.equal(audit.ok, false, 'a tampered checkpoint must not be trusted');
+    assert.match(audit.reason!, /checkpoint/);
+  });
+
+  test('unchained receipts are never pruned', async () => {
+    const ws2 = await freshWorkspace();
+    await beginEffect({
+      workspaceId: ws2.workspaceId, apiKeyId: ws2.key.id, apiKeyPrefix: ws2.key.prefix,
+      keyDailyBudgetMicros: null, effectType: 'payment.charge',
+      idempotencyKey: `unchained-${Date.now()}`, payload: {}, estimatedCostMicros: 0,
+    });
+    // Deliberately not chained. Ageing it must not make it disappear, because
+    // nothing has attested to it yet.
+    await getPool().query(
+      `UPDATE receipts SET created_at = now() - interval '200 days' WHERE workspace_id=$1`,
+      [ws2.workspaceId]);
+    await pruneReceipts(90);
+    const { rows } = await getPool().query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM receipts WHERE workspace_id=$1`, [ws2.workspaceId]);
+    assert.equal(Number(rows[0]!.n), 1, 'an unattested receipt was deleted');
   });
 });

@@ -176,6 +176,10 @@ export const config = {
     },
   },
 
+  // Receipts outlive effects on purpose: an effect is operational state, a
+  // receipt is evidence, and evidence is the thing a customer may need long
+  // after the effect itself stopped mattering.
+  receiptRetentionDays: int('RECEIPT_RETENTION_DAYS', 90),
   consoleSessionTtlHours: int('CONSOLE_SESSION_TTL_HOURS', 72),
 } as const;
 

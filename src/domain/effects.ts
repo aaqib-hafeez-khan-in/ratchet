@@ -322,6 +322,7 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
       state: decided.state,
       attempt: decided.attempt,
       payload_fingerprint: fingerprint.toString('hex'),
+      cost_micros: input.estimatedCostMicros,
       decided_at: now.toISOString(),
     });
     return decided;

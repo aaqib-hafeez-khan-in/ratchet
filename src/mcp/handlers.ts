@@ -164,8 +164,8 @@ export async function callTool(
     case 'ratchet_prevented_loss': {
       const { rows } = await getPool().query<{ decision: string; n: string; micros: string }>(
         `SELECT r.decision, count(*)::text AS n,
-                COALESCE(sum(e.reserved_micros),0)::text AS micros
-           FROM receipts r JOIN effects e ON e.id = r.effect_id
+                COALESCE(sum(r.cost_micros),0)::text AS micros
+           FROM receipts r
           WHERE r.workspace_id=$1
             AND r.decision IN ('duplicate','in_flight','blocked')
             AND r.created_at > now() - interval '30 days'
