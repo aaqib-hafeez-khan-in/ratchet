@@ -195,6 +195,14 @@ export const config = {
     get asset() {
       return process.env.X402_ASSET ?? '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
     },
+    /**
+     * The token's EIP-712 domain. The client signs over it, so a wrong value
+     * produces a signature the facilitator cannot verify. USDC uses name
+     * "USDC" and version "2"; other tokens differ, so both travel with the
+     * asset address.
+     */
+    get assetName() { return process.env.X402_ASSET_NAME ?? 'USDC'; },
+    get assetVersion() { return process.env.X402_ASSET_VERSION ?? '2'; },
     /** Amount in the asset's base units. USDC has 6 decimals, so 1000000 = $1. */
     get amount() { return process.env.X402_AMOUNT ?? '1000000'; },
     /** Credit granted per payment, in micro-USD. Must match `amount`'s value. */

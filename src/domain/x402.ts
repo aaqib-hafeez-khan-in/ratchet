@@ -95,7 +95,19 @@ export function paymentRequired(resourceUrl: string): PaymentRequired {
       asset: c.asset,
       payTo: c.payTo,
       maxTimeoutSeconds: 120,
-      extra: { assetTransferMethod: 'eip3009' },
+      /**
+       * `name` and `version` are the token contract's EIP-712 domain fields,
+       * and they are not decoration: the client signs over that domain, so
+       * without them the signature cannot be reconstructed. A live facilitator
+       * rejects the payment with `invalid_exact_evm_missing_eip712_domain`,
+       * which is how this omission was found. They are token-specific, so they
+       * are configurable alongside the asset.
+       */
+      extra: {
+        assetTransferMethod: 'eip3009',
+        name: c.assetName,
+        version: c.assetVersion,
+      },
     }],
   };
 }
