@@ -156,3 +156,29 @@ describe('chain audit', () => {
     assert.deepEqual(after.rows, before.rows, 'a second pass must be a no-op');
   });
 });
+
+describe('prevented-loss ledger', () => {
+  // This endpoint shipped broken because nothing exercised it. The query names
+  // real columns, and only a query that actually runs proves that.
+  test('counts refusals and what they would have cost', async () => {
+    const isolated = await freshWorkspace();
+    const key = `prevent-${Date.now()}`;
+    const call = () => beginEffect({
+      workspaceId: isolated.workspaceId, apiKeyId: isolated.key.id,
+      apiKeyPrefix: isolated.key.prefix, keyDailyBudgetMicros: null,
+      effectType: 'payment.charge', idempotencyKey: key,
+      payload: {}, estimatedCostMicros: 4_999_000,
+    });
+    await call();
+    await call();   // refused
+
+    const { rows } = await getPool().query<{ n: string; micros: string }>(
+      `SELECT count(*)::text AS n, COALESCE(sum(e.reserved_micros),0)::text AS micros
+         FROM receipts r JOIN effects e ON e.id = r.effect_id
+        WHERE r.workspace_id = $1 AND r.decision IN ('duplicate','in_flight','blocked')`,
+      [isolated.workspaceId]);
+    assert.equal(Number(rows[0]!.n), 1, 'the refusal should be counted');
+    assert.ok(Number(rows[0]!.micros) > 0,
+      'a declared cost must survive into the ledger, or the number reads $0.00 forever');
+  });
+});
