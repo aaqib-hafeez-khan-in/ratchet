@@ -10,7 +10,7 @@
  */
 import { config, assertProductionSafety } from '../lib/config.js';
 import { closePool, getPool } from '../db/pool.js';
-import { sweepExpiredLeases, collectExpiredEffects, collectStaleRecords } from './reaper.js';
+import { drainExpiredLeases, collectExpiredEffects, collectStaleRecords } from './reaper.js';
 import { chainPendingReceipts, pruneReceipts } from '../domain/receipts.js';
 import { deliverDue } from './webhooks.js';
 import { watchChainOnce, expireQuotes } from './chain.js';
@@ -61,7 +61,7 @@ async function main() {
 
   startActivityFlusher();
 
-  loop('lease-sweep', config.worker.leaseSweepIntervalMs, () => sweepExpiredLeases());
+  loop('lease-sweep', config.worker.leaseSweepIntervalMs, () => drainExpiredLeases());
   loop('webhook-delivery', config.worker.webhookPollIntervalMs, () => deliverDue());
   // Only runs when the operator has configured a receiving address. The
   // watcher reads the chain and never holds a key.
