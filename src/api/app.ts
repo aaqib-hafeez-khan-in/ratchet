@@ -10,6 +10,7 @@ import { config } from '../lib/config.js';
 import { ApiError } from '../lib/errors.js';
 import { authenticate } from '../domain/auth.js';
 import { planRateLimitMax, rateLimitKey } from './rate-limit.js';
+import { SharedRateLimitStore, storeClassFor } from './shared-rate-limit.js';
 import authPlugin from './plugins/auth.js';
 import effectRoutes from './routes/effects.js';
 import groupRoutes from './routes/groups.js';
@@ -103,8 +104,16 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     maxAge: 600,
   });
 
+  // Counters live in Postgres so several instances enforce ONE limit rather
+  // than one each. Reconciliation happens in the background: `incr` is
+  // synchronous and never awaits the database.
+  const rateLimitStore = config.rateLimitShared ? new SharedRateLimitStore(
+    60_000, config.rateLimitFlushMs) : undefined;
+  if (rateLimitStore) app.addHook('onClose', async () => { rateLimitStore.stop(); });
+
   await app.register(rateLimit, {
     global: true,
+    ...(rateLimitStore ? { store: storeClassFor(rateLimitStore) as never } : {}),
     // Per-plan, not a single global number. Publishing a per-plan limit in the
     // pricing table while enforcing one shared value would mean selling an
     // entitlement the code does not deliver.

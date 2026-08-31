@@ -75,6 +75,15 @@ export const config = {
     return Number.isFinite(n) ? n : null;
   },
 
+  /**
+   * Share rate-limit counters across instances via Postgres. Off means the
+   * plugin's in-memory store, which allows N instances roughly N times the
+   * published limit. Reconciliation is in the background, so this never adds
+   * latency to a request — see src/api/shared-rate-limit.ts.
+   */
+  rateLimitShared: bool('RATE_LIMIT_SHARED', true),
+  rateLimitFlushMs: int('RATE_LIMIT_FLUSH_MS', 250),
+
   maxRequestBytes: int('MAX_REQUEST_BYTES', 65536),
   maxResultBytes: int('MAX_RESULT_BYTES', 32768),
 
