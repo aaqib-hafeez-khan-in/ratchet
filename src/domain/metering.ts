@@ -1,3 +1,4 @@
+import { ANONYMOUS_EFFECT_QUOTA } from './auth.js';
 import type { PoolClient } from 'pg';
 import type { Db } from '../db/pool.js';
 import { planFor, type Plan } from './plans.js';
@@ -25,11 +26,23 @@ export interface WorkspaceBilling {
 interface WsRow {
   id: string; plan: string; credit_micros: number;
   period_start: Date; period_decisions: number; status: 'active' | 'suspended';
+  anonymous: boolean;
+}
+
+/**
+ * An unclaimed workspace has spent its trial. There is nobody to bill and
+ * nobody to warn, so refusing is the only honest end to it.
+ */
+export class AnonymousQuotaExhausted extends Error {
+  constructor(readonly quota: number) {
+    super('Anonymous workspace quota exhausted');
+    this.name = 'AnonymousQuotaExhausted';
+  }
 }
 
 export async function getBilling(db: Db, workspaceId: string): Promise<WorkspaceBilling | null> {
   const { rows } = await db.query<WsRow>(
-    `SELECT id, plan, credit_micros, period_start, period_decisions, status
+    `SELECT id, plan, credit_micros, period_start, period_decisions, status, anonymous
        FROM workspaces WHERE id = $1`, [workspaceId],
   );
   const r = rows[0];
@@ -61,7 +74,7 @@ export async function meterEffect(
   tx: PoolClient, workspaceId: string, effectId: string, now: Date,
 ): Promise<MeterResult> {
   const { rows } = await tx.query<WsRow>(
-    `SELECT id, plan, credit_micros, period_start, period_decisions, status
+    `SELECT id, plan, credit_micros, period_start, period_decisions, status, anonymous
        FROM workspaces WHERE id = $1 FOR UPDATE`, [workspaceId],
   );
   const ws = rows[0];
@@ -78,9 +91,21 @@ export async function meterEffect(
     periodRolled = true;
   }
 
-  const withinAllowance = used < plan.includedEffects;
+  // An unclaimed workspace is capped far below the free plan. It exists to
+  // prove the gate works on the first call without a human; running on one is
+  // not the offer. Claiming it with an email lifts the cap to the free plan.
+  const allowance = ws.anonymous
+    ? Math.min(ANONYMOUS_EFFECT_QUOTA, plan.includedEffects)
+    : plan.includedEffects;
+  const withinAllowance = used < allowance;
   let charged = 0;
   let balance = ws.credit_micros;
+
+  if (!withinAllowance && ws.anonymous) {
+    // No overage path for an unclaimed workspace: there is nobody to bill and
+    // nobody to warn. Refusing here is the honest end of a free trial.
+    throw new AnonymousQuotaExhausted(ANONYMOUS_EFFECT_QUOTA);
+  }
 
   if (!withinAllowance) {
     charged = plan.overageMicrosPerEffect;
@@ -115,7 +140,7 @@ export async function meterEffect(
     metered: true,
     chargedMicros: charged,
     decisionsUsed: used + 1,
-    decisionsRemaining: Math.max(0, plan.includedEffects - (used + 1)),
+    decisionsRemaining: Math.max(0, allowance - (used + 1)),
     balanceMicros: balance,
   };
 }

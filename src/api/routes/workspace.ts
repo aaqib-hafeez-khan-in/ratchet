@@ -4,7 +4,7 @@ import { getPool } from '../../db/pool.js';
 import { errors } from '../../lib/errors.js';
 import { wsOf, actorOf } from '../plugins/auth.js';
 import { createWorkspace, getWorkspace, createApiKey, listApiKeys, revokeApiKey,
-         createConsoleSession, destroyConsoleSession, isScope, SCOPES, DEFAULT_AGENT_SCOPES, type Scope } from '../../domain/auth.js';
+         createConsoleSession, destroyConsoleSession, claimWorkspace, isScope, SCOPES, DEFAULT_AGENT_SCOPES, type Scope } from '../../domain/auth.js';
 import { listPolicies, upsertPolicy, deletePolicy, getPolicy } from '../../domain/policy.js';
 import { getSpendSummary } from '../../domain/budget.js';
 import { listLedger } from '../../domain/metering.js';
@@ -20,6 +20,46 @@ import { config } from '../../lib/config.js';
 
 export default async function workspaceRoutes(app: FastifyInstance) {
   // ------------------------------------------------------------- onboarding
+  /**
+   * Attach an owner to a workspace that was provisioned without one.
+   *
+   * Key-authenticated: only someone already holding the workspace's key can
+   * claim it, so this is not a way to take over somebody else's. Claiming lifts
+   * the anonymous cap to the normal free plan and stops the reaper sweeping it.
+   */
+  app.post('/workspaces/claim', {
+    preHandler: app.requireKey('effects:begin'),
+    config: { rateLimit: { max: 10, timeWindow: '1 hour' } },
+    schema: {
+      tags: ['Workspace'], operationId: 'claimWorkspace',
+      summary: 'Claim an anonymously provisioned workspace',
+      body: {
+        type: 'object', required: ['email'], additionalProperties: false,
+        properties: {
+          email: { type: 'string', format: 'email', maxLength: 254 },
+          name: { type: 'string', maxLength: 80 },
+        },
+      },
+      response: { ...errorResponses,
+                  200: { type: 'object', additionalProperties: true },
+                  409: { type: 'object', additionalProperties: true } },
+    },
+  }, async (req, reply) => {
+    const b = req.body as { email: string; name?: string };
+    const workspaceId = wsOf(req);
+    const r = await claimWorkspace(workspaceId, b.email);
+    if (!r.claimed) {
+      reply.code(409);
+      return { error: { code: 'already_claimed', message: r.reason } };
+    }
+    if (b.name) {
+      await getPool().query('UPDATE workspaces SET name = $2 WHERE id = $1',
+        [workspaceId, b.name]);
+    }
+    return { claimed: true, workspace_id: workspaceId, owner_email: b.email.toLowerCase(),
+             note: 'Quota lifted to the free plan. This workspace will no longer be swept.' };
+  });
+
   app.post('/workspaces', {
     config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
     schema: {
@@ -53,7 +93,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
   }, async (req, reply) => {
     const b = req.body as { name: string; email: string };
     const ws = await createWorkspace(b.name, b.email);
-    const session = await createConsoleSession(ws.workspaceId, ws.email);
+    const session = await createConsoleSession(ws.workspaceId, ws.email ?? b.email);
     reply.setCookie('rk_session', session, {
       httpOnly: true, sameSite: 'lax', secure: config.isProd,
       path: '/', maxAge: config.consoleSessionTtlHours * 3600,

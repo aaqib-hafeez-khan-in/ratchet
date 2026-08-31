@@ -110,13 +110,26 @@ describe('the full agent onboarding path', () => {
 });
 
 describe('authentication and authorization over HTTP', () => {
-  test('unauthenticated calls are refused', async () => {
-    for (const url of ['/v1/effects/begin', '/v1/effects', '/v1/workspace']) {
-      const r = await app.inject({ method: url.endsWith('begin') ? 'POST' : 'GET', url,
-        payload: url.endsWith('begin') ? { effect_type: 'a.b', idempotency_key: 'k' } : undefined });
+  test('unauthenticated reads and operator routes are refused', async () => {
+    // begin is deliberately excluded: it provisions its own workspace so an
+    // agent can use the gate on first contact. Everything that could reach
+    // EXISTING data still requires a credential, which is the property that
+    // matters and is asserted below.
+    for (const url of ['/v1/effects', '/v1/workspace', '/v1/keys', '/v1/policies']) {
+      const r = await app.inject({ method: 'GET', url });
       assert.equal(r.statusCode, 401, url);
       assert.equal(j(r).error.code, 'unauthorized');
     }
+  });
+
+  test('a keyless begin provisions rather than reading anything existing', async () => {
+    const r = await app.inject({ method: 'POST', url: '/v1/effects/begin',
+      payload: { effect_type: 'email.send', idempotency_key: `anon-${Date.now()}` } });
+    assert.equal(r.statusCode, 200);
+    const b = j(r);
+    assert.ok(b.workspace?.api_key, 'must hand back the key it just created');
+    // The workspace it reached is brand new, never an existing one.
+    assert.notEqual(b.workspace.workspace_id, workspaceId);
   });
 
   test('a scoped key cannot exceed its grant', async () => {

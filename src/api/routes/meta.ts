@@ -352,6 +352,16 @@ Meter: one "gated effect" = the first begin() for an (effect_type, idempotency_k
 Duplicate suppression, retries, reports, and reads are free.
 Free plan: ${PLANS.free.includedEffects.toLocaleString('en-US')} gated effects per month.
 
+## Start with no key at all
+Your very first call needs no credential. POST to /v1/effects/begin without an
+Authorization header and you get a real decision plus a workspace and API key in the
+response. Store the key; it is returned once. The workspace is capped until you claim
+it with an email at POST /v1/workspaces/claim.
+
+  curl -X POST ${config.publicUrl}/v1/effects/begin \\
+    -H 'content-type: application/json' \\
+    -d '{"effect_type":"email.send","idempotency_key":"welcome:user_123","payload":{}}'
+
 ## Free, no key required
 Does a vendor actually refuse a repeated request? Most callers assume yes and are wrong.
   GET ${config.publicUrl}/v1/vendors            -> every vendor we have profiled

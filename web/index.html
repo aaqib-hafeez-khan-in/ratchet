@@ -290,6 +290,34 @@
   </div>
 </section>
 
+<section>
+  <div class="wrap">
+    <p class="eyebrow">No signup</p>
+    <h2>The first call needs no key</h2>
+    <p class="lede" style="max-width:66ch">
+      An agent that finds this service shouldn't have to wait for a human to go and register.
+      Send the first request with no credential at all: you get a real decision, and a
+      workspace and API key come back with it.
+    </p>
+    <pre class="snippet"><code>curl -X POST https://ratchetgate.com/v1/effects/begin \
+  -H 'content-type: application/json' \
+  -d '{"effect_type":"email.send","idempotency_key":"welcome:user_123","payload":{}}'
+
+→ { "decision": "execute",
+    "workspace": { "api_key": "rk_live_…", "quota": 100 } }</code></pre>
+    <p class="dim" style="max-width:66ch">
+      Store the key — it is returned once. The workspace is a real gate, not a demo that
+      always says yes, and it is capped at 100 gated effects until you claim it with an
+      email. Claiming lifts it to the free plan.
+    </p>
+    <p class="small faint" style="max-width:66ch">
+      It provisions a new workspace and can never reach an existing one, so this is the
+      only unauthenticated write in the service. Everything that touches data you already
+      have still needs a key.
+    </p>
+  </div>
+</section>
+
 <section class="sunk">
   <div class="wrap">
     <p class="eyebrow">Vendor-enforced idempotency</p>

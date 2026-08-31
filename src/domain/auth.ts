@@ -181,7 +181,7 @@ export async function revokeApiKey(db: Db, workspaceId: string, keyId: string): 
 // ------------------------------------------------------------------ workspace
 
 export interface NewWorkspace {
-  workspaceId: string; name: string; email: string; key: CreatedKey;
+  workspaceId: string; name: string; email: string | null; key: CreatedKey;
 }
 
 /**
@@ -190,13 +190,15 @@ export interface NewWorkspace {
  * signup flow — an agent operator can be integrated in a single request.
  */
 export async function createWorkspace(
-  name: string, email: string, seedPolicies = true,
+  name: string, email: string | null, seedPolicies = true,
+  anonymous = false,
 ): Promise<NewWorkspace> {
   return withTx(async (tx: PoolClient) => {
     const id = newId('ws');
     await tx.query(
-      `INSERT INTO workspaces (id, name, owner_email, plan) VALUES ($1,$2,$3,'free')`,
-      [id, name, email.toLowerCase()],
+      `INSERT INTO workspaces (id, name, owner_email, plan, anonymous)
+       VALUES ($1,$2,$3,'free',$4)`,
+      [id, name, email ? email.toLowerCase() : null, anonymous],
     );
     if (seedPolicies) {
       // Illustrative defaults that demonstrate each on_indeterminate mode.
@@ -221,9 +223,10 @@ export async function createWorkspace(
     await tx.query(
       `INSERT INTO audit_events (workspace_id, action, actor, subject_id, detail)
        VALUES ($1,'workspace.created',$2,$3,$4)`,
-      [id, `console:${email.toLowerCase()}`, id, JSON.stringify({ name })],
+      [id, email ? `console:${email.toLowerCase()}` : 'anonymous',
+       id, JSON.stringify({ name, anonymous })],
     );
-    return { workspaceId: id, name, email: email.toLowerCase(), key };
+    return { workspaceId: id, name, email: email ? email.toLowerCase() : null, key };
   });
 }
 
@@ -281,6 +284,39 @@ export async function resolveConsoleSession(
   );
   const r = rows[0];
   return r ? { workspaceId: r.workspace_id, email: r.email } : null;
+}
+
+/**
+ * Provision a workspace for a caller that has no key yet.
+ *
+ * Deliberately small. An anonymous workspace can prove the gate works and
+ * nothing more; the quota below is enforced in metering, and claiming it with
+ * an email lifts it to the normal free plan. Keeping it small is what makes an
+ * unauthenticated write acceptable at all.
+ */
+export const ANONYMOUS_EFFECT_QUOTA = 100;
+
+export async function provisionAnonymousWorkspace(): Promise<NewWorkspace> {
+  return createWorkspace('Unclaimed workspace', null, true, true);
+}
+
+/**
+ * Attach an owner to an anonymous workspace.
+ *
+ * Only ever moves a workspace from unowned to owned. A workspace that already
+ * has an owner is refused, so this can never be used to take one over.
+ */
+export async function claimWorkspace(
+  workspaceId: string, email: string,
+): Promise<{ claimed: boolean; reason?: string }> {
+  const { rowCount } = await getPool().query(
+    `UPDATE workspaces
+        SET owner_email = $2, anonymous = false, claimed_at = now()
+      WHERE id = $1 AND anonymous = true AND claimed_at IS NULL`,
+    [workspaceId, email.toLowerCase()],
+  );
+  if (rowCount === 1) return { claimed: true };
+  return { claimed: false, reason: 'This workspace is not an unclaimed anonymous workspace.' };
 }
 
 export interface WorkspaceChoice {

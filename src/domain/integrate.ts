@@ -39,7 +39,12 @@ export function recipes(base: string): Recipe[] {
       title: 'Raw HTTP — any language, any platform',
       language: 'http',
       filename: 'ratchet.http',
-      code: `# 1. Ask BEFORE the side effect.
+      code: `# 0. You do not need a key for the first call. This works right now:
+#    curl -X POST ${base}/v1/effects/begin -H 'content-type: application/json' \\
+#      -d '{"effect_type":"email.send","idempotency_key":"welcome:user_123","payload":{}}'
+#    The response carries a workspace and an api_key. Store it; it is shown once.
+
+# 1. Ask BEFORE the side effect.
 POST ${base}/v1/effects/begin
 Authorization: Bearer $RATCHET_API_KEY
 Content-Type: application/json

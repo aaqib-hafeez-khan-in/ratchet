@@ -1,13 +1,17 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 import type {} from '@fastify/cookie';
-import { authenticate, requireScope, resolveConsoleSession, type AuthContext, type Scope } from '../../domain/auth.js';
+import { authenticate, requireScope, resolveConsoleSession, provisionAnonymousWorkspace,
+         ANONYMOUS_EFFECT_QUOTA,
+         type AuthContext, type Scope } from '../../domain/auth.js';
 import { errors } from '../../lib/errors.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
     auth?: AuthContext;
     console?: { workspaceId: string; email: string };
+    /** Set when this request provisioned its own workspace; returned once. */
+    provisionedKey?: { api_key: string; workspace_id: string; quota: number };
   }
 }
 
@@ -19,6 +23,39 @@ function bearer(req: FastifyRequest): string | null {
   return null;
 }
 
+
+/**
+ * Per-address ceiling on keyless provisioning.
+ *
+ * The route limiter caps requests; this caps how many WORKSPACES an address may
+ * conjure, which is the thing that actually costs us. Deliberately generous
+ * enough that a developer trying the service never notices, and tight enough
+ * that filling the table takes real effort. In memory, so it is per instance:
+ * that is a weaker bound than a shared counter, and acceptable because an
+ * unclaimed workspace is small, capped, and swept by the worker.
+ */
+const PROVISION_LIMIT = 20;
+const PROVISION_WINDOW_MS = 60 * 60 * 1000;
+const provisionLog = new Map<string, number[]>();
+
+function allowProvision(ip: string): boolean {
+  const now = Date.now();
+  const seen = (provisionLog.get(ip) ?? []).filter((t) => now - t < PROVISION_WINDOW_MS);
+  if (seen.length >= PROVISION_LIMIT) {
+    provisionLog.set(ip, seen);
+    return false;
+  }
+  seen.push(now);
+  provisionLog.set(ip, seen);
+  // Opportunistic sweep so the map cannot grow without bound.
+  if (provisionLog.size > 10_000) {
+    for (const [k, v] of provisionLog) {
+      if (!v.some((t) => now - t < PROVISION_WINDOW_MS)) provisionLog.delete(k);
+    }
+  }
+  return true;
+}
+
 async function plugin(app: FastifyInstance) {
   /** Guard for agent-facing routes. Requires a scoped API key. */
   app.decorate('requireKey', (...scopes: Scope[]) => {
@@ -28,6 +65,43 @@ async function plugin(app: FastifyInstance) {
       const ctx = await authenticate(token);
       for (const s of scopes) requireScope(ctx, s);
       req.auth = ctx;
+    };
+  });
+
+  /**
+   * Guard for the one route an agent can reach before it has anything.
+   *
+   * With a key it behaves exactly like requireKey. Without one it provisions a
+   * small anonymous workspace and returns the key alongside the answer, so an
+   * agent that just found this service can use it in a single call instead of
+   * waiting for a person to go and sign up.
+   *
+   * This is an unauthenticated write, which is only acceptable because of what
+   * it cannot do: it never reaches an existing workspace, only creates a new
+   * empty one; the quota is small; and the rate limit is per IP. Nothing here
+   * can read or affect anybody else's data.
+   */
+  app.decorate('requireKeyOrProvision', (...scopes: Scope[]) => {
+    return async (req: FastifyRequest) => {
+      const token = bearer(req);
+      if (token) {
+        const ctx = await authenticate(token);
+        for (const s of scopes) requireScope(ctx, s);
+        req.auth = ctx;
+        return;
+      }
+      if (!allowProvision(req.ip)) {
+        throw errors.rateLimited(
+          'Too many workspaces provisioned from this address. Create one at '
+          + '/v1/workspaces, or reuse the key from your first call.');
+      }
+      const ws = await provisionAnonymousWorkspace();
+      req.auth = await authenticate(ws.key.plaintext);
+      req.provisionedKey = {
+        api_key: ws.key.plaintext,
+        workspace_id: ws.workspaceId,
+        quota: ANONYMOUS_EFFECT_QUOTA,
+      };
     };
   });
 
@@ -59,6 +133,7 @@ declare module 'fastify' {
   interface FastifyInstance {
     requireKey: (...scopes: Scope[]) => (req: FastifyRequest) => Promise<void>;
     requireConsole: (...scopes: Scope[]) => (req: FastifyRequest) => Promise<void>;
+    requireKeyOrProvision: (...scopes: Scope[]) => (req: FastifyRequest) => Promise<void>;
   }
 }
 

@@ -110,6 +110,18 @@ export const beginResponse = {
     state: { type: 'string', enum: ['awaiting_approval', 'pending', 'succeeded', 'failed', 'indeterminate', 'denied', 'cancelled'] },
     attempt: { type: 'integer' },
     lease_token: { type: 'string', description: 'Present only when decision is "execute". Required to report the outcome.' },
+    workspace: {
+      type: 'object',
+      description:
+        'Present ONLY on a keyless first call, which provisions a workspace on the spot. '
+        + 'Store api_key — it is never returned again. The workspace is capped until you '
+        + 'claim it with an email at POST /v1/workspaces/claim.',
+      properties: {
+        api_key: { type: 'string' },
+        workspace_id: { type: 'string' },
+        quota: { type: 'integer', description: 'Gated effects allowed before claiming.' },
+      },
+    },
     vendor_idempotency_key: {
       type: 'object',
       description:

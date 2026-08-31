@@ -13,7 +13,10 @@ const TAG = ['Effects'];
 export default async function effectRoutes(app: FastifyInstance) {
   // ------------------------------------------------------------------ begin
   app.post('/effects/begin', {
-    preHandler: app.requireKey('effects:begin'),
+    // The only route reachable without a credential: with no key it provisions
+    // a small anonymous workspace and hands the key back with the decision.
+    preHandler: app.requireKeyOrProvision('effects:begin'),
+    config: { rateLimit: { max: 600, timeWindow: '1 minute' } },
     schema: {
       tags: TAG,
       operationId: 'beginEffect',
@@ -54,7 +57,11 @@ export default async function effectRoutes(app: FastifyInstance) {
         : null,
       compensatesEffectId: b.compensates_effect_id ?? null,
     });
-    return beginOut(result);
+    // Present exactly once, on the call that created the workspace. The caller
+    // must store it — it is never shown again.
+    return req.provisionedKey
+      ? { ...beginOut(result), workspace: req.provisionedKey }
+      : beginOut(result);
   });
 
   // ----------------------------------------------------------------- report
