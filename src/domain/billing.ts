@@ -207,7 +207,7 @@ export async function startSubscription(
     'line_items[0][price_data][recurring][interval]': 'month',
     'line_items[0][price_data][product_data][name]': `Ratchet ${plan.name}`,
     'line_items[0][price_data][product_data][description]':
-      `${plan.includedEffects.toLocaleString()} gated effects per month, then `
+      `${plan.includedEffects.toLocaleString('en-US')} gated effects per month, then `
       + `$${(plan.overageMicrosPerEffect * 1000 / 1e6).toFixed(2)} per 1,000 from prepaid credit.`,
     success_url: `${base}/console?subscribed=1`,
     cancel_url: `${base}/console?subscribe=cancelled`,

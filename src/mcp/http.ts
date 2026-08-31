@@ -1,5 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../domain/auth.js';
+import { authenticateOAuth } from '../domain/oauth.js';
+import { config } from '../lib/config.js';
 import { handleRpc, PROTOCOL_VERSION, SERVER_INFO, type JsonRpcRequest } from './protocol.js';
 import { MCP_TOOLS } from './tools.js';
 import { ApiError } from '../lib/errors.js';
@@ -24,28 +26,43 @@ export async function registerMcpHttp(app: FastifyInstance) {
       ? h.slice(7)
       : (typeof alt === 'string' ? alt : null);
 
+    // RFC 9728: point the client at the metadata that tells it where to
+    // authenticate. This is the whole mechanism by which an MCP client that has
+    // never seen this server can start an OAuth flow on its own.
+    const base = config.publicUrl.replace(/\/+$/, '');
+    const challenge = `Bearer realm="ratchet", `
+      + `resource_metadata="${base}/.well-known/oauth-protected-resource"`;
+
     if (!token) {
-      // Per the MCP HTTP auth spec, advertise how to authenticate.
-      reply.code(401).header('WWW-Authenticate',
-        'Bearer realm="ratchet", error="invalid_token"');
+      reply.code(401).header('WWW-Authenticate', challenge);
       return {
         jsonrpc: '2.0', id: null,
         error: {
           code: -32001,
-          message: 'Missing API key. Send "Authorization: Bearer <ratchet_api_key>".',
+          message: 'Authentication required. Present a Ratchet API key, or complete the '
+            + 'OAuth flow described at /.well-known/oauth-protected-resource.',
         },
       };
     }
 
-    let ctx;
-    try {
-      ctx = await authenticate(token);
-    } catch (err) {
-      reply.code(err instanceof ApiError ? err.status : 401);
-      return {
-        jsonrpc: '2.0', id: null,
-        error: { code: -32001, message: err instanceof ApiError ? err.message : 'Unauthorized' },
-      };
+    // An OAuth access token and an API key are both bearer credentials here.
+    // Whichever it is, it resolves to the same AuthContext, so nothing
+    // downstream can treat one differently from the other by accident.
+    let ctx = await authenticateOAuth(token, `${base}/mcp`);
+    if (!ctx) {
+      try {
+        ctx = await authenticate(token);
+      } catch (err) {
+        reply.code(err instanceof ApiError ? err.status : 401);
+        if (!(err instanceof ApiError) || err.status === 401) {
+          reply.header('WWW-Authenticate',
+            challenge.replace('Bearer realm', 'Bearer error="invalid_token", realm'));
+        }
+        return {
+          jsonrpc: '2.0', id: null,
+          error: { code: -32001, message: err instanceof ApiError ? err.message : 'Unauthorized' },
+        };
+      }
     }
 
     reply.header('Mcp-Session-Id', `ws_${ctx.workspaceId}`);

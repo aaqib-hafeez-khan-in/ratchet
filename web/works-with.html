@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Works with — Ratchet</title>
+<meta name="description" content="Ratchet works with any agent that can make an HTTPS request — MCP clients, orchestration platforms, and your own local models. Here is the exact path for each.">
+<link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/mark.svg">
+<link rel="canonical" href="https://ratchetgate.com/works-with">
+<meta name="theme-color" content="#1c5cff">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ratchet">
+<meta property="og:title" content="Works with — Ratchet">
+<meta property="og:description" content="Ratchet works with any agent that can make an HTTPS request — MCP clients, orchestration platforms, and your own local models. Here is the exact path for each.">
+<meta property="og:url" content="https://ratchetgate.com/works-with">
+<meta property="og:image" content="https://ratchetgate.com/assets/og.svg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Works with — Ratchet">
+<meta name="twitter:description" content="Ratchet works with any agent that can make an HTTPS request — MCP clients, orchestration platforms, and your own local models. Here is the exact path for each.">
+<meta name="twitter:image" content="https://ratchetgate.com/assets/og.svg">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Works with</p>
+    <h1>If it can make an HTTPS request, it can use the gate.</h1>
+    <p class="lede">
+      Ratchet sits between your agent and the outside world. It does not care which model
+      is reasoning, who trained it, or where it runs — only that something is about to
+      touch reality, and that the same action should not happen twice.
+    </p>
+
+    <div class="finder">
+      <label for="q">What are you building on?</label>
+      <input id="q" type="search" placeholder="Type a platform — LangChain, n8n, Ollama, Cursor…"
+             autocomplete="off" spellcheck="false">
+    </div>
+  </div>
+</section>
+
+<div id="groups"></div>
+<section id="noMatch" hidden><div class="wrap narrow"></div></section>
+
+<section class="sunk">
+  <div class="wrap">
+    <h2>When you don't need this</h2>
+    <p class="dim" style="max-width:64ch">
+      Most of what agents do has nothing to gate. Reading, searching, summarising,
+      classifying, generating an image or a voice line — none of it touches the outside
+      world, and running it twice costs you nothing but compute. A gate there is overhead
+      with no return, and we would rather say so than sell you one.
+    </p>
+    <p style="max-width:64ch">
+      What Ratchet is for is the moment a model's output becomes an act:
+      the refund is issued, the outreach is sent, the tour is booked, the ticket is filed,
+      the order is placed, the record in someone else's system changes.
+      <strong>That is where a retry stops being free.</strong>
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Smaller and local models get more out of this, not less</h2>
+    <p class="dim" style="max-width:66ch">
+      A local model loses the thread of a long conversation sooner, and a self-hosted stack
+      has no vendor-side idempotency to fall back on. But the duplicate rarely comes from
+      the model changing its mind — it comes from the run being restarted: a job retried,
+      a queue redelivered, a process crashed after acting but before recording it.
+    </p>
+    <p style="max-width:66ch">
+      That case is worked end to end in
+      <a href="/v1/integrate?runtime=ollama"><code>/v1/integrate?runtime=ollama</code></a>:
+      a local 8B model issues a refund, the payment gateway times out, and the outcome is
+      never confirmed. On the retry the gate does not say "already done" — it says
+      <strong>the previous outcome is unknown, verify before you act</strong>. Guessing
+      either way there is how you get a double refund or an angry customer.
+    </p>
+  </div>
+</section>
+
+<section class="sunk">
+  <div class="wrap narrow">
+    <h2>About this list</h2>
+    <p class="dim">
+      Nobody named on this page is a customer, a partner, or an endorser, and no logos
+      appear here for that reason. We name a platform only where you can act on the name —
+      where there is a real path you can follow today. We don't name companies to borrow
+      their credibility.
+    </p>
+    <p class="dim">
+      "Verified" means we ran it ourselves. Everything else is a documented integration
+      path, not a test result. Ratchet is an independent service, not affiliated with,
+      sponsored by, or endorsed by any company named here. All trademarks belong to their
+      owners.
+    </p>
+    <div class="actions">
+      <a class="btn" href="/start">Get started</a>
+      <a class="btn secondary" href="/docs">Read the docs</a>
+    </div>
+  </div>
+</section>
+</main>
+<footer class="site"></footer>
+<script type="module" src="/assets/works-with-page.js"></script>
+</body>
+</html>

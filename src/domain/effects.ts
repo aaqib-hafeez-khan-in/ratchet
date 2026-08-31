@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 import { withTx, type Db } from '../db/pool.js';
-import { newId, canonicalFingerprint, constantTimeEqual } from '../lib/ids.js';
+import { newId, canonicalFingerprint, constantTimeEqual, normalizeText } from '../lib/ids.js';
 import { ApiError, errors } from '../lib/errors.js';
 import { getPolicy } from './policy.js';
 import { reserveSpend, adjustSpend, BudgetExceeded } from './budget.js';
@@ -102,6 +102,9 @@ async function settleAsDenied(
 export async function beginEffect(input: BeginInput): Promise<BeginResult> {
   const now = new Date();
   const fingerprint = canonicalFingerprint(input.payload);
+  // The idempotency key is an identifier, so it is compared in NFC. Two agents
+  // on different platforms writing the same key must land on the same effect.
+  input = { ...input, idempotencyKey: normalizeText(input.idempotencyKey) };
 
   const result = await withTx(async (tx): Promise<BeginResult> => {
     const policy = await getPolicy(tx, input.workspaceId, input.effectType);
@@ -348,6 +351,9 @@ async function grantLeaseGuarded(
           limitMicros: err.check.limitMicros,
           spentMicros: err.check.spentMicros,
           requestedMicros: err.check.requestedMicros,
+          // Budgets bucket by UTC day, which is not local midnight for most of
+          // the world. Give the caller the instant, not a rule to apply.
+          resetsAt: err.check.resetsAt,
         });
     }
     throw err;
@@ -822,9 +828,11 @@ export async function getEffect(
 export async function lookupEffect(
   db: Db, workspaceId: string, effectType: string, idempotencyKey: string,
 ): Promise<EffectView | null> {
+  // Normalised on the same terms as the write, or a lookup from one platform
+  // would fail to find the effect another platform created.
   const { rows } = await db.query<EffectRow>(
     `${SELECT_EFFECT} WHERE workspace_id=$1 AND effect_type=$2 AND idempotency_key=$3`,
-    [workspaceId, effectType, idempotencyKey],
+    [workspaceId, effectType, normalizeText(idempotencyKey)],
   );
   return rows[0] ? toView(rows[0]) : null;
 }

@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 import { withTx, type Db } from '../db/pool.js';
-import { newId } from '../lib/ids.js';
+import { newId, normalizeText } from '../lib/ids.js';
 import { errors } from '../lib/errors.js';
 
 /**
@@ -57,7 +57,7 @@ export async function ensureGroup(
      ON CONFLICT (workspace_id, group_key) DO UPDATE SET updated_at = now()
      RETURNING id, workspace_id, group_key, state, unwind_reason, agent_id,
                created_at, updated_at, settled_at`,
-    [newId('grp'), workspaceId, groupKey, agentId, expiresAt],
+    [newId('grp'), workspaceId, normalizeText(groupKey), agentId, expiresAt],
   );
   return rows[0]!;
 }
@@ -117,7 +117,7 @@ export async function unwindGroup(args: {
       `SELECT id, workspace_id, group_key, state, unwind_reason, agent_id,
               created_at, updated_at, settled_at
          FROM effect_groups WHERE workspace_id=$1 AND group_key=$2 FOR UPDATE`,
-      [args.workspaceId, args.groupKey],
+      [args.workspaceId, normalizeText(args.groupKey)],
     );
     const group = rows[0];
     if (!group) throw errors.notFound('No such group in this workspace.');
@@ -245,7 +245,7 @@ export async function commitGroup(args: {
   return withTx(async (tx) => {
     const { rows } = await tx.query<GroupRow>(
       `SELECT id, state FROM effect_groups WHERE workspace_id=$1 AND group_key=$2 FOR UPDATE`,
-      [args.workspaceId, args.groupKey],
+      [args.workspaceId, normalizeText(args.groupKey)],
     );
     const g = rows[0];
     if (!g) throw errors.notFound('No such group in this workspace.');
@@ -267,7 +267,7 @@ export async function getGroup(
     `SELECT id, workspace_id, group_key, state, unwind_reason, agent_id,
             created_at, updated_at, settled_at
        FROM effect_groups WHERE workspace_id=$1 AND group_key=$2`,
-    [workspaceId, groupKey],
+    [workspaceId, normalizeText(groupKey)],
   );
   return rows[0] ? buildPlan(db, rows[0]) : null;
 }

@@ -22,6 +22,8 @@ export interface BudgetCheck {
   limitMicros: number;
   spentMicros: number;
   requestedMicros: number;
+  /** When this UTC-day window rolls over, so the caller can wait rather than guess. */
+  resetsAt: string;
 }
 
 export class BudgetExceeded extends Error {
@@ -31,8 +33,28 @@ export class BudgetExceeded extends Error {
   }
 }
 
+/**
+ * Spend windows are bucketed by UTC calendar day, everywhere, for everyone.
+ *
+ * A local-time window would need a per-workspace timezone, and would then have
+ * to answer what a "daily" budget means on the two days a year that a DST zone
+ * has 23 or 25 hours — and what happens to a ceiling when a customer changes
+ * their zone mid-day. UTC has one answer to all of that.
+ *
+ * The cost is that the window does not roll over at local midnight: a customer
+ * in Tokyo sees theirs reset at 09:00, one in Los Angeles at 17:00. That is
+ * only acceptable if we say so plainly, which is why every budget refusal
+ * carries the exact reset instant rather than leaving the caller to guess.
+ */
 function utcDay(now: Date): string {
   return now.toISOString().slice(0, 10);
+}
+
+/** The instant the given UTC day's window rolls over, as an ISO string. */
+export function windowResetsAt(day: string): string {
+  const next = new Date(`${day}T00:00:00.000Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return next.toISOString();
 }
 
 /**
@@ -117,6 +139,7 @@ export async function reserveSpend(tx: PoolClient, args: ReserveArgs): Promise<v
     if (limit !== null && spent[i]! + args.amountMicros > limit) {
       throw new BudgetExceeded({
         scope, limitMicros: limit, spentMicros: spent[i]!, requestedMicros: args.amountMicros,
+        resetsAt: windowResetsAt(day),
       });
     }
   }

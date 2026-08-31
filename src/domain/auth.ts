@@ -283,6 +283,48 @@ export async function resolveConsoleSession(
   return r ? { workspaceId: r.workspace_id, email: r.email } : null;
 }
 
+export interface WorkspaceChoice {
+  id: string; name: string; plan: string; status: 'active' | 'suspended';
+}
+
+/**
+ * Every workspace owned by an email address.
+ *
+ * `owner_email` is indexed but deliberately not unique — one person may run a
+ * staging workspace and a production one — so an authorization flow has to ask
+ * which of them the client is being let into rather than assume.
+ */
+export async function listWorkspacesForEmail(email: string): Promise<WorkspaceChoice[]> {
+  const { rows } = await getPool().query<WorkspaceChoice>(
+    `SELECT id, name, plan, status FROM workspaces
+      WHERE lower(owner_email) = lower($1)
+      ORDER BY created_at ASC`, [email]);
+  return rows;
+}
+
+/**
+ * Authorise a workspace choice against the signed-in identity.
+ *
+ * The workspace id arrives from a form field, so it is caller-supplied and
+ * cannot be trusted. Returning null for anything the email does not own is what
+ * stops a session for one workspace from minting a token for another.
+ */
+export async function workspaceOwnedBy(
+  email: string, workspaceId: string,
+): Promise<WorkspaceChoice | null> {
+  const { rows } = await getPool().query<WorkspaceChoice>(
+    `SELECT id, name, plan, status FROM workspaces
+      WHERE id = $1 AND lower(owner_email) = lower($2)`, [workspaceId, email]);
+  return rows[0] ?? null;
+}
+
+/** The owning email for a workspace, used to give an OAuth session a real identity. */
+export async function ownerEmailOf(workspaceId: string): Promise<string | null> {
+  const { rows } = await getPool().query<{ owner_email: string }>(
+    `SELECT owner_email FROM workspaces WHERE id = $1`, [workspaceId]);
+  return rows[0]?.owner_email ?? null;
+}
+
 export async function destroyConsoleSession(raw: string): Promise<void> {
   const id = sha256(raw + config.authSecret).toString('hex');
   await getPool().query('DELETE FROM console_sessions WHERE id = $1', [id]);

@@ -455,3 +455,70 @@ ul.checks li::before {
   .scene { height: 150px; }
   .node span { font-size: 0.68rem; }
 }
+
+/* ── Works-with ─────────────────────────────────────────────────────────── */
+
+.finder { margin-top: 2rem; max-width: 46ch; }
+.finder label {
+  display: block; font-size: .82rem; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--text-faint); margin-bottom: .5rem;
+}
+.finder input {
+  width: 100%; padding: .8rem 1rem; font: inherit; font-size: 1rem;
+  color: var(--text); background: var(--bg-raised);
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  transition: border-color .15s, box-shadow .15s;
+}
+.finder input:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.path { padding: 3.5rem 0 1rem; }
+.path .path-head { max-width: 62ch; }
+.path h2 { margin: 0 0 .4rem; }
+.path .path-head p { margin: 0; }
+
+.names {
+  list-style: none; padding: 0;
+  margin: 1.6rem 0 1.8rem;
+  display: grid; gap: .5rem;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+.names li {
+  display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap;
+  padding: .6rem .8rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.names .n { font-weight: 550; }
+.names .tag {
+  font-size: .72rem; color: var(--text-faint);
+  border: 1px solid var(--border); border-radius: 100px;
+  padding: .05rem .5rem; white-space: nowrap;
+}
+.names .tag.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+
+.snippet {
+  margin: 0; padding: 1rem 1.1rem; overflow-x: auto;
+  background: var(--bg-sunk); border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--mono); font-size: .82rem; line-height: 1.65;
+}
+
+/* Reveal on scroll. Everything starts visible and is only hidden once the
+   observer is known to be running, so a script failure cannot leave the page
+   blank — the content is the point, the motion is not. */
+@media (prefers-reduced-motion: no-preference) {
+  .js-motion .path,
+  .js-motion .names li {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity .5s cubic-bezier(.22,.61,.36,1),
+                transform .5s cubic-bezier(.22,.61,.36,1);
+    transition-delay: var(--d, 0ms);
+  }
+  .js-motion .path.in,
+  .js-motion .names li.in { opacity: 1; transform: none; }
+}

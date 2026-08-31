@@ -1,10 +1,13 @@
-# Ratchet — https://ratchet-gate.fly.dev
+# Ratchet — https://ratchetgate.com
 User-agent: *
 Allow: /
 # The console and the API are per-workspace and behind auth; crawling them
 # produces nothing useful and generates rate-limited noise.
 Disallow: /console
 Disallow: /v1/
+# …except the integration guide, which is public, static, and the whole point:
+# an agent or a crawler that finds it can wire this up without a person.
+Allow: /v1/integrate
 Disallow: /mcp
 
-Sitemap: https://ratchet-gate.fly.dev/sitemap.xml
+Sitemap: https://ratchetgate.com/sitemap.xml

@@ -166,7 +166,7 @@ export const config = {
   email: {
     get provider() { return process.env.EMAIL_PROVIDER ?? 'log'; },
     get apiKey() { return process.env.EMAIL_API_KEY ?? ''; },
-    get from() { return process.env.EMAIL_FROM ?? 'Ratchet <alerts@ratchet-gate.fly.dev>'; },
+    get from() { return process.env.EMAIL_FROM ?? 'Ratchet <alerts@mail.ratchetgate.com>'; },
     get replyTo() { return process.env.EMAIL_REPLY_TO ?? ''; },
     get maxAttempts() {
       return Number.parseInt(process.env.EMAIL_MAX_ATTEMPTS ?? '5', 10);
@@ -196,6 +196,14 @@ export function assertProductionSafety(): string[] {
   }
   if (config.corsOrigins.includes('*')) {
     problems.push('CORS_ORIGINS must not contain "*" in production.');
+  }
+  // Every OAuth surface is derived from PUBLIC_URL: the issuer, the redirect
+  // target, and the metadata clients trust to find them. Over plaintext, the
+  // authorization code is exposed in transit and the whole flow is worthless.
+  if (!config.publicUrl.startsWith('https://')) {
+    problems.push(
+      'PUBLIC_URL must be https in production — it is the OAuth issuer and every '
+      + 'endpoint clients discover is derived from it.');
   }
   return problems;
 }

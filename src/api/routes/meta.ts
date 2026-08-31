@@ -5,6 +5,7 @@ import { PLANS } from '../../domain/plans.js';
 import { SCOPES } from '../../domain/auth.js';
 import { EVENT_TYPES } from '../../domain/events.js';
 import { MCP_TOOLS } from '../../mcp/tools.js';
+import { recipes } from '../../domain/integrate.js';
 
 const startedAt = Date.now();
 
@@ -51,6 +52,19 @@ export default async function metaRoutes(app: FastifyInstance) {
     documentation_url: `${config.publicUrl}/docs`,
     openapi_url: `${config.publicUrl}/openapi.json`,
     llms_txt_url: `${config.publicUrl}/llms.txt`,
+    // Runnable integration code, per runtime. An agent that finds this
+    // manifest can integrate itself without waiting for a person.
+    integrate_url: `${config.publicUrl}/v1/integrate`,
+    // How a client with no API key obtains access on its own. Connector
+    // directories read this to decide whether the server can be listed.
+    oauth: {
+      protected_resource_metadata: `${config.publicUrl}/.well-known/oauth-protected-resource`,
+      authorization_server_metadata: `${config.publicUrl}/.well-known/oauth-authorization-server`,
+      dynamic_client_registration: true,
+      pkce_required: true,
+      code_challenge_methods: ['S256'],
+      grant_types: ['authorization_code', 'refresh_token'],
+    },
     api_base_url: `${config.publicUrl}/v1`,
     authentication: {
       type: 'bearer',
@@ -104,6 +118,100 @@ export default async function metaRoutes(app: FastifyInstance) {
         Object.values(PLANS).map((p) => [p.id, p.rateLimitPerMinute])),
     },
   }));
+
+  /**
+   * Self-service integration for non-human callers.
+   *
+   * Public and unauthenticated on purpose: an agent that has just discovered
+   * this service does not have a key yet, and requiring one to learn how to
+   * integrate would put a human in the middle of the only step that does not
+   * need one. Nothing here is per-workspace, so there is nothing to leak.
+   */
+  app.get('/v1/integrate', {
+    schema: {
+      tags: ['Meta'], operationId: 'integrate',
+      summary: 'Runnable integration code for a given runtime',
+      description:
+        'Returns working code for the caller\'s own runtime. Omit "runtime" to list what is '
+        + 'available. Send Accept: text/plain to get just the code, ready to pipe to a file.',
+      querystring: {
+        type: 'object', additionalProperties: false,
+        properties: { runtime: { type: 'string', maxLength: 32 } },
+      },
+      response: { 200: { type: 'object', additionalProperties: true },
+                  404: { type: 'object', additionalProperties: true } },
+    },
+  }, async (req, reply) => {
+    const base = config.publicUrl.replace(/\/+$/, '');
+    const all = recipes(base);
+    const wanted = (req.query as { runtime?: string }).runtime;
+    const wantsText = String(req.headers.accept ?? '').includes('text/plain');
+
+    if (!wanted) {
+      const index = {
+        service: 'ratchet',
+        summary: 'An effect gate. Ask before you act; the same real-world action happens at most once.',
+        usage: `GET ${base}/v1/integrate?runtime=<name>`,
+        runtimes: all.map((r) => ({ runtime: r.runtime, title: r.title, language: r.language })),
+        also: { manifest: `${base}/.well-known/agent-manifest.json`,
+                openapi: `${base}/openapi.json`,
+        integrate: `${base}/v1/integrate`, guide: `${base}/llms.txt`,
+                mcp: `${base}/mcp` },
+      };
+      if (wantsText) {
+        return reply.type('text/plain; charset=utf-8').send(
+          [`# ${index.summary}`, '', `# ${index.usage}`, '',
+           ...all.map((r) => `${r.runtime.padEnd(10)} ${r.title}`), ''].join('\n'));
+      }
+      return index;
+    }
+
+    const hit = all.find((r) => r.runtime === wanted.toLowerCase());
+    if (!hit) {
+      reply.code(404);
+      const known = all.map((r) => r.runtime);
+      if (wantsText) {
+        return reply.type('text/plain; charset=utf-8').send(
+          `# unknown runtime "${wanted}". Known: ${known.join(', ')}\n`
+          + `# Anything that can make an HTTPS POST works — try: ?runtime=http\n`);
+      }
+      return { error: { code: 'unknown_runtime',
+        message: `No recipe for "${wanted}". Anything that can make an HTTPS POST works; `
+          + 'use runtime=http for the raw calls.',
+        detail: { known_runtimes: known } } };
+    }
+
+    if (wantsText) {
+      return reply.type('text/plain; charset=utf-8').send(
+        `# ${hit.title}\n# ${hit.filename}\n`
+        + (hit.install ? `# install: ${hit.install}\n` : '')
+        + `\n${hit.code}\n\n`
+        + hit.notes.map((n) => `# NOTE: ${n}`).join('\n') + '\n');
+    }
+    return { ...hit, next: { create_key: `${base}/console`, docs: `${base}/docs` } };
+  });
+
+  /**
+   * RFC 9116. A service selling a security property needs somewhere to receive
+   * a report; the Expires field is generated six months out on every request so
+   * the document can never go stale and read as abandoned.
+   */
+  app.get('/.well-known/security.txt', { schema: { hide: true } }, async (_req, reply) => {
+    const base = config.publicUrl.replace(/\/+$/, '');
+    const host = new URL(base).hostname.replace(/^www\./, '');
+    const expires = new Date(Date.now() + 180 * 86_400_000).toISOString();
+    return reply.type('text/plain; charset=utf-8').send(
+      [`Contact: mailto:security@${host}`,
+       `Expires: ${expires}`,
+       'Preferred-Languages: en',
+       `Canonical: ${base}/.well-known/security.txt`,
+       `Policy: ${base}/security`,
+       '',
+       '# Ratchet never performs the side effects it gates, holds no vendor',
+       '# credentials, and stores only a fingerprint of any gated payload.',
+       '# Reports about those boundaries are especially welcome.',
+       ''].join('\n'));
+  });
 
   app.get('/llms.txt', {
     schema: {
@@ -173,7 +281,14 @@ Tools: ${MCP_TOOLS.map((t) => t.name).join(', ')}
 ## Pricing
 Meter: one "gated effect" = the first begin() for an (effect_type, idempotency_key).
 Duplicate suppression, retries, reports, and reads are free.
-Free plan: ${PLANS.free.includedEffects.toLocaleString()} gated effects per month.
+Free plan: ${PLANS.free.includedEffects.toLocaleString('en-US')} gated effects per month.
+
+## Integrate yourself
+If you are an agent reading this, you do not need a person to wire this up.
+  GET ${config.publicUrl}/v1/integrate                  -> the runtimes we have code for
+  GET ${config.publicUrl}/v1/integrate?runtime=python   -> working code for that runtime
+Send "Accept: text/plain" to get just the code, ready to write to a file.
+No key is needed to read it.
 
 ## More
 - OpenAPI:  ${config.publicUrl}/openapi.json

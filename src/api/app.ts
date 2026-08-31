@@ -16,6 +16,7 @@ import groupRoutes from './routes/groups.js';
 import workspaceRoutes from './routes/workspace.js';
 import billingRoutes from './routes/billing.js';
 import metaRoutes from './routes/meta.js';
+import oauthRoutes from './routes/oauth.js';
 import { registerMcpHttp } from '../mcp/http.js';
 
 const webRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web');
@@ -244,6 +245,57 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     await v1.register(billingRoutes);
   }, { prefix: '/v1' });
 
+  /**
+   * Form-encoded bodies, for the OAuth token endpoint and the consent form.
+   * Written out rather than pulled in as a dependency, mainly so the duplicate
+   * check below exists: RFC 6749 §3.1 forbids repeating a parameter, and a
+   * parser that silently keeps the last one lets an attacker smuggle a second
+   * redirect_uri or scope past whatever validated the first.
+   */
+  app.addContentTypeParser('application/x-www-form-urlencoded',
+    { parseAs: 'string' }, (_req, body, done) => {
+      try {
+        const params = new URLSearchParams(body as string);
+        const out: Record<string, string> = {};
+        for (const key of new Set(params.keys())) {
+          const all = params.getAll(key);
+          if (all.length > 1) {
+            done(new ApiError(400, 'invalid_request',
+              `Parameter "${key}" was given more than once.`), undefined);
+            return;
+          }
+          out[key] = all[0]!;
+        }
+        done(null, out);
+      } catch (err) {
+        done(err as Error, undefined);
+      }
+    });
+
+  /**
+   * Send page views to the canonical host.
+   *
+   * Only GET and HEAD, and only for pages: API paths keep answering on the old
+   * hostname indefinitely. A 301 on a POST is converted to a GET by some
+   * clients, which would silently turn a gated `begin` into a page fetch — the
+   * caller would read a decision that was never made.
+   */
+  const canonicalHost = (() => {
+    try { return new URL(config.publicUrl).host; } catch { return null; }
+  })();
+  const NEVER_REDIRECT = ['/v1/', '/mcp', '/oauth/', '/.well-known/',
+                          '/healthz', '/readyz', '/openapi.json', '/llms.txt'];
+  app.addHook('onRequest', async (req, reply) => {
+    if (!canonicalHost || !config.isProd) return;
+    if (req.method !== 'GET' && req.method !== 'HEAD') return;
+    const host = req.headers.host;
+    if (!host || host === canonicalHost) return;
+    const path = req.url.split('?')[0] ?? '/';
+    if (NEVER_REDIRECT.some((p) => path === p || path.startsWith(p))) return;
+    return reply.redirect(`${config.publicUrl.replace(/\/+$/, '')}${req.url}`, 301);
+  });
+
+  await app.register(oauthRoutes);
   await app.register(metaRoutes);
   await registerMcpHttp(app);
 
@@ -254,7 +306,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(fastifyStatic, { root: webRoot, prefix: '/', index: ['index.html'] });
   // HTML pages are hidden from the OpenAPI document: it describes the API an
   // agent calls, not the site a human reads.
-  for (const page of ['docs', 'console', 'pricing', 'security', 'start']) {
+  for (const page of ['docs', 'console', 'pricing', 'security', 'start', 'works-with']) {
     app.get(`/${page}`, { schema: { hide: true } },
       async (_req, reply) => reply.sendFile(`${page}.html`));
   }

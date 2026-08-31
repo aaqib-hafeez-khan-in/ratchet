@@ -86,12 +86,33 @@ export async function collectExpiredEffects(batchSize = 500): Promise<number> {
   return res.rowCount ?? 0;
 }
 
-/** Console sessions and delivered webhook records past their useful life. */
-export async function collectStaleRecords(): Promise<{ sessions: number; deliveries: number }> {
+/** Console sessions, delivered webhooks, and spent OAuth records past their use. */
+export async function collectStaleRecords(): Promise<
+  { sessions: number; deliveries: number; oauth: number }> {
   const pool = getPool();
   const s = await pool.query('DELETE FROM console_sessions WHERE expires_at <= now()');
   const d = await pool.query(
     `DELETE FROM webhook_deliveries
       WHERE state IN ('delivered','dead') AND created_at < now() - interval '30 days'`);
-  return { sessions: s.rowCount ?? 0, deliveries: d.rowCount ?? 0 };
+
+  // Authorization codes are single-use and live sixty seconds; keeping spent
+  // ones for a day leaves room to investigate a replay before they go.
+  const c = await pool.query(
+    `DELETE FROM oauth_codes WHERE expires_at < now() - interval '1 day'`);
+  const t = await pool.query(
+    `DELETE FROM oauth_tokens
+      WHERE expires_at < now() - interval '30 days'
+         OR (revoked_at IS NOT NULL AND revoked_at < now() - interval '30 days')`);
+
+  // Registration is unauthenticated, so anyone can create a client row. One
+  // that no human ever approved is inert and, after a day, junk. Anything with
+  // a token behind it is a real grant and is never swept.
+  const cl = await pool.query(
+    `DELETE FROM oauth_clients
+      WHERE created_at < now() - interval '1 day'
+        AND NOT EXISTS (SELECT 1 FROM oauth_tokens WHERE client_id = oauth_clients.id)
+        AND NOT EXISTS (SELECT 1 FROM oauth_codes  WHERE client_id = oauth_clients.id)`);
+
+  return { sessions: s.rowCount ?? 0, deliveries: d.rowCount ?? 0,
+           oauth: (c.rowCount ?? 0) + (t.rowCount ?? 0) + (cl.rowCount ?? 0) };
 }

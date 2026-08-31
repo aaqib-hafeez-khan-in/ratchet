@@ -10,6 +10,7 @@ const LOGO = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-h
 const NAV = [
   ['/start', 'Get started'],
   ['/docs', 'Docs'],
+  ['/works-with', 'Works with'],
   ['/pricing', 'Pricing'],
   ['/security', 'Security'],
   ['/console', 'Console'],
@@ -43,6 +44,7 @@ export function mountChrome(current) {
         <div>
           <h3>Works with</h3>
           <ul>
+            <li><a href="/works-with">Every supported platform</a></li>
             <li><a href="/start">Claude Code</a></li>
             <li><a href="/start">Claude Desktop</a></li>
             <li><a href="/start">Cursor</a></li>

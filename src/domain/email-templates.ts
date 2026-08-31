@@ -141,10 +141,10 @@ export function usageAlert(remaining: number, included: number, creditMicros: nu
   const exhausted = remaining === 0;
   const subject = exhausted
     ? 'Your allowance is used up'
-    : `${remaining.toLocaleString()} gated effects left this month`;
+    : `${remaining.toLocaleString('en-US')} gated effects left this month`;
   const credit = `$${(creditMicros / 1e6).toFixed(2)}`;
   const text = exhausted
-    ? `You have used all ${included.toLocaleString()} gated effects included this month.
+    ? `You have used all ${included.toLocaleString('en-US')} gated effects included this month.
 
 ${creditMicros > 0
   ? `Overage is drawing on your ${credit} of prepaid credit.`
@@ -157,7 +157,7 @@ because of this.`}
   ${base()}/console
 
 Manage alerts: ${base()}/console`
-    : `${remaining.toLocaleString()} of ${included.toLocaleString()} included gated effects remain this month.
+    : `${remaining.toLocaleString('en-US')} of ${included.toLocaleString('en-US')} included gated effects remain this month.
 Prepaid credit: ${credit}.
 
   ${base()}/console
@@ -166,12 +166,12 @@ Manage alerts: ${base()}/console`;
 
   const html = wrap(subject,
     exhausted
-      ? `<p style="margin:0 0 12px">You have used all <strong>${included.toLocaleString()}</strong> gated effects included this month.</p>
+      ? `<p style="margin:0 0 12px">You have used all <strong>${included.toLocaleString('en-US')}</strong> gated effects included this month.</p>
          ${creditMicros > 0
            ? `<p style="margin:0">Overage is drawing on your <strong>${esc(credit)}</strong> of prepaid credit.</p>`
            : `<p style="margin:0 0 12px">With no prepaid credit, <strong>new effects are being refused</strong>.</p>
               <p style="margin:0;color:#5b626d">Duplicate suppression still works — effects you already gated keep replaying their result, so nothing your agents already did can happen twice because of this.</p>`}`
-      : `<p style="margin:0"><strong>${remaining.toLocaleString()}</strong> of ${included.toLocaleString()} included gated effects remain this month. Prepaid credit: <strong>${credit}</strong>.</p>`,
+      : `<p style="margin:0"><strong>${remaining.toLocaleString('en-US')}</strong> of ${included.toLocaleString('en-US')} included gated effects remain this month. Prepaid credit: <strong>${credit}</strong>.</p>`,
     { label: exhausted ? 'Add credit' : 'View usage', href: `${base()}/console` });
   return { subject, text, html };
 }

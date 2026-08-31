@@ -328,3 +328,56 @@ dependency.
 request validation and the generated OpenAPI document — which is what stops the published contract
 drifting from the implementation. A second validation library would have been a parallel source of
 truth for no gain.
+
+---
+
+## No third-party logos on the site — 2026-08-30
+
+Asked to display the logos of ~60 AI companies as rotating badges. Declined, and built a
+different page instead.
+
+**Why not.** None of those companies are customers, partners, or endorsers. A wall of logos has
+exactly one conventional meaning — *these companies use us* — and that would be false. It also
+creates trademark exposure: nominative fair use protects *naming* a product to describe
+compatibility truthfully, not reproducing its mark in a badge wall that implies sponsorship. It
+contradicts the disclaimer already carried on `/docs`, and the original brief's explicit
+prohibition on fabricated endorsements. Practically, a knowledgeable buyer who sees sixty logos
+on a service with no public customers discounts everything else on the site.
+
+**What was built instead.** `/works-with`, which is a router rather than a trophy case: the
+reader types their stack and gets the integration path and a real snippet. It names 49 platforms
+in text, grouped by *how you actually connect* — MCP, HTTP, your own model — which is the only
+ordering that helps someone trying to integrate.
+
+**The rule the page states about itself:** name a platform only where the reader can act on the
+name — where there is a real path they can follow today. Never name a company purely to borrow
+its credibility. That is why orchestration platforms and model runtimes are listed and vertical
+AI products are described by shape rather than named: a reader can act on "n8n, HTTP Request
+node", but naming a company that has no relationship with us is just borrowing.
+
+`verified` on that page means it was run. Everything else is marked as a documented path.
+
+---
+
+## The beacon is self-integration, not advertising — 2026-08-30
+
+Asked to build "some type of beacon within the site to attract bots, agents and humans".
+
+Discovery surfaces already existed (`/llms.txt`, `/.well-known/agent-manifest.json`,
+`/openapi.json`, `/mcp`). They tell an agent what the API *is*. The gap was that the agent still
+had to invent the integration.
+
+`GET /v1/integrate` closes it: runnable code for the caller's own runtime — `http`, `python`,
+`node`, `langchain`, `mcp`, `ollama`. Public and unauthenticated, because an agent that has just
+discovered the service does not have a key yet, and requiring one to learn how to integrate puts
+a human in the middle of the only step that does not need one. Nothing returned is
+per-workspace, so there is nothing to leak. `Accept: text/plain` returns just the code, ready to
+pipe to a file.
+
+Every recipe derives its idempotency key from the work itself, and says so in a comment that
+survives being pasted elsewhere. A key from `uuid4()` or `Date.now()` turns the gate into an
+expensive no-op, and that is the single mistake most likely to be copied. A test asserts no
+recipe can regress into teaching it.
+
+Advertised from `llms.txt` and the agent manifest, so the discovery chain resolves end to end —
+also asserted by test.
