@@ -279,7 +279,7 @@ export default async function effectRoutes(app: FastifyInstance) {
   }, async (req) => {
     const e = await getEffect(getPool(), wsOf(req),
       (req.params as { effectId: string }).effectId);
-    if (!e) throw errors.notFound('No such effect in this workspace.');
+    if (!e) throw errors.notFound('No such effect.');
     return effectOut(e);
   });
 

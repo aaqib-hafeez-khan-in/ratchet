@@ -559,7 +559,7 @@ export async function extendLease(args: {
       `${SELECT_EFFECT} WHERE id=$1 AND workspace_id=$2 FOR UPDATE`,
       [args.effectId, args.workspaceId]);
     const effect = rows[0];
-    if (!effect) throw errors.notFound('No such effect in this workspace.');
+    if (!effect) throw errors.notFound('No such effect.');
 
     if (effect.state !== 'pending') {
       throw errors.conflict('invalid_state',
@@ -623,7 +623,7 @@ export async function reportEffect(input: ReportInput): Promise<ReportResult> {
       [input.effectId, input.workspaceId],
     );
     const effect = rows[0];
-    if (!effect) throw errors.notFound('No such effect in this workspace.');
+    if (!effect) throw errors.notFound('No such effect.');
 
     if (effect.state !== 'pending') {
       // Reporting the same outcome twice is a no-op, not an error: agents
@@ -737,7 +737,7 @@ export async function resolveEffect(args: {
       [args.effectId, args.workspaceId],
     );
     const effect = rows[0];
-    if (!effect) throw errors.notFound('No such effect in this workspace.');
+    if (!effect) throw errors.notFound('No such effect.');
     if (effect.state !== 'indeterminate' && effect.state !== 'awaiting_approval') {
       throw errors.conflict('invalid_state',
         `Only indeterminate or awaiting-approval effects can be resolved; this one is "${effect.state}".`,
@@ -799,7 +799,7 @@ export async function decideApproval(args: {
       [args.effectId, args.workspaceId],
     );
     const effect = rows[0];
-    if (!effect) throw errors.notFound('No such effect in this workspace.');
+    if (!effect) throw errors.notFound('No such effect.');
     if (effect.state !== 'awaiting_approval') {
       throw errors.conflict('invalid_state',
         `Effect is "${effect.state}", not awaiting approval.`, { state: effect.state });
@@ -842,7 +842,7 @@ export async function cancelEffect(args: {
       `${SELECT_EFFECT} WHERE id=$1 AND workspace_id=$2 FOR UPDATE`, [args.effectId, args.workspaceId],
     );
     const effect = rows[0];
-    if (!effect) throw errors.notFound('No such effect in this workspace.');
+    if (!effect) throw errors.notFound('No such effect.');
     if (effect.state === 'succeeded') {
       throw errors.conflict('invalid_state',
         'A succeeded effect cannot be cancelled; the real-world action already happened.');
