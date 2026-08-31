@@ -49,11 +49,24 @@ Support and users are responsible for operations, management, and disaster
 recovery."* If that machine and its volume are lost together, the snapshot is
 the only thing left.
 
-**Backups are pulled manually.** `npm run backup:verify` has to be run by
-someone. Nothing schedules it, and nothing stores the dump off-machine. The dump
-contains every workspace, key hash, and receipt in production, so wherever it
-ends up needs to be treated as production data — it is gitignored for that
-reason.
+**Off-machine storage is live.** The verified dump is uploaded to Tigris
+(`ratchet-backups/postgres/`) as the final step of `npm run backup:verify`.
+Order matters: the upload runs only AFTER the restore has verified, because
+shipping an unverified dump off-site manufactures confidence in a file nobody
+has proven restorable.
+
+The uploader is a hand-written SigV4 signer rather than the AWS SDK or CLI. This
+repo keeps nine production dependencies deliberately, and a backup script that
+only runs where somebody remembered to install the AWS CLI is a backup script
+that will not run when it matters. The implementation is checked against AWS's
+published SigV4 test vector.
+
+Credentials live in the operator's shell environment at mode 600, never in the
+repo. The dump contains every workspace, key hash, and receipt in production, so
+the bucket must be treated as production data; dumps are gitignored.
+
+**Nothing schedules it yet.** `npm run backup:verify` still has to be run by
+someone, and nothing alerts if it stops running.
 
 ## Recommended order
 

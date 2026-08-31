@@ -46,3 +46,12 @@ docker exec "$CONTAINER" pg_restore -U postgres -d restored --no-owner --no-priv
 
 echo "  verifying evidence in the restored copy…"
 node scripts/verify-restore.mjs "postgres://postgres:test@127.0.0.1:$PORT/restored" "$BASE"
+
+# Only upload AFTER the restore verified. Shipping an unverified dump off-site
+# manufactures confidence in a file nobody has proven can be restored.
+if [ -n "${TIGRIS_ACCESS_KEY_ID:-}" ] && [ -n "${TIGRIS_BUCKET:-}" ]; then
+  echo "  uploading the verified dump off-machine…"
+  node scripts/s3-put.mjs "$DUMP" "postgres/ratchet-$STAMP.dump"
+else
+  echo "  (TIGRIS_* not set — dump kept locally only)"
+fi
