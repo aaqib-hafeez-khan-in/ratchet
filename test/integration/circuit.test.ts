@@ -249,3 +249,41 @@ describe('circuit breaker: surge containment', () => {
       'nothing in a payload or summary may raise a ceiling');
   });
 });
+
+describe('circuit.tripped is a real, subscribable event', () => {
+  before(async () => { await setupDb(); });
+
+  test('the event type is registered, so an endpoint can subscribe to it', async () => {
+    // Webhook subscriptions validate against EVENT_TYPES. An event emitted but
+    // not registered can never be subscribed to, which makes it dead code that
+    // looks like a feature. enqueueEvent took a bare string, so nothing caught
+    // it; the parameter is typed now.
+    const { EVENT_TYPES } = await import('../../src/domain/events.js');
+    assert.ok((EVENT_TYPES as readonly string[]).includes('circuit.tripped'),
+      'circuit.tripped must be registered or nobody can subscribe');
+  });
+
+  test('a trip enqueues an event for a subscribed endpoint', async () => {
+    const ws = await freshWorkspace();
+    await getPool().query(
+      `INSERT INTO webhook_endpoints (id, workspace_id, url, secret, events)
+       VALUES ($1,$2,'https://example.test/hook','whsec_test',$3)`,
+      [`wh_${Date.now()}`, ws.workspaceId, ['circuit.tripped']]);
+
+    await upsertPolicy(getPool(), ws.workspaceId,
+      { effectType: 'evt.op', surgePerHour: 1, surgeAction: 'deny' });
+    await begin(ws, 'evt.op', 'e-0');
+    await begin(ws, 'evt.op', 'e-1');
+
+    const { rows } = await getPool().query(
+      `SELECT event_type, payload FROM webhook_deliveries
+        WHERE workspace_id = $1 AND event_type = 'circuit.tripped'`, [ws.workspaceId]);
+    assert.equal(rows.length, 1, 'a trip must reach a subscriber');
+    // Deliveries carry an envelope: { type, createdAt, workspaceId, data }.
+    const body = rows[0].payload;
+    assert.equal(body.type, 'circuit.tripped');
+    assert.equal(body.data.effectType, 'evt.op');
+    assert.equal(body.data.threshold, 1);
+    assert.equal(body.data.action, 'deny');
+  });
+});

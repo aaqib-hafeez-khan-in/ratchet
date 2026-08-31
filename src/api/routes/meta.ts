@@ -143,9 +143,16 @@ export default async function metaRoutes(app: FastifyInstance) {
       'leases with fencing tokens so a stalled worker cannot overwrite a newer attempt',
       'explicit indeterminate state when an attempt neither completes nor cleanly fails',
       'per-effect, per-key, and per-type daily external spend ceilings',
+      'surge containment: a circuit breaker per effect type that opens when an agent '
+        + 'starts performing one far more often than its configured hourly ceiling, and a '
+        + 'workspace-wide emergency stop. An open breaker raises the effect type to '
+        + 'require_approval by default, so work waits for a human rather than the agent '
+        + 'being killed',
       'operator approval gating for named effect types',
       'signed webhooks with SSRF protection',
       'immutable credit ledger and audit trail',
+      'worker liveness at GET /workerz, which returns 503 when lease expiry has stopped '
+        + 'running — the failure that would otherwise leave effects pending for ever',
     ],
     does_not: [
       'execute code, shell commands, or HTTP requests on the caller\'s behalf',
