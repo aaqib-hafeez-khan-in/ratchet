@@ -88,7 +88,7 @@ export async function collectExpiredEffects(batchSize = 500): Promise<number> {
 
 /** Console sessions, delivered webhooks, and spent OAuth records past their use. */
 export async function collectStaleRecords(): Promise<
-  { sessions: number; deliveries: number; oauth: number; anonymous: number }> {
+  { sessions: number; deliveries: number; oauth: number; anonymous: number; orphanReceipts: number }> {
   const pool = getPool();
   const s = await pool.query('DELETE FROM console_sessions WHERE expires_at <= now()');
   const d = await pool.query(
@@ -124,7 +124,14 @@ export async function collectStaleRecords(): Promise<
           SELECT 1 FROM effects e
            WHERE e.workspace_id = w.id AND e.created_at > now() - interval '7 days')`);
 
-  return { sessions: s.rowCount ?? 0, deliveries: d.rowCount ?? 0,
+  // Receipts deliberately have no foreign key to workspaces — it deadlocked the
+  // decision path — so deleting a workspace's audit trail happens here instead.
+  const orphans = await pool.query(
+    `DELETE FROM receipts r
+      WHERE NOT EXISTS (SELECT 1 FROM workspaces w WHERE w.id = r.workspace_id)`);
+
+  return { orphanReceipts: orphans.rowCount ?? 0,
+           sessions: s.rowCount ?? 0, deliveries: d.rowCount ?? 0,
            oauth: (c.rowCount ?? 0) + (t.rowCount ?? 0) + (cl.rowCount ?? 0),
            anonymous: anon.rowCount ?? 0 };
 }

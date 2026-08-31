@@ -17,6 +17,7 @@ import workspaceRoutes from './routes/workspace.js';
 import billingRoutes from './routes/billing.js';
 import metaRoutes from './routes/meta.js';
 import oauthRoutes from './routes/oauth.js';
+import receiptRoutes, { receiptWellKnown } from './routes/receipts.js';
 import { registerMcpHttp } from '../mcp/http.js';
 
 const webRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web');
@@ -243,6 +244,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     await v1.register(groupRoutes);
     await v1.register(workspaceRoutes);
     await v1.register(billingRoutes);
+    await v1.register(receiptRoutes);
   }, { prefix: '/v1' });
 
   /**
@@ -296,6 +298,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   });
 
   await app.register(oauthRoutes);
+  await app.register(receiptWellKnown);
   await app.register(metaRoutes);
   await registerMcpHttp(app);
 

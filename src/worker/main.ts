@@ -11,6 +11,7 @@
 import { config, assertProductionSafety } from '../lib/config.js';
 import { closePool, getPool } from '../db/pool.js';
 import { sweepExpiredLeases, collectExpiredEffects, collectStaleRecords } from './reaper.js';
+import { chainPendingReceipts } from '../domain/receipts.js';
 import { deliverDue } from './webhooks.js';
 import { watchChainOnce, expireQuotes } from './chain.js';
 import { deliverEmails, generateAlerts } from './email.js';
@@ -85,8 +86,13 @@ async function main() {
   loop('retention-gc', config.worker.gcIntervalMs, async () => {
     const effects = await collectExpiredEffects();
     const stale = await collectStaleRecords();
-    return effects + stale.sessions + stale.deliveries;
+    return effects + stale.sessions + stale.deliveries + stale.anonymous;
   });
+
+  // Receipts are signed on the request path and linked here. Runs often,
+  // because an unchained receipt is still individually verifiable but does not
+  // yet prove that nothing around it was removed.
+  loop('receipt-chain', 5_000, () => chainPendingReceipts());
 }
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {

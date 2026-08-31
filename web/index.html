@@ -320,6 +320,51 @@
 
 <section class="sunk">
   <div class="wrap">
+    <p class="eyebrow">Signed receipts</p>
+    <h2>Don't trust us. Check us.</h2>
+    <p class="lede" style="max-width:66ch">
+      A gate's work is invisible. The charge that didn't happen leaves no trace, and
+      "trust us, we stopped it" is unfalsifiable — a bad place to stand for a product
+      whose whole pitch is rigour.
+    </p>
+    <p style="max-width:66ch">
+      So every decision now leaves a <strong>signed receipt</strong>, and refusals most of
+      all. Verify it offline against a
+      <a href="/.well-known/ratchet-receipt-key">published Ed25519 key</a> — no need to ask
+      us anything. Receipts are hash-chained, so removing one breaks every link after it.
+      <code>GET /v1/receipts/audit</code> recomputes the whole chain from stored bytes and
+      trusts none of its own columns.
+    </p>
+
+    <h3 style="margin-top:2rem">The failure we can't see from here</h3>
+    <p style="max-width:66ch">
+      A gate only sees the calls that reach it. The path in your system that never asked —
+      the old cron job, the script nobody owns — is invisible to us and to you.
+      <code>POST /v1/reconcile</code> closes that: send the keys your vendor says it acted
+      on, and we tell you which ones we authorised.
+    </p>
+    <pre class="snippet"><code>POST /v1/reconcile  { "effect_type": "payment.refund", "keys": [ … ] }
+
+→ { "checked": 1204, "gated": 1198, "ungated": 6,
+    "meaning": "6 action(s) reached the vendor without ever asking Ratchet.
+                Those code paths are unprotected: a retry there can act twice." }</code></pre>
+    <p class="small dim" style="max-width:66ch">
+      You send references, never credentials. Ratchet still holds no vendor access, and this
+      doesn't change that.
+    </p>
+
+    <h3 style="margin-top:2rem">What it actually saved</h3>
+    <p class="dim" style="max-width:66ch">
+      <code>GET /v1/usage/prevented</code> counts the duplicates refused and what they
+      would have cost. It counts only refusals where you declared a cost up front, so it
+      under-reports rather than flatters — and it's money not spent at your vendors, never
+      revenue paid to us.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
     <p class="eyebrow">Vendor-enforced idempotency</p>
     <h2>A gate only stops the agents that ask</h2>
     <p class="lede" style="max-width:66ch">

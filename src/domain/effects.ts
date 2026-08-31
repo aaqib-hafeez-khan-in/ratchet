@@ -5,6 +5,7 @@ import { ApiError, errors } from '../lib/errors.js';
 import { getPolicy } from './policy.js';
 import { reserveSpend, adjustSpend, BudgetExceeded } from './budget.js';
 import { vendorIdempotencyKey } from './vendor-keys.js';
+import { writeReceipt, RECEIPT_VERSION } from './receipts.js';
 import { meterEffect, InsufficientCredit } from './metering.js';
 import { enqueueEvent } from './events.js';
 import { recordActivity, recordMilestone } from './activity.js';
@@ -108,6 +109,10 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
   input = { ...input, idempotencyKey: normalizeText(input.idempotencyKey) };
 
   const result = await withTx(async (tx): Promise<BeginResult> => {
+    // Every decision leaves evidence, not only the interesting ones. Writing it
+    // here, inside the same transaction, means a decision and its receipt
+    // cannot disagree: if one rolls back so does the other.
+    const decide = async (): Promise<BeginResult> => {
     const policy = await getPolicy(tx, input.workspaceId, input.effectType);
 
     if (policy.maxCostMicros !== null && input.estimatedCostMicros > policy.maxCostMicros) {
@@ -304,6 +309,22 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
       default:
         throw errors.internal('Unhandled effect state.');
     }
+    };
+
+    const decided = await decide();
+    await writeReceipt(tx, {
+      v: RECEIPT_VERSION,
+      workspace_id: input.workspaceId,
+      effect_id: decided.effectId,
+      effect_type: decided.effectType,
+      idempotency_key: decided.idempotencyKey,
+      decision: decided.decision,
+      state: decided.state,
+      attempt: decided.attempt,
+      payload_fingerprint: fingerprint.toString('hex'),
+      decided_at: now.toISOString(),
+    });
+    return decided;
   });
 
   if (input.groupKey) {
