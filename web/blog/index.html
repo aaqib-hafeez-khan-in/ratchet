@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notes — Ratchet</title>
+<meta name="description" content="Engineering notes from building an effect gate for AI agents: correctness bugs, distributed-systems trade-offs, and things we got wrong.">
+<link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+<link rel="canonical" href="https://ratchetgate.com/blog">
+<meta name="theme-color" content="#1c5cff">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ratchet">
+<meta property="og:title" content="Notes — Ratchet">
+<meta property="og:description" content="Engineering notes from building an effect gate for AI agents.">
+<meta property="og:url" content="https://ratchetgate.com/blog">
+<meta property="og:image" content="https://ratchetgate.com/assets/og.svg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="alternate" type="application/rss+xml" title="Ratchet notes" href="/blog/feed.xml">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+<section>
+  <div class="wrap narrow">
+    <p class="eyebrow">Notes</p>
+    <h1>Engineering notes</h1>
+    <p class="lede">
+      Things we found while building a gate that decides whether an AI agent may act.
+      Mostly correctness bugs and the trade-offs behind them — including the ones we caused.
+    </p>
+
+    <ul class="posts">
+      <li>
+        <a href="/blog/idempotency-keys-are-broken-on-macos">
+          Your idempotency keys are broken on macOS</a>
+        <p class="dim">Two agents in one fleet, the same key, both authorised to charge the
+          same card. The bug is four lines of Unicode and it is probably in your code too.</p>
+        <time datetime="2026-08-31">31 August 2026</time>
+      </li>
+    </ul>
+  </div>
+</section>
+</main>
+<footer class="site"></footer>
+<script type="module" src="/assets/blog.js"></script>
+</body>
+</html>

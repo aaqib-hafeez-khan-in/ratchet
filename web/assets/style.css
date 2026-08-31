@@ -522,3 +522,27 @@ ul.checks li::before {
   .js-motion .path.in,
   .js-motion .names li.in { opacity: 1; transform: none; }
 }
+
+/* ── Notes ──────────────────────────────────────────────────────────────── */
+
+.posts { list-style: none; padding: 0; margin: 2.5rem 0 0; }
+.posts li { padding: 1.4rem 0; border-top: 1px solid var(--border); }
+.posts li > a { font-size: 1.22rem; font-weight: 600; line-height: 1.35; }
+.posts p { margin: .45rem 0 .5rem; }
+.posts time { font-size: .82rem; color: var(--text-faint); }
+
+/* Long-form reading measure, narrower than the app pages. */
+.post { max-width: 34rem; }
+.post h2 { margin-top: 2.6rem; }
+.post h3 { margin-top: 1.8rem; font-size: 1.05rem; }
+.post p, .post li { line-height: 1.72; }
+.post pre {
+  background: var(--bg-sunk); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1rem 1.1rem; overflow-x: auto;
+  font-family: var(--mono); font-size: .82rem; line-height: 1.6;
+}
+.post blockquote {
+  margin: 1.6rem 0; padding: .2rem 0 .2rem 1.1rem;
+  border-left: 3px solid var(--accent); color: var(--text-dim);
+}
+.post .meta { color: var(--text-faint); font-size: .85rem; margin-bottom: 2rem; }

@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your idempotency keys are broken on macOS — Ratchet</title>
+<meta name="description" content="Two machines, the same idempotency key, both authorised to charge the same card. The cause is four lines of Unicode, and it is probably in your code too.">
+<link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+<link rel="canonical" href="https://ratchetgate.com/blog/idempotency-keys-are-broken-on-macos">
+<meta name="theme-color" content="#1c5cff">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Ratchet">
+<meta property="og:title" content="Your idempotency keys are broken on macOS">
+<meta property="og:description" content="Two machines, the same idempotency key, both authorised to charge the same card. The cause is four lines of Unicode.">
+<meta property="og:url" content="https://ratchetgate.com/blog/idempotency-keys-are-broken-on-macos">
+<meta property="og:image" content="https://ratchetgate.com/assets/og.svg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Your idempotency keys are broken on macOS">
+<meta name="twitter:description" content="Two machines, the same idempotency key, both authorised to charge the same card.">
+<meta name="twitter:image" content="https://ratchetgate.com/assets/og.svg">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+<section>
+  <div class="wrap narrow post">
+    <p class="eyebrow"><a href="/blog">Notes</a></p>
+    <h1>Your idempotency keys are broken on macOS</h1>
+    <p class="meta">31 August 2026</p>
+
+    <p class="lede">
+      An idempotency key is supposed to mean: <em>this is the same piece of work, don't do it
+      twice.</em> If two machines can write what looks like the same key and your system reads
+      them as different, the key has stopped doing its only job — and it fails silently, in the
+      direction of doing the work twice.
+    </p>
+
+    <p>
+      We found this in our own code. It had shipped. Here is the whole bug.
+    </p>
+
+    <h2>Two spellings of one word</h2>
+
+    <p>
+      Unicode can represent <code>café</code> two ways. As four code points, where <code>é</code>
+      is a single character (NFC). Or as five, where <code>é</code> is a plain <code>e</code>
+      followed by a combining acute accent (NFD). Both render identically. Both are correct. They
+      are different bytes.
+    </p>
+
+<pre><code>&gt; Buffer.byteLength('café'.normalize('NFC'))
+5
+&gt; Buffer.byteLength('café'.normalize('NFD'))
+6
+&gt; 'café'.normalize('NFC') === 'café'.normalize('NFD')
+false</code></pre>
+
+    <p>
+      Which one you get depends on where the string came from. <strong>macOS filesystems hand you
+      NFD.</strong> Most other sources — web forms, Postgres, JSON from a typical API — hand you
+      NFC. So the same customer name, read from a file on a developer's Mac and from a database
+      on a Linux box, is two different strings.
+    </p>
+
+    <h2>What that does to a gate</h2>
+
+    <p>
+      We run a service that decides whether an agent may perform a side effect. You send an
+      idempotency key derived from the work; we tell you <code>execute</code> exactly once for
+      that key, and refuse every caller after.
+    </p>
+
+    <p>
+      We compared those keys as raw bytes. So:
+    </p>
+
+<pre><code>agent on Linux, key "facture:café_8812" (NFC)  →  execute
+agent on macOS, key "facture:café_8812" (NFD)  →  execute</code></pre>
+
+    <p>
+      Both authorised. Same invoice, charged twice. Not a race, not a retry storm — just two
+      machines spelling the same word differently, in a system whose entire purpose is to notice
+      that they meant the same thing.
+    </p>
+
+    <p>
+      The second failure is quieter and, in some ways, worse. We also fingerprint the payload to
+      detect a key being reused for different work. A legitimate retry whose payload happened to
+      be encoded the other way produced a different fingerprint, so we rejected it as
+      <code>idempotency_key_reuse</code> — telling a correct caller they had made a mistake, and
+      blocking work that should have proceeded.
+    </p>
+
+    <blockquote>
+      One bug, two opposite failures: authorise something that should be refused, and refuse
+      something that should be authorised.
+    </blockquote>
+
+    <h2>The fix</h2>
+
+    <p>
+      Normalise to NFC before comparing anything that functions as an identifier. This is what
+      <a href="https://www.unicode.org/reports/tr15/">Unicode Annex #15</a> and the W3C recommend
+      for exactly this reason.
+    </p>
+
+<pre><code>const NON_ASCII = /[^\x00-\x7F]/;
+
+export function normalizeText(v) {
+  return NON_ASCII.test(v) ? v.normalize('NFC') : v;
+}</code></pre>
+
+    <p>
+      The ASCII guard is not premature optimisation, it is the common case: most keys are ASCII,
+      where normalisation is a no-op, and this keeps it off the hot path entirely.
+    </p>
+
+    <p>
+      NFC only merges sequences that are <em>canonically equivalent</em> — strings Unicode
+      defines as the same string. It will not collapse anything genuinely distinct.
+      <code>café</code> and <code>cafe</code> stay different, as they should.
+    </p>
+
+    <h2>Where to apply it</h2>
+
+    <p>
+      Everywhere a caller-supplied identifier is compared, which is more places than you would
+      guess. In our case:
+    </p>
+
+    <ul>
+      <li>the idempotency key on the way in</li>
+      <li>the same key on every <em>lookup</em> — a read that misses what a write stored is the
+        same bug wearing a different hat</li>
+      <li>string <em>values</em> inside the payload fingerprint</li>
+      <li>object <em>keys</em> inside it too — an object key is text like any other</li>
+      <li>every other caller-supplied identifier; ours had a second one, and all four of its
+        query sites needed it</li>
+    </ul>
+
+    <p>
+      One place we deliberately did <em>not</em> touch: our effect-type field is constrained by
+      schema to <code>^[a-z0-9]([a-z0-9._-]{0,62}[a-z0-9])?$</code>. It cannot contain non-ASCII,
+      so normalising it would be ceremony.
+    </p>
+
+    <h2>How to check your own</h2>
+
+    <p>
+      This takes about a minute. Send the same key twice, encoded both ways, and see whether your
+      system agrees they are one thing.
+    </p>
+
+<pre><code>import unicodedata, requests
+
+key = "facture:café_8812"
+for form in ("NFC", "NFD"):
+    r = requests.post(URL, json={
+        "idempotency_key": unicodedata.normalize(form, key),
+        # ... the rest of your request
+    })
+    print(form, r.json())</code></pre>
+
+    <p>
+      If the second call is treated as new work, you have this bug. It applies well beyond
+      agents: any dedupe key, cache key, or unique constraint over user-supplied text has the
+      same exposure. Postgres will happily hold both spellings in a <code>UNIQUE</code> column,
+      because to Postgres they are different strings.
+    </p>
+
+    <h2>Why we nearly missed it</h2>
+
+    <p>
+      Our test suite covered concurrency, tenant isolation, lease fencing, and replay. It passed
+      throughout. We went looking for this only because someone asked whether the service was
+      ready for users outside the English-speaking world, and the honest answer required testing
+      rather than assertion.
+    </p>
+
+    <p>
+      The first thing we checked was whether non-ASCII keys <em>worked</em> — Japanese, Arabic,
+      Cyrillic, emoji, combining marks. All seven passed. It would have been easy to stop there
+      and report that internationalisation was fine. The bug only appears when you ask a harder
+      question: not <em>does this string work</em>, but <em>do two encodings of this string
+      agree</em>.
+    </p>
+
+    <p class="small dim" style="margin-top:2.5rem">
+      We build <a href="/">Ratchet</a>, a gate that decides whether an AI agent may perform a
+      side effect. The fix above is
+      <a href="https://github.com/thearchitect0x-glitch/ratchet">in the open-source repo</a>,
+      along with the tests that pin it.
+    </p>
+  </div>
+</section>
+</main>
+<footer class="site"></footer>
+<script type="module" src="/assets/blog.js"></script>
+</body>
+</html>

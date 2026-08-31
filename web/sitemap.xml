@@ -6,4 +6,6 @@
   <url><loc>https://ratchetgate.com/pricing</loc><lastmod>2026-08-30</lastmod><priority>0.8</priority></url>
   <url><loc>https://ratchetgate.com/security</loc><lastmod>2026-08-30</lastmod><priority>0.7</priority></url>
   <url><loc>https://ratchetgate.com/works-with</loc></url>
+  <url><loc>https://ratchetgate.com/blog</loc></url>
+  <url><loc>https://ratchetgate.com/blog/idempotency-keys-are-broken-on-macos</loc></url>
 </urlset>

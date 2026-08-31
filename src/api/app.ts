@@ -309,6 +309,16 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(fastifyStatic, { root: webRoot, prefix: '/', index: ['index.html'] });
   // HTML pages are hidden from the OpenAPI document: it describes the API an
   // agent calls, not the site a human reads.
+  // Clean URLs for notes. Kept explicit rather than a catch-all so a typo 404s
+  // instead of silently serving the index.
+  app.get('/blog', { schema: { hide: true } },
+    async (_req, reply) => reply.sendFile('blog/index.html'));
+  const POSTS = ['idempotency-keys-are-broken-on-macos'];
+  for (const slug of POSTS) {
+    app.get(`/blog/${slug}`, { schema: { hide: true } },
+      async (_req, reply) => reply.sendFile(`blog/${slug}.html`));
+  }
+
   for (const page of ['docs', 'console', 'pricing', 'security', 'start', 'works-with']) {
     app.get(`/${page}`, { schema: { hide: true } },
       async (_req, reply) => reply.sendFile(`${page}.html`));
