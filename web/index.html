@@ -48,16 +48,16 @@
     <p class="eyebrow">Execution control for autonomous agents</p>
     <h1>Your agent retried.<br>Do you know what it already did?</h1>
     <p class="lede">
-      Ratchet is how you let an agent charge a card, send an email or book a flight —
-      and know the action was only ever attempted once.
+      Ratchet is how you let an agent do things it cannot take back — charge a card, ship a
+      deploy, publish a package, send the email — and know what it already did, what that
+      cost, and what it may still spend.
     </p>
 
-    <!-- Two readers said the same thing on the same day: one could not find the
-         value at a glance, the other said the page took too much focus. Both were
-         right and both had one cause — every word above the fold described what
-         Ratchet IS, and none described what you GET. These three are the whole
-         product, scannable in about five seconds, each linking to the section
-         that argues it properly for anyone who wants that. -->
+    <!-- Four readers, four days, one cause: every word above the fold described what
+         Ratchet IS and none described what you GET. These four are the whole product,
+         scannable in about five seconds, each linking to the section that argues it for
+         anyone who wants that. The last two are recent — a run now carries a memory and
+         a wallet, and neither was mentioned anywhere a reader would find it. -->
     <ul class="gains">
       <li>
         <a href="#duplicates"><strong>Never twice.</strong></a>
@@ -68,13 +68,17 @@
         When nobody can know whether it happened, we say so instead of assuming.
       </li>
       <li>
-        <a href="#anything"><strong>Never per-vendor.</strong></a>
-        One gate in front of Stripe, Resend, Slack, or anything else you already call.
+        <a href="#memory"><strong>It remembers for you.</strong></a>
+        An agent that lost its context asks what it already did — one call, not a re-derivation.
+      </li>
+      <li>
+        <a href="#memory"><strong>It cannot overspend.</strong></a>
+        Give a task a budget and the gate refuses the step that would cross it.
       </li>
     </ul>
 
     <p class="quickfacts">
-      <a href="/works-with">Works with 90 platforms</a>
+      <a href="/works-with">Works with anything that makes an HTTPS request</a>
       <span>·</span>
       <a href="/pricing">1,000 effects a month, free</a>
       <span>·</span>
@@ -384,6 +388,77 @@ Reached the vendor: 20. Held back: 80.</code></pre>
       does not make inference cheaper, prompts shorter, or a model faster, and anyone
       telling you a gate does that is selling something. What it removes is the work
       you would otherwise do to find out what already happened.
+    </p>
+  </div>
+</section>
+
+<!-- Asked what an agent most needs, the honest answer came from watching this
+     one work: pushing a branch eight times believing each push landed, when
+     every one was a no-op. That is not a reasoning failure. An agent's memory of
+     its own actions lives in its context window, which is lossy, expensive and
+     unverifiable. Ratchet was already writing that record and never let the
+     agent read it. -->
+<section id="memory">
+  <div class="wrap">
+    <p class="eyebrow">New</p>
+    <h2>A run gets a memory, and a wallet</h2>
+    <p class="lede" style="max-width:64ch">
+      An agent's memory of what it has done lives in its context window — the worst
+      possible place to keep it. Compaction summarises it away, every token of it is paid
+      for again each turn, and it cannot be checked: an agent can sincerely believe it
+      sent the email and be wrong.
+    </p>
+
+    <div class="grid two" style="margin-top:2rem">
+      <div class="card">
+        <h3>Ask what you already did</h3>
+        <p class="small dim">
+          One call returns the work already gated under a task: what succeeded, with the
+          recorded results, so you use them instead of doing it again. What is still in
+          flight. And — kept separate, because it is the only category that can hurt —
+          what has an outcome nobody knows.
+        </p>
+<pre class="snippet tight"><code>GET /v1/runs/trip-8812
+
+{ "done": [ { "what": "flight.book", "outcome": "succeeded" } ],
+  "unknown": [],
+  "budget": { "remaining_micros": 140000 },
+  "next": "Everything under this run is settled." }</code></pre>
+      </div>
+
+      <div class="card">
+        <h3>Give the task a budget</h3>
+        <p class="small dim">
+          <em>This job may spend fifty dollars</em> was a sentence nobody could say. Daily
+          limits bind a key or an effect type; neither is a task. Now a run carries its own
+          wallet, and the gate refuses the step that would cross it — before the money
+          moves, which is the only moment refusing is still cheap.
+        </p>
+<pre class="snippet tight"><code>PUT /v1/runs/trip-8812/budget
+{ "limit_micros": 50000000 }</code></pre>
+      </div>
+    </div>
+
+    <p style="max-width:64ch;margin-top:1.75rem">
+      The half that matters is not the ceiling. Budgets could always refuse. It is that the
+      agent can <strong>read its own remaining balance</strong> — and an agent that can see
+      what is left behaves differently from one that can only be stopped. It takes the
+      cheaper path, batches the work, asks for approval, or finishes early and says why.
+      Being refused at the moment of spending is the worst possible time to learn a limit
+      exists.
+    </p>
+
+    <p class="dim" style="max-width:64ch;margin-top:1.25rem">
+      <strong>An agent cannot raise its own ceiling.</strong> Reading the balance needs the
+      scope agents carry; setting it needs one they do not, and there is deliberately no
+      tool for it in the MCP toolbox. A limit the agent can lift is decoration.
+    </p>
+
+    <p class="small faint" style="max-width:66ch;margin-top:1.25rem">
+      Measured on a real run: a full effect record is 864 bytes, so a twelve-step task
+      listed in full is 10.1KB of context. The digest is 0.6KB — about seventeen times
+      smaller. That ratio is the point, because a memory costing more than re-deriving the
+      answer does not get used.
     </p>
   </div>
 </section>

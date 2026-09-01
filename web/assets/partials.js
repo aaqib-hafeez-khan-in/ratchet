@@ -14,6 +14,12 @@ const NAV = [
   ['/start', 'Get started'],
   ['/docs', 'Docs'],
   ['/works-with', 'Works with'],
+  // The vendor directory answers "does Stripe refuse a repeat, does Slack" and
+  // is the only page here a stranger would link to unprompted. It was reachable
+  // from one sentence in the middle of the home page and the footer, which a
+  // reader told us was tucked away — they were right. Eight items fits: the
+  // mobile strip already scrolls with a fade at each end.
+  ['/vendors', 'Vendors'],
   ['/notes', 'Notes'],
   ['/pricing', 'Pricing'],
   ['/security', 'Security'],

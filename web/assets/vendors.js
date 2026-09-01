@@ -60,6 +60,49 @@ try {
          we would rather claim. Same data as
          <a href="/v1/vendors">/v1/vendors</a>.</p>`;
 
+  /*
+   * Filtering, once the list exists.
+   *
+   * Twelve vendors is scannable and this list will grow, so the field is here
+   * before it needs to be rather than after somebody complains. It searches the
+   * note as well as the name, because "does anything here mention webhooks" is a
+   * real question and matching only the title would answer it wrongly.
+   *
+   * Nothing is fetched on keystroke: the whole directory is already in the page.
+   */
+  const q = document.getElementById('vq');
+  if (q) {
+    const cards = [...root.querySelectorAll('.vcard')];
+    const groups = [...root.querySelectorAll('.vgroup')];
+    q.addEventListener('input', () => {
+      const term = q.value.trim().toLowerCase();
+      for (const c of cards) {
+        c.hidden = term.length > 0 && !c.textContent.toLowerCase().includes(term);
+      }
+      // A heading with nothing under it reads as a bug, so a group whose cards
+      // are all hidden hides too — and its count reflects what is showing.
+      for (const g of groups) {
+        const shown = [...g.querySelectorAll('.vcard')].filter((c) => !c.hidden).length;
+        g.hidden = shown === 0;
+        const badge = g.querySelector('.vcount');
+        if (badge) badge.textContent = String(shown);
+      }
+      const none = root.querySelectorAll('.vcard:not([hidden])').length === 0;
+      let msg = document.getElementById('vnone');
+      if (none && !msg) {
+        msg = document.createElement('p');
+        msg.id = 'vnone';
+        msg.className = 'dim';
+        msg.textContent = 'No vendor here matches that. A vendor missing from this list is '
+          + 'not one Ratchet cannot gate — the directory only records which vendors add '
+          + 'enforcement of their own.';
+        root.appendChild(msg);
+      } else if (!none && msg) {
+        msg.remove();
+      }
+    });
+  }
+
   reveal();
 } catch (err) {
   // Never leave a spinner. Say what happened and hand over the raw source.
