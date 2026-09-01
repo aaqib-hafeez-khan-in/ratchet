@@ -37,7 +37,8 @@
     "backup:verify": "bash scripts/backup-verify.sh",
     "stress": "tsx scripts/stress.ts",
     "probe:prod": "tsx scripts/prod-probe.ts",
-    "snapshot:code": "bash scripts/snapshot-code.sh"
+    "snapshot:code": "bash scripts/snapshot-code.sh",
+    "uptime": "node scripts/uptime-check.mjs"
   },
   "dependencies": {
     "@fastify/cookie": "11.1.2",

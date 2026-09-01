@@ -1,0 +1,67 @@
+# Synthetic monitoring.
+#
+# Not a third-party uptime service: this needs no new account, and GitHub
+# already emails the repository owner when a scheduled workflow fails, which is
+# the whole notification mechanism required.
+#
+# It also checks something better than a port. The failure that actually hurts
+# here is silent — the worker stops expiring leases, so effects sit at `pending`
+# for ever and every retry is answered `in_flight`, while the site is up, the
+# database is healthy and every status page is green. So this drives the real
+# product and asserts the decisions are right.
+#
+# One deliberate limitation, stated rather than discovered: if GitHub Actions is
+# down or delayed, monitoring is down with it. Scheduled runs are best-effort
+# and can lag under load. That is an acceptable trade for zero cost and zero new
+# vendors, but it means this is a safety net, not a guarantee.
+name: uptime
+
+on:
+  schedule:
+    # Every 15 minutes. Fine-grained enough to notice a dead worker long before
+    # anyone else does, coarse enough that GitHub does not throttle it.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+# A slow check must never pile up behind itself.
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Probe production
+        env:
+          RATCHET_UPTIME_KEY: ${{ secrets.RATCHET_UPTIME_KEY }}
+          BASE: https://ratchetgate.com
+        run: node scripts/uptime-check.mjs
+
+      - name: Explain the failure in the run summary
+        if: failure()
+        run: |
+          {
+            echo "## Ratchet is not healthy"
+            echo
+            echo "The probe above says which check failed. The one that matters most:"
+            echo
+            echo "- **/workerz returned 503** — lease expiry has stopped. Effects will sit"
+            echo "  at \`pending\` for ever and every retry is answered \`in_flight\`, with"
+            echo "  no error anywhere. Restart the worker:"
+            echo "  \`flyctl machine restart <id> -a ratchet-gate\` (process group \`worker\`)."
+            echo "- **AT-MOST-ONCE VIOLATED** — the same idempotency key was authorised"
+            echo "  twice. This is the product's core guarantee. Stop and investigate"
+            echo "  before anything else."
+            echo
+            echo "Runbook: \`docs/handoff/RECOVERY.md\`"
+          } >> "$GITHUB_STEP_SUMMARY"
