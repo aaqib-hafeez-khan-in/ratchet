@@ -39,15 +39,18 @@ done
 # invocation — so pg_dump wrote /tmp/b.dump on one node and sftp then looked for
 # it on another, and the backup failed with "file does not exist". It worked for
 # as long as there was only one machine to choose.
-NODE=${NODE:-$(flyctl machine list -a "$PG_APP" --json 2>/dev/null \
+# Deliberately NOT called NODE: actions/setup-node exports NODE as the path to
+# the node binary, so ${NODE:-...} silently resolved to
+# /opt/hostedtoolcache/.../bin/node and was passed to --machine.
+PG_MACHINE=$(flyctl machine list -a "$PG_APP" --json 2>/dev/null \
   | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{
       const m=JSON.parse(d).find(x=>x.state==="started");
       if(!m){console.error("no started machine");process.exit(1)}
-      process.stdout.write(m.id)})')}
-[ -n "$NODE" ] || { echo "  could not find a started machine in $PG_APP"; exit 1; }
-echo "  using node: $NODE"
+      process.stdout.write(m.id)})')
+[ -n "$PG_MACHINE" ] || { echo "  could not find a started machine in $PG_APP"; exit 1; }
+echo "  using machine: $PG_MACHINE"
 
-PROBE=$(flyctl ssh console -a "$PG_APP" --machine "$NODE" \
+PROBE=$(flyctl ssh console -a "$PG_APP" --machine "$PG_MACHINE" \
   -C "sh -c 'PGPASSWORD=\$OPERATOR_PASSWORD psql -h $PG_APP.internal -U postgres -d $DB -At -c \"SHOW server_version\"'" \
   2>&1) || {
     echo "  could not reach $PG_APP over flyctl ssh. Raw output:"
@@ -106,9 +109,9 @@ if [ -n "${TIGRIS_ACCESS_KEY_ID:-}" ] && [ -n "${TIGRIS_BUCKET:-}" ]; then
 fi
 
 echo "  dumping…"
-flyctl ssh console -a "$PG_APP" --machine "$NODE" \
+flyctl ssh console -a "$PG_APP" --machine "$PG_MACHINE" \
   -C "sh -c 'PGPASSWORD=\$OPERATOR_PASSWORD pg_dump -h $PG_APP.internal -U postgres -d $DB -Fc -f /tmp/b.dump'" >/dev/null
-( cd "$OUT" && flyctl ssh sftp get /tmp/b.dump -a "$PG_APP" --machine "$NODE" >/dev/null && mv b.dump "ratchet-$STAMP.dump" )
+( cd "$OUT" && flyctl ssh sftp get /tmp/b.dump -a "$PG_APP" --machine "$PG_MACHINE" >/dev/null && mv b.dump "ratchet-$STAMP.dump" )
 DUMP="$OUT/ratchet-$STAMP.dump"
 echo "  dump: $DUMP ($(wc -c < "$DUMP") bytes)"
 
