@@ -119,7 +119,35 @@ echo "  restoring into a throwaway postgres:${MAJOR}-alpine…"
 docker run -d --name "$CONTAINER" -e POSTGRES_PASSWORD=test -p "$PORT:5432" \
   "postgres:${MAJOR}-alpine" >/dev/null
 trap 'docker rm -f "$CONTAINER" >/dev/null 2>&1 || true' EXIT
-for _ in $(seq 1 40); do docker exec "$CONTAINER" pg_isready -U postgres >/dev/null 2>&1 && break; sleep 2; done
+# Wait for the restore target, carefully.
+#
+# The official postgres image runs initdb against a TEMPORARY server, then stops
+# it and starts the real one. A single successful readiness check can land inside
+# that window — which is what happened on 1 Sep 2026, when a newer
+# postgres:18-alpine widened the gap: the check passed, the temporary server went
+# away, and CREATE DATABASE failed against a socket that no longer existed. The
+# backup had been passing on timing luck.
+#
+# Two changes. The probe is a real query rather than pg_isready, so what is being
+# waited for is the thing about to be used. And it must succeed three times in a
+# row, which spans the bounce instead of racing it.
+ready=0
+for _ in $(seq 1 60); do
+  if docker exec "$CONTAINER" psql -U postgres -tAc 'SELECT 1' >/dev/null 2>&1; then
+    ready=$((ready + 1))
+    [ "$ready" -ge 3 ] && break
+  else
+    ready=0
+  fi
+  sleep 2
+done
+# Falling through without this was the second half of the bug: an exhausted loop
+# said nothing and let the next command produce a confusing error instead.
+if [ "$ready" -lt 3 ]; then
+  echo "  the throwaway postgres never became ready — backup NOT verified" >&2
+  docker logs "$CONTAINER" 2>&1 | tail -20 >&2
+  exit 1
+fi
 docker cp "$DUMP" "$CONTAINER:/tmp/r.dump" >/dev/null
 docker exec "$CONTAINER" psql -U postgres -c "CREATE DATABASE restored" >/dev/null
 docker exec "$CONTAINER" pg_restore -U postgres -d restored --no-owner --no-privileges /tmp/r.dump
