@@ -276,7 +276,7 @@ export default async function metaRoutes(app: FastifyInstance) {
    */
   app.get('/.well-known/mcp-registry-auth', { schema: { hide: true } }, async (_req, reply) =>
     reply.type('text/plain; charset=utf-8')
-      .send('v=MCPv1; k=ed25519; p=IC9xQtYEB/1lEKpfc1JcuEajLfXiVuyvPL3tS8U6Y7E=\n'));
+      .send('v=MCPv1; k=ed25519; p=wYouDJAI29Et6BJBfWsDww0CWkyY2iV1eHNX7vokzVw=\n'));
 
   /**
    * Free, keyless reference: does this vendor deduplicate, and how?

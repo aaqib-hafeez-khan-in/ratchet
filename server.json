@@ -1,8 +1,8 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "com.ratchetgate/ratchet",
-  "description": "An effect gate for AI agents: ask before you act, so the same side effect happens at most once.",
-  "version": "0.1.1",
+  "description": "An effect gate for AI agents: at-most-once side effects, spend limits, and signed receipts.",
+  "version": "0.2.0",
   "websiteUrl": "https://ratchetgate.com",
   "repository": {
     "url": "https://github.com/thearchitect0x-glitch/ratchet",
