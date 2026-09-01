@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What happens when step five fails — Ratchet</title>
+<meta name="description" content="A booking agent completes four steps and the payment declines. A retry loop fires a hundred charges. Two failures, run against the live service, with the transcripts.">
+<link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+<link rel="canonical" href="https://ratchetgate.com/notes/what-happens-when-step-five-fails">
+<meta name="theme-color" content="#1c5cff">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Ratchet">
+<meta property="og:title" content="What happens when step five fails">
+<meta property="og:description" content="A booking agent completes four steps and the payment declines. A retry loop fires a hundred charges. Two failures, run against the live service.">
+<meta property="og:url" content="https://ratchetgate.com/notes/what-happens-when-step-five-fails">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="What happens when step five fails">
+<meta name="twitter:description" content="Two agent failures, run for real against the live service, with the transcripts.">
+<link rel="alternate" type="text/plain" href="/llms.txt" title="Ratchet for LLMs — the whole service in one file">
+<link rel="alternate" type="application/json" href="/.well-known/agent-manifest.json" title="Capability manifest">
+<link rel="alternate" type="application/json" href="/openapi.json" title="OpenAPI 3.1 specification">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+<section>
+  <div class="wrap narrow post">
+    <p class="eyebrow"><a href="/notes">Notes</a></p>
+    <h1>What happens when step five fails</h1>
+    <p class="meta">1 September 2026</p>
+
+    <p class="lede">
+      At-most-once answers one question: <em>did this action already happen?</em> It does not answer
+      the two that follow. Four of five steps happened and the fifth failed — now what? An agent is
+      looping and each turn of the loop is a real charge — how do you stop it without stopping
+      everything? These are the two features people ask about least and need most.
+    </p>
+
+    <p>
+      What follows is not a case study. We have no customers to write one about, and inventing
+      <em>"Acme cut duplicate charges by 94%"</em> would be fabricating evidence for a product whose
+      whole pitch is that it tells you the truth about what happened. So instead: two failures, run
+      against the live service, with the real transcripts. You can run them yourself —
+      <code>npm run case-study</code> in
+      <a href="https://github.com/thearchitect0x-glitch/ratchet">the repository</a> does exactly
+      what is printed below.
+    </p>
+
+    <h2>One: a booking agent, four steps in</h2>
+
+    <p>
+      A travel agent books a flight, a hotel, a seat and a car, then charges the card. The charge
+      declines. Four real bookings exist in four vendors' systems and there is no payment.
+    </p>
+
+    <p>
+      <strong>Without a group</strong>, this is where the agent is on its own. It must remember what
+      it did, in what order, and how to undo each one — while being the same process that just
+      crashed or errored. If it retries a cancellation it may double-cancel. If it gives up, a
+      customer is holding a flight nobody paid for.
+    </p>
+
+    <p>
+      <strong>With a group</strong>, each step declares its own undo when it begins. When the unit
+      fails, you ask one question and get the plan:
+    </p>
+
+<pre><code>POST /v1/groups/trip:1788249508284/unwind
+{ "reason": "payment declined" }</code></pre>
+
+    <p>The reply, trimmed to one step of four:</p>
+
+<pre><code>{
+  "state": "unwinding",
+  "steps": [
+    {
+      "order": 1,
+      "original_effect_type": "car.book",
+      "compensation": { "effect_type": "car.cancel" },
+      "suggested_idempotency_key": "compensate:eff_c4apvw594qdj1m92"
+    }
+  ],
+  "irreversible": [],
+  "unresolved": [],
+  "next_step": "Perform the 4 compensation(s) in the order given."
+}</code></pre>
+
+    <p>
+      Three things in that reply are the entire feature.
+    </p>
+
+    <p>
+      <strong>The order is reversed.</strong> Step 1 of the plan is <code>car.book</code> — the last
+      thing done is the first thing undone. The plan came back
+      <code>car</code>, <code>seat</code>, <code>hotel</code>, <code>flight</code>, which is the
+      exact reverse of the order they completed in.
+    </p>
+
+    <p>
+      <strong>The group is now <code>unwinding</code>,</strong> and refuses new forward steps. An
+      agent that has not yet noticed the failure cannot book a sixth thing into a unit of work that
+      is being torn down.
+    </p>
+
+    <p>
+      <strong>Each undo comes with its own idempotency key,</strong> because a compensation is
+      itself a gated effect. This is the part that matters. Hand-rolled rollback is dangerous
+      precisely because a retried undo double-refunds. Here it structurally cannot. Running the
+      first compensation twice, the way a crashed agent would:
+    </p>
+
+<pre><code># car.cancel, attempt 1
+{ "decision": "execute" }
+
+# car.cancel, attempt 2 — same key, no report yet
+{ "decision": "in_flight" }</code></pre>
+
+    <p>
+      The second caller is told the first one holds the lease. It is not given a second execute, and
+      it is not told the work succeeded either — because nobody knows yet. That is the honest
+      answer.
+    </p>
+
+    <h2>The empty fields are the interesting ones</h2>
+
+    <p>
+      <code>irreversible</code> lists effects that succeeded but declared no compensation. They
+      cannot be rolled back automatically and you need to know that before you start, not halfway
+      through.
+    </p>
+
+    <p>
+      <code>unresolved</code> is the one worth dwelling on. An earlier run of this same script had a
+      bug — it reported the failed payment with the wrong field name, the API correctly returned a
+      <code>400</code>, and the script did not check. The payment was therefore still
+      <code>pending</code> when we asked to unwind. The reply was not the plan:
+    </p>
+
+<pre><code>"unresolved": [
+  { "effect_type": "payment.charge", "state": "pending" }
+],
+"next_step": "STOP. 1 effect(s) in this group have an unknown outcome.
+  Resolve those first — rolling back around an effect that may or may
+  not have happened is how a half-undone state is created."</code></pre>
+
+    <p>
+      We had not written that scenario. The gate refused to hand back a rollback plan while one step
+      in the unit might or might not have reached the outside world, which is exactly right and is
+      the single most dangerous moment in any compensation flow. We left the bug in the script long
+      enough to keep the transcript.
+    </p>
+
+    <h2>Two: a loop that will not stop</h2>
+
+    <p>
+      An agent gets stuck. Not a duplicate — a genuine loop producing a hundred
+      <em>distinct</em> charges with a hundred distinct idempotency keys. Idempotency cannot help
+      here. Every one of them is a different piece of work, and every one is correct in isolation.
+    </p>
+
+    <p>
+      A spend budget is the usual answer and it is the wrong one twice over. It only catches this if
+      the amounts are large, and by the time a ceiling in dollars trips, the money is already gone.
+      Surge containment asks a different question: not <em>how much is this costing</em> but
+      <em>how much is this happening</em>.
+    </p>
+
+<pre><code>PUT /v1/policies/payment.charge
+{ "surge_per_hour": 20, "surge_action": "deny" }</code></pre>
+
+    <p>Then a hundred concurrent attempts, all distinct:</p>
+
+<pre><code>100 concurrent attempts, settled in 341ms:
+    80  denied
+    20  execute
+
+Reached the vendor: 20. Held back: 80.</code></pre>
+
+    <p>
+      Twenty is the ceiling, and twenty is what got through — not nineteen, not twenty-three. The
+      count is enforced by the database, not by application logic racing itself. And the breaker
+      says why it opened:
+    </p>
+
+<pre><code>{
+  "effect_type": "payment.charge",
+  "state": "open",
+  "action": "deny",
+  "resets_at": "2026-09-01T08:58:28.396Z",
+  "observed": 21,
+  "threshold": 20,
+  "reason": "21 \"payment.charge\" effects since this breaker last
+             cleared exceeds the configured ceiling of 20 per hour."
+}</code></pre>
+
+    <p>
+      One effect type stopped. Everything else in the workspace keeps running. That is the
+      difference between containment and an outage.
+    </p>
+
+    <h2>A number we threw away</h2>
+
+    <p>
+      The first version of this test fired six hundred attempts and reported that the ceiling had
+      held them to nineteen. The number was true. The explanation was wrong: 495 of those six
+      hundred never reached the ceiling at all, because the request rate limiter — a different
+      defence, several layers earlier — refused them first. Surge containment only ever judged about
+      a hundred of them.
+    </p>
+
+    <p>
+      A true number with the wrong cause attached is worse than a wrong number, because nobody can
+      catch it. We dropped the burst below the request limit so that what is measured is the one
+      thing being described. Six hundred to nineteen was the better headline. A hundred to twenty is
+      the one we can defend.
+    </p>
+
+    <h2>So are these features important?</h2>
+
+    <p>
+      They answer the questions that come after the first one. At-most-once initiation stops the
+      same action happening twice. It has nothing to say about four actions that happened and one
+      that did not, or about a thousand different actions that should never have been attempted at
+      all. Those are the failures that produce the phone call.
+    </p>
+
+    <p>
+      Both are off by default. An unrequested ceiling that starts refusing work is worse than no
+      ceiling, and a group you did not ask for is just extra fields. You turn them on per effect
+      type, for the handful of actions that would hurt.
+    </p>
+
+    <p class="small faint" style="margin-top:2.5rem">
+      We build <a href="/">Ratchet</a>, a gate that decides whether an AI agent may perform a side
+      effect. The script that produced every transcript above is
+      <a href="https://github.com/thearchitect0x-glitch/ratchet">in the repository</a> as
+      <code>scripts/case-study.ts</code>. Run it against your own instance and you should get the
+      same shapes and the same counts.
+    </p>
+  </div>
+</section>
+</main>
+<footer class="site"></footer>
+<script type="module" src="/assets/notes.js"></script>
+</body>
+</html>

@@ -73,3 +73,51 @@ either prefix still 404s. Covered by four tests in `test/e2e/canonical.test.ts`,
 including one asserting no page still links to `/blog`.
 
 An RSS `pubDate` named the wrong weekday (Sun for 31 August 2026, a Monday).
+
+---
+
+# Addendum — 1 September 2026
+
+## The user's question
+
+> Are reversible effect groups and surge containment important? A before and
+> after case study might show benefits.
+
+**Yes, and the case study was the right instinct with the wrong format.**
+
+A case study needs a customer. We have none, and writing *"Acme cut duplicate
+charges by 94%"* would be fabricating evidence for a product whose entire claim
+is that it tells the truth about what happened. That trade is never worth it.
+
+What replaces it: **`scripts/case-study.ts`** — a script that runs both
+scenarios against a live instance and prints the real transcript. Published as
+[/notes/what-happens-when-step-five-fails]. Anyone can run `npm run case-study`
+and get the same shapes and the same counts. Reproducible beats persuasive.
+
+## Two things the script found
+
+**The API refused to hand back a rollback plan.** An early version reported the
+failed payment with an `error` field instead of `failure_reason`. Bodies are
+`additionalProperties: false`, so the API correctly returned 400 — and the
+script did not check, so the payment was still `pending` at unwind time. The
+reply was not the plan; it was `"STOP. 1 effect(s) in this group have an unknown
+outcome."` That behaviour was not written for this test and is the single most
+dangerous moment in any compensation flow. It is now quoted in the article.
+
+**A true number with the wrong cause.** The first surge run fired 600 attempts
+and reported the ceiling held them to 19. True — but 495 were refused by the
+*request rate limiter*, several layers earlier. Surge containment only judged
+about 100 of them. Publishing that would have credited the wrong mechanism, and
+nobody outside could have caught it. The burst is now kept under the request
+limit so the measurement isolates the ceiling: **100 concurrent distinct charges,
+20 execute, 80 denied**, in 341ms.
+
+Both failures came from the same habit: not checking a response. `call()` in
+the script now throws on any unexpected status. Compare the backup script that
+swallowed errors into `/dev/null` — same bug, third occurrence.
+
+## Rule
+
+Never publish a measured number without checking which mechanism produced it.
+A number whose cause is misattributed is worse than one that is simply wrong,
+because it survives review.

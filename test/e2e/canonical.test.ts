@@ -5,6 +5,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildApp } from '../../src/api/app.js';
+import { readFileSync } from 'node:fs';
 import { closePool } from '../helpers.js';
 
 let app: Awaited<ReturnType<typeof buildApp>>;
@@ -70,10 +71,33 @@ describe('canonical host redirect', () => {
 describe('notes section', () => {
   // Renamed from /blog on 31 August 2026. The article was already published at
   // the old path, so the redirects are part of the contract, not tidy-up.
-  test('serves the notes index and the article', async () => {
-    for (const url of ['/notes', '/notes/idempotency-keys-are-broken-on-macos']) {
-      const r = await app.inject({ method: 'GET', url });
-      assert.equal(r.statusCode, 200, `${url} should be served`);
+  test('serves the notes index', async () => {
+    const r = await app.inject({ method: 'GET', url: '/notes' });
+    assert.equal(r.statusCode, 200);
+  });
+
+  // Derived from the sitemap rather than a hard-coded list, so publishing an
+  // article and forgetting to route it fails here instead of 404ing in public.
+  test('every article the sitemap advertises is actually served', async () => {
+    const sitemap = readFileSync(
+      new URL('../../web/sitemap.xml', import.meta.url), 'utf8');
+    const slugs = [...sitemap.matchAll(/<loc>[^<]*\/notes\/([^<]+)<\/loc>/g)]
+      .map((m) => m[1]);
+    assert.ok(slugs.length > 0, 'the sitemap should list at least one article');
+    for (const slug of slugs) {
+      const r = await app.inject({ method: 'GET', url: `/notes/${slug}` });
+      assert.equal(r.statusCode, 200, `/notes/${slug} is in the sitemap but 404s`);
+    }
+  });
+
+  test('every article the notes index links to is served', async () => {
+    const index = await app.inject({ method: 'GET', url: '/notes' });
+    const slugs = [...index.body.matchAll(/href="\/notes\/([a-z0-9-]+)"/g)]
+      .map((m) => m[1]);
+    assert.ok(slugs.length > 0, 'the index should link to at least one article');
+    for (const slug of slugs) {
+      const r = await app.inject({ method: 'GET', url: `/notes/${slug}` });
+      assert.equal(r.statusCode, 200, `the index links to /notes/${slug}, which 404s`);
     }
   });
 

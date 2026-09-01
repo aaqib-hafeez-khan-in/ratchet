@@ -319,7 +319,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   // instead of silently serving the index.
   app.get('/notes', { schema: { hide: true } },
     async (_req, reply) => reply.sendFile('notes/index.html'));
-  const POSTS = ['idempotency-keys-are-broken-on-macos'];
+  const POSTS = ['idempotency-keys-are-broken-on-macos',
+                 'what-happens-when-step-five-fails'];
   for (const slug of POSTS) {
     app.get(`/notes/${slug}`, { schema: { hide: true } },
       async (_req, reply) => reply.sendFile(`notes/${slug}.html`));

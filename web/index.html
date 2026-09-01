@@ -200,6 +200,31 @@
 
 <section>
   <div class="wrap">
+    <!-- The two features in beats 3 and 5 are the ones people ask about least
+         and need most, and a diagram is not evidence. This links to the same
+         two scenarios run against the live service, transcripts included. -->
+    <div class="entry" style="align-items:center">
+      <div>
+        <p class="eyebrow">Both of those, run for real</p>
+        <p>A booking agent gets four steps in and the payment declines. A loop bug fires a
+           hundred distinct charges. Here are both, against the live service, with the
+           transcripts — and the number we had to throw away.</p>
+        <a class="btn small secondary" href="/notes/what-happens-when-step-five-fails">
+          Read the worked scenarios</a>
+      </div>
+      <div>
+<pre class="snippet tight"><code>100 concurrent attempts, settled in 341ms:
+    80  denied
+    20  execute
+
+Reached the vendor: 20. Held back: 80.</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
     <h2>The problem is not that agents fail. It's that they retry.</h2>
     <p class="dim" style="max-width:64ch">
       An LLM's control flow is non-deterministic. Network calls fail ambiguously. Processes die
