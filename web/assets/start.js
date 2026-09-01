@@ -12,13 +12,13 @@ document.getElementById('c-key').innerHTML = highlight(
 #      "agent_api_key": "rk_live_...",  <- put THIS one in your agent
 #      "workspace_id": "ws_..." }`);
 
-const SETUP = {
-  claudecode: {
-    code: `# In your project root:
-claude mcp add ratchet --env RATCHET_API_KEY=rk_live_... -- npx -y ratchet-mcp
-
-# Or add .mcp.json by hand:
-{
+/*
+ * Each tab is a list of parts rather than one block. They used to be a single
+ * <pre> mixing a shell command with the JSON config that replaces it — two
+ * alternatives sharing a copy button, so copying either gave you both. A
+ * caption above each part says where it goes; the block itself stays pasteable.
+ */
+const MCP_CONFIG = `{
   "mcpServers": {
     "ratchet": {
       "command": "npx",
@@ -26,55 +26,55 @@ claude mcp add ratchet --env RATCHET_API_KEY=rk_live_... -- npx -y ratchet-mcp
       "env": { "RATCHET_API_KEY": "rk_live_..." }
     }
   }
-}`,
+}`;
+
+const SETUP = {
+  claudecode: {
+    parts: [
+      { caption: 'In your project root', code:
+        'claude mcp add ratchet --env RATCHET_API_KEY=rk_live_... -- npx -y ratchet-mcp' },
+      { caption: 'Or write .mcp.json by hand', code: MCP_CONFIG },
+    ],
     note: 'Restart Claude Code afterwards. Ask it to "check ratchet usage" to confirm the tools loaded.',
   },
   desktop: {
-    code: `# macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
-# Windows: %APPDATA%\\\\Claude\\\\claude_desktop_config.json
-
-{
-  "mcpServers": {
-    "ratchet": {
-      "command": "npx",
-      "args": ["-y", "ratchet-mcp"],
-      "env": { "RATCHET_API_KEY": "rk_live_..." }
-    }
-  }
-}`,
+    parts: [
+      { caption: 'macOS: ~/Library/Application Support/Claude/claude_desktop_config.json — '
+               + 'Windows: %APPDATA%\\\\Claude\\\\claude_desktop_config.json',
+        code: MCP_CONFIG },
+    ],
     note: 'Quit and reopen Claude Desktop — it only reads this file at startup. The tools appear under the connectors icon.',
   },
   cursor: {
-    code: `# .cursor/mcp.json in the project, or ~/.cursor/mcp.json for all projects
-
-{
-  "mcpServers": {
-    "ratchet": {
-      "command": "npx",
-      "args": ["-y", "ratchet-mcp"],
-      "env": { "RATCHET_API_KEY": "rk_live_..." }
-    }
-  }
-}`,
+    parts: [
+      { caption: '.cursor/mcp.json in the project, or ~/.cursor/mcp.json for all projects',
+        code: MCP_CONFIG },
+    ],
     note: 'Cursor can also connect over HTTP: set "url" to ' + BASE + '/mcp with an Authorization header.',
   },
   http: {
-    code: `# No MCP client needed. Two POSTs.
-
-POST ${BASE}/v1/effects/begin
+    parts: [
+      { caption: 'No MCP client needed. Two POSTs.', code:
+`POST ${BASE}/v1/effects/begin
 Authorization: Bearer rk_live_...
 { "effect_type": "email.send", "idempotency_key": "welcome:user_123" }
 
 POST ${BASE}/v1/effects/{effect_id}/report
 Authorization: Bearer rk_live_...
-{ "lease_token": "lt_...", "outcome": "succeeded", "result": {...} }`,
+{ "lease_token": "lt_...", "outcome": "succeeded", "result": {...} }` },
+    ],
     note: 'Works from any language. The OpenAPI spec at /openapi.json can generate a client if you want one.',
   },
 };
 
+const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
 tabs(document.getElementById('setup-tabs'), (name) => {
-  document.getElementById('c-setup').innerHTML = highlight(SETUP[name].code);
-  document.getElementById('setup-note').textContent = SETUP[name].note;
+  const { parts, note } = SETUP[name];
+  document.getElementById('c-setup').innerHTML = parts.map((part) =>
+    `<p class="caption">${esc(part.caption)}</p>
+     <pre><code>${highlight(part.code)}</code></pre>`).join('');
+  document.getElementById('setup-note').textContent = note;
 });
 
 document.getElementById('c-wrap').innerHTML = highlight(

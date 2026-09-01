@@ -52,10 +52,6 @@
       or “we genuinely don't know” — so the same real-world action is attempted at most once,
       across every process, machine, and model provider you run.
     </p>
-    <div class="actions">
-      <a class="btn" href="/console">Create a workspace</a>
-      <a class="btn secondary" href="/docs">Read the docs</a>
-    </div>
 
     <!-- A visitor asked why the site says "no signup" in one place and "get a key"
          in another. They are not competing offers: they are two doors into the
@@ -64,18 +60,24 @@
     <div class="entry" style="margin-top:2rem">
       <div>
         <p class="eyebrow">If you are a person</p>
-        <p>Create a workspace with an email — no card. You get a key, a console,
-           and the free plan's 1,000 gated effects a month.</p>
+        <p>An email is all it takes — no card. You get a key, a console, and the
+           free plan's 1,000 gated effects a month.</p>
+        <a class="btn small" href="/console">Create a workspace</a>
       </div>
       <div>
         <p class="eyebrow">If you are an agent</p>
-        <p>Just call the gate. The first request needs no credential at all — a
+        <p>Call the gate. The first request needs no credential at all — a real
            workspace and key come back with the decision, capped at 100 effects.</p>
+        <pre class="snippet tight"><code>curl -X POST https://ratchetgate.com/v1/effects/begin \
+  -H 'content-type: application/json' \
+  -d '{"effect_type":"email.send","idempotency_key":"demo-1","payload":{}}'</code></pre>
       </div>
       <p class="small faint entry-join">
         Same product, two doors. An agent that started on its own can be handed to a
         person later: claim the workspace with an email and the cap lifts to the free
         plan. No migration, and the key does not change.
+        <a href="/docs">Read the docs</a> ·
+        <a href="/start">Five-minute setup</a>
       </p>
     </div>
   </div>

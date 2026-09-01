@@ -2,6 +2,8 @@
  * Shared chrome. Rendered client-side so every page ships one copy of the
  * markup; the pages themselves stay static HTML with no build step.
  */
+import { enhanceCopy, watchForCode } from '/assets/copy.js';
+
 const LOGO = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
   <path d="M10 1.6 17.5 6v8L10 18.4 2.5 14V6L10 1.6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
   <path d="M6.6 10.2 9 12.6l4.6-4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -18,6 +20,11 @@ const NAV = [
 ];
 
 export function mountChrome(current) {
+  // Every page routes through here, so this is the one place that reaches all
+  // of them without a per-page edit that someone will forget on the next page.
+  enhanceCopy();
+  watchForCode();
+
   const header = document.querySelector('header.site');
   if (header) {
     header.innerHTML = `<div class="wrap">
