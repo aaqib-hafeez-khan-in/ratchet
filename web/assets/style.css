@@ -310,7 +310,11 @@ ul.checks li::before {
    Scroll-driven so the reader sets the pace and can stop anywhere. Under
    prefers-reduced-motion the whole thing becomes a stacked static diagram. */
 
-.stage { position: relative; height: 620vh; }
+/* 420vh, not 620. Six beats over 620vh means a full screen of scrolling per
+   beat, which is the single largest reason the page feels long — six screens
+   spent before the reader reaches anything they can scan. Seventy per beat is
+   still an unhurried read and returns two screens to the page. */
+.stage { position: relative; height: 420vh; }
 
 .stage-pin {
   position: sticky; top: 58px;
@@ -611,7 +615,7 @@ ul.checks li::before {
   .verdict, .unwind div { opacity: 1; transform: none; transition: none; }
 }
 @media (max-width: 640px) {
-  .stage { height: 520vh; }
+  .stage { height: 380vh; }
   .scene { height: 150px; }
   .node span { font-size: 0.68rem; }
 }
@@ -1043,3 +1047,16 @@ ul.checks li::before {
    Get started, the FAQ, the notes — keep `.narrow`, because there is no edge
    for them to disagree with. */
 .wrap.reading > * { max-width: 780px; }
+
+/* Below the depth seam, link rather than argue. The divider promises "the part
+   you will want later"; four essays is not that. */
+.rest { list-style: none; padding: 0; margin: 1.5rem 0 0; display: grid; gap: 1rem; max-width: 64ch; }
+.rest li { color: var(--text-dim); line-height: 1.55; padding-left: 1.1rem; position: relative; }
+.rest li::before {
+  content: ""; position: absolute; left: 0; top: 0.62em;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+}
+.rest a { text-decoration: none; }
+.rest a strong { color: var(--text); font-weight: 600; }
+.rest a:hover strong { color: var(--accent); }
+.rest a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }

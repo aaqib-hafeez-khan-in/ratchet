@@ -305,160 +305,90 @@ Reached the vendor: 20. Held back: 80.</code></pre>
   <div class="wrap">
     <p class="eyebrow">What a repeat actually costs</p>
     <h2>Not knowing is the expensive part</h2>
-    <p class="lede" style="max-width:64ch">
+    <p class="lede" style="max-width:62ch">
       An agent that cannot tell whether it already charged the card has three options,
       and all three cost you.
     </p>
 
-    <div class="grid three" style="margin-top:2rem">
+    <div class="grid three" style="margin-top:1.75rem">
       <div class="card">
         <h3>Do it again</h3>
-        <p class="small dim" style="margin:0">
-          The customer is charged twice. You refund it, eat the fee, and answer the
-          email. The vendor already took the money — the mistake is real before
-          anyone notices.
-        </p>
+        <p class="small dim" style="margin:0">Charged twice. You refund it and eat the fee.</p>
       </div>
       <div class="card">
         <h3>Don't</h3>
-        <p class="small dim" style="margin:0">
-          The work silently never completes. Nobody finds out until the person who
-          was waiting for it complains, which is the most expensive way to learn
-          anything.
-        </p>
+        <p class="small dim" style="margin:0">The work never completes, and you hear it from
+          the customer.</p>
       </div>
       <div class="card">
-        <h3>Go and find out</h3>
-        <p class="small dim" style="margin:0">
-          Query the vendor, re-read your own state, hand it back to the model to
-          decide. This is the loop that burns tokens and minutes — on every
-          ambiguous action, for as long as the agent runs.
-        </p>
+        <h3>Work it out</h3>
+        <p class="small dim" style="margin:0">A vendor round trip plus a model turn — on every
+          ambiguous action, forever.</p>
       </div>
     </div>
 
-    <p style="max-width:64ch;margin-top:1.75rem">
-      The gate replaces all three with one call. A repeat is answered from the
-      recorded outcome, which is why the interesting number is not how fast the gate
-      decides but how much work it removes: the third option above is a round trip to
-      a vendor plus a model turn, and it becomes a single lookup.
+    <p style="max-width:62ch;margin-top:1.5rem">
+      The gate replaces all three with one lookup. A repeat is answered from the recorded
+      outcome in <strong>2.3ms</strong>, a new effect in 5.1ms, and a capped runaway loop
+      let 20 of 100 attempts through — measured with the scripts in the repository, in
+      process and excluding the network time to you.
+      <a href="/notes/what-happens-when-step-five-fails">The transcripts</a>.
     </p>
 
-    <div class="figures" style="margin-top:1.5rem">
-      <div class="fig good">
-        <dt>Repeat answered in</dt>
-        <dd>2.3ms</dd>
-        <div class="note">p50, from the recorded result, instead of performing the action again.</div>
-      </div>
-      <div class="fig">
-        <dt>First ask</dt>
-        <dd>5.1ms</dd>
-        <div class="note">p50 for a brand-new effect, including the durable write.</div>
-      </div>
-      <div class="fig">
-        <dt>200 at once, one key</dt>
-        <dd>1</dd>
-        <div class="note">Exactly one caller authorised, settled in 189ms.</div>
-      </div>
-      <div class="fig good">
-        <dt>Runaway loop, capped</dt>
-        <dd>20 / 100</dd>
-        <div class="note">100 distinct charges attempted, 80 refused by the ceiling you set.</div>
-      </div>
-    </div>
-
-    <p class="small faint" style="max-width:66ch;margin-top:1rem">
-      Measured with <code>scripts/bench.ts</code> and <code>scripts/case-study.ts</code>,
-      both in the repository. Latency is in-process against a real Postgres and excludes
-      network time to you — your number will be dominated by the round trip, which is
-      the honest way to read it.
-      <a href="/notes/what-happens-when-step-five-fails">The full transcripts</a>.
-    </p>
-
-    <p class="dim" style="max-width:64ch;margin-top:1.5rem">
-      <strong>And your console adds it up.</strong> Every refusal on an effect that
-      declared a cost is counted, so <code>/usage/prevented</code> answers “what did
-      this save me” in dollars not spent at your vendors — never an estimate we
-      invented, and reported as <em>at least</em> that figure, because effects
-      without a declared cost are not counted at all.
-    </p>
-
-    <p class="small faint" style="max-width:64ch;margin-top:1.25rem">
-      <strong>What this does not do.</strong> Ratchet never sees your model calls. It
-      does not make inference cheaper, prompts shorter, or a model faster, and anyone
-      telling you a gate does that is selling something. What it removes is the work
-      you would otherwise do to find out what already happened.
+    <p class="small faint" style="max-width:64ch;margin-top:1rem">
+      Ratchet never sees your model calls and does not make inference cheaper. What it
+      removes is the work you would do to find out what already happened. Your console adds
+      up the refusals in dollars not spent at vendors, and reports it as <em>at least</em>
+      that, because effects without a declared cost are not counted.
     </p>
   </div>
 </section>
 
-<!-- Asked what an agent most needs, the honest answer came from watching this
-     one work: pushing a branch eight times believing each push landed, when
-     every one was a no-op. That is not a reasoning failure. An agent's memory of
-     its own actions lives in its context window, which is lossy, expensive and
-     unverifiable. Ratchet was already writing that record and never let the
-     agent read it. -->
 <section id="memory">
   <div class="wrap">
     <p class="eyebrow">New</p>
     <h2>A run gets a memory, and a wallet</h2>
-    <p class="lede" style="max-width:64ch">
-      An agent's memory of what it has done lives in its context window — the worst
-      possible place to keep it. Compaction summarises it away, every token of it is paid
-      for again each turn, and it cannot be checked: an agent can sincerely believe it
-      sent the email and be wrong.
+    <p class="lede" style="max-width:62ch">
+      An agent's memory of what it has done lives in its context window — lossy under
+      compaction, paid for again every turn, and impossible to check. It can sincerely
+      believe it sent the email and be wrong.
     </p>
 
-    <div class="grid two" style="margin-top:2rem">
+    <div class="grid two" style="margin-top:1.75rem">
       <div class="card">
         <h3>Ask what you already did</h3>
-        <p class="small dim">
-          One call returns the work already gated under a task: what succeeded, with the
-          recorded results, so you use them instead of doing it again. What is still in
-          flight. And — kept separate, because it is the only category that can hurt —
-          what has an outcome nobody knows.
-        </p>
 <pre class="snippet tight"><code>GET /v1/runs/trip-8812
 
-{ "done": [ { "what": "flight.book", "outcome": "succeeded" } ],
+{ "done":    [ { "what": "flight.book", "outcome": "succeeded" } ],
   "unknown": [],
-  "budget": { "remaining_micros": 140000 },
-  "next": "Everything under this run is settled." }</code></pre>
+  "budget":  { "remaining_micros": 140000 },
+  "next":    "Everything under this run is settled." }</code></pre>
+        <p class="small dim" style="margin:.75rem 0 0">Successes come back with their
+          recorded results. Unknown outcomes are kept separate — the only category that can
+          hurt you.</p>
       </div>
-
       <div class="card">
         <h3>Give the task a budget</h3>
-        <p class="small dim">
-          <em>This job may spend fifty dollars</em> was a sentence nobody could say. Daily
-          limits bind a key or an effect type; neither is a task. Now a run carries its own
-          wallet, and the gate refuses the step that would cross it — before the money
-          moves, which is the only moment refusing is still cheap.
-        </p>
 <pre class="snippet tight"><code>PUT /v1/runs/trip-8812/budget
 { "limit_micros": 50000000 }</code></pre>
+        <p class="small dim" style="margin:.75rem 0 0"><em>This job may spend fifty
+          dollars</em> was a sentence nobody could say: daily limits bind a key or an effect
+          type, and neither is a task.</p>
       </div>
     </div>
 
-    <p style="max-width:64ch;margin-top:1.75rem">
-      The half that matters is not the ceiling. Budgets could always refuse. It is that the
-      agent can <strong>read its own remaining balance</strong> — and an agent that can see
-      what is left behaves differently from one that can only be stopped. It takes the
-      cheaper path, batches the work, asks for approval, or finishes early and says why.
-      Being refused at the moment of spending is the worst possible time to learn a limit
-      exists.
+    <p style="max-width:62ch;margin-top:1.5rem">
+      The half that matters is not the ceiling — budgets could always refuse. It is that the
+      agent can <strong>read its own balance</strong>, and one that sees what is left takes
+      the cheaper path or stops cleanly, instead of learning the limit exists at the moment
+      it spends. It cannot raise that ceiling: reading needs the scope agents carry, setting
+      needs one they do not.
     </p>
 
-    <p class="dim" style="max-width:64ch;margin-top:1.25rem">
-      <strong>An agent cannot raise its own ceiling.</strong> Reading the balance needs the
-      scope agents carry; setting it needs one they do not, and there is deliberately no
-      tool for it in the MCP toolbox. A limit the agent can lift is decoration.
-    </p>
-
-    <p class="small faint" style="max-width:66ch;margin-top:1.25rem">
-      Measured on a real run: a full effect record is 864 bytes, so a twelve-step task
-      listed in full is 10.1KB of context. The digest is 0.6KB — about seventeen times
-      smaller. That ratio is the point, because a memory costing more than re-deriving the
-      answer does not get used.
+    <p class="small faint" style="max-width:64ch;margin-top:1rem">
+      A twelve-step task listed in full is 10.1KB of context. The digest is 0.6KB — about
+      seventeen times smaller, because a memory that costs more than re-deriving the answer
+      does not get used.
     </p>
   </div>
 </section>
@@ -578,233 +508,72 @@ Reached the vendor: 20. Held back: 80.</code></pre>
   <div class="wrap">
     <p class="eyebrow">Signed receipts</p>
     <h2>Don't trust us. Check us.</h2>
-    <p class="lede" style="max-width:66ch">
-      A gate's work is invisible. The charge that didn't happen leaves no trace, and
-      "trust us, we stopped it" is unfalsifiable — a bad place to stand for a product
-      whose whole pitch is rigour.
+    <p class="lede" style="max-width:62ch">
+      A gate's work is invisible. The charge that did not happen leaves no trace, and
+      "trust us, we stopped it" is unfalsifiable — a poor place to stand for a product
+      whose pitch is rigour.
     </p>
-    <p style="max-width:66ch">
-      So every decision now leaves a <strong>signed receipt</strong>, and refusals most of
-      all. Verify it offline against a
-      <a href="/.well-known/ratchet-receipt-key">published Ed25519 key</a> — no need to ask
-      us anything. Receipts are hash-chained, so removing one breaks every link after it.
-      <code>GET /v1/receipts/audit</code> recomputes the whole chain from stored bytes and
-      trusts none of its own columns.
+    <p style="max-width:62ch">
+      Every decision leaves a <strong>signed receipt</strong>, refusals most of all.
+      Verify one offline against a
+      <a href="/.well-known/ratchet-receipt-key">published Ed25519 key</a>, without asking
+      us anything. They are hash-chained, so removing one breaks every link after it.
     </p>
-
-    <h3 style="margin-top:2rem">The failure we can't see from here</h3>
-    <p style="max-width:66ch">
-      A gate only sees the calls that reach it. The path in your system that never asked —
-      the old cron job, the script nobody owns — is invisible to us and to you.
-      <code>POST /v1/reconcile</code> closes that: send the keys your vendor says it acted
-      on, and we tell you which ones we authorised.
-    </p>
-    <pre class="snippet"><code>POST /v1/reconcile  { "effect_type": "payment.refund", "keys": [ … ] }
-
-→ { "checked": 1204, "gated": 1198, "ungated": 6,
-    "meaning": "6 action(s) reached the vendor without ever asking Ratchet.
-                Those code paths are unprotected: a retry there can act twice." }</code></pre>
-    <p class="small dim" style="max-width:66ch">
-      You send references, never credentials. Ratchet still holds no vendor access, and this
-      doesn't change that.
-    </p>
-
-    <h3 style="margin-top:2rem">A ceiling nothing counts toward isn't a ceiling</h3>
-    <p style="max-width:66ch">
-      Spend limits are computed from the cost you declare on each call. Declare nothing and
-      the check doesn't merely under-count — it <strong>exits immediately</strong>. You can
-      configure a $100/day limit, believe you're protected, and have it never fire once.
-    </p>
-    <p class="dim" style="max-width:66ch">
-      So send <code>estimated_cost_micros</code> whenever an action costs money. If a limit
-      exists and you didn't, the response now carries a <code>budget_warning</code> saying
-      so — and setting <code>require_cost</code> on a policy refuses the call outright,
-      turning a silent gap into an explicit decision.
-    </p>
-
-    <h3 style="margin-top:2rem">What it actually saved</h3>
-    <p class="dim" style="max-width:66ch">
-      <code>GET /v1/usage/prevented</code> counts the duplicates refused and what they
-      would have cost. It counts only refusals where you declared a cost up front, so it
-      under-reports rather than flatters — and it's money not spent at your vendors, never
-      revenue paid to us.
+    <p style="max-width:62ch">
+      And a gate only sees the calls that reach it — the old cron job that never asked is
+      invisible to us and to you. <code>POST /v1/reconcile</code> closes that: send the
+      keys your vendor acted on, and we say which ones we authorised. Anything we do not
+      recognise is a path where a retry can act twice.
+      <a href="/security">How all of this is built, and what we do not claim</a>.
     </p>
   </div>
 </section>
 
-<!-- A reader asked whether the page is ordered highest value to lowest. It was
-     not: it was ordered as an argument, which is what you write to convince a
-     sceptic and not what you write to orient someone who arrived thirty seconds
-     ago. Everything above this line is the product. Everything below is the
-     part you want on the day you need it, and this rule says so rather than
-     making anyone infer it from length. -->
+<!-- A reader asked whether the page runs highest value to lowest. It did not —
+     it ran as an argument, which convinces a sceptic and disorients somebody who
+     arrived thirty seconds ago. Rather than reorder the sections and lose the
+     thread, this names the seam, so a scanner knows they have already had the
+     point and everything below is optional. -->
 <div class="depth">
   <div class="wrap">
     <span>That is the whole product.</span>
-    <p>What follows is the part you will want later — the runaway loop, the agent that
-       does not ask, and undoing four steps when the fifth fails.</p>
+    <p>Everything below is optional depth — the controls you will want on the day you
+       need them, and the practical answers about platforms, payment and price.</p>
   </div>
 </div>
 
 <section>
   <div class="wrap">
-    <p class="eyebrow">New: surge containment</p>
-    <h2>The loop that costs nothing is the&nbsp;one that ruins you</h2>
-    <p class="lede" style="max-width:66ch">
-      Spend limits catch an agent burning money. They don't catch an agent doing too
-      <em>much</em> — and that failure is usually free. Five thousand emails instead of
-      three costs about a dollar. Every one of them is small, authorised, and
-      indistinguishable from correct work.
-    </p>
-    <p style="max-width:66ch">
-      No per-effect limit can see it, because nothing is wrong with any single effect.
-      Only the <em>rate</em> gives it away. Ratchet sits at the one place that sees the
-      rate — every intended effect passes through the gate before it happens — so the
-      surge gets caught while it's still three emails in.
+    <h2>The rest of it, in one place</h2>
+    <p class="dim" style="max-width:62ch">
+      Each of these is a real control with a real page behind it. None of them is
+      something you need on day one.
     </p>
 
-    <pre class="snippet"><code>PUT /v1/policies/email.send  { "surge_per_hour": 400 }
-
-# 400/hour is fine here. 401 means something is looping.
-
-→ { "decision": "approval_required",
-    "reason":   "Circuit breaker open for \"email.send\": 401 effects
-                 this hour exceeds the configured ceiling of 400." }</code></pre>
-
-    <p style="max-width:66ch">
-      Notice what that decision <em>isn't</em>. The agent isn't killed — it's held. A
-      blocked agent loses its work and its context; a waiting one keeps both while a human
-      decides, and nothing irreversible happens in between. Choose <code>deny</code> if you
-      really do want it stopped dead, or <code>monitor</code> to watch for a week before
-      enforcing anything.
-    </p>
-    <p class="dim" style="max-width:66ch">
-      And when you need the big red button, it's one call:
-      <code>POST /v1/circuits/*/open</code> halts every effect type in the workspace. A
-      breaker you open by hand has no cooldown — it stays open until you close it, because
-      a control you reached for in a panic must not quietly undo itself while you sleep.
-    </p>
-    <p class="small dim" style="max-width:66ch">
-      Off until you set a threshold. Agent keys can't close a breaker — an agent that can
-      switch off its own containment hasn't been contained.
-    </p>
-  </div>
-</section>
-
-<section id="anything">
-  <div class="wrap">
-    <p class="eyebrow">Vendor-enforced idempotency</p>
-    <h2>A gate only stops the agents that ask</h2>
-    <p class="lede" style="max-width:66ch">
-      Here is the weakness every product in this category shares, and most don't mention.
-      A well-behaved agent asks permission. The agent you're actually afraid of — the one
-      in a retry loop, the cron job someone wrote last year, the colleague's script — just
-      doesn't call. Ask-first protection is advisory, and advisory protection fails exactly
-      when you need it.
-    </p>
-    <p style="max-width:66ch">
-      So don't rely on being asked. When Ratchet authorises an effect it now hands back
-      <strong>the idempotency key the vendor itself deduplicates on</strong>. You pass it to
-      Stripe, or Square, or Adyen. The duplicate is then refused by
-      <em>the vendor</em> — not prevented by your agent's good manners, and not dependent on
-      anything reaching us at all.
-    </p>
-
-    <pre class="snippet"><code>POST /v1/effects/begin   { "effect_type": "payment.charge",
-                           "idempotency_key": "refund:A-771:49.99",
-                           "vendor": "stripe" }
-
-→ { "decision": "execute",
-    "vendor_idempotency_key": {
-      "key":       "rtk_9f2c…",
-      "placement": "Idempotency-Key header",
-      "enforced":  true } }
-
-# Send that key to Stripe. Stripe now refuses the second charge itself.</code></pre>
-
-    <p class="dim" style="max-width:66ch">
-      The key is derived per <em>attempt</em>, which is the part that matters. Retrying the
-      same attempt reuses it, so the vendor refuses the duplicate. A genuine retry after a
-      reported failure gets a fresh key, so the vendor doesn't replay the old failure forever
-      and leave the effect permanently stuck.
-    </p>
-    <p class="small dim" style="max-width:66ch">
-      Composed with a vendor that honours idempotency keys, at-most-once <em>initiation</em>
-      becomes at-most-once <em>execution at that vendor</em>. Where a vendor does not
-      deduplicate, the response says <code>enforced: false</code> and the gate stays advisory —
-      we'd rather tell you than let you assume. The
-      <a href="/vendors">free vendor directory</a> lists which is which, no account needed —
-      as a <a href="/vendors">page</a> or as <a href="/v1/vendors">JSON</a>.
-    </p>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <p class="eyebrow">Reversible effect groups</p>
-    <h2>Undo is the hard part</h2>
-    <p class="dim" style="max-width:64ch">
-      At-most-once tells you whether something happened. It does not help when three of five
-      steps happened and the fourth failed — and your customer is holding a flight for a trip
-      that was never paid for.
-    </p>
-    <div class="grid two" style="margin-top:1.75rem;align-items:start">
-      <div>
-        <pre><code id="grp-code"></code></pre>
-      </div>
-      <div>
-        <ul class="checks">
-          <li><strong>Reverse order, always.</strong> The last thing done is the first thing
-              undone, because undoing forward strands whatever depended on it.</li>
-          <li><strong>Every undo is itself gated.</strong> A compensation is just another effect,
-              so a retried rollback cannot double-refund. That is the failure that makes
-              hand-rolled rollback dangerous.</li>
-          <li><strong>It refuses to lie.</strong> A step that declared no way to undo itself is
-              reported irreversible, and the group settles <code>unwind_failed</code> rather than
-              claiming a clean rollback. An email cannot be unsent.</li>
-          <li><strong>Unknowns block the plan.</strong> If any step's outcome is uncertain, the
-              rollback stops until you verify it. Rolling back past a maybe is how half-undone
-              states are made.</li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <h2>Also, while we're holding the gate</h2>
-    <div class="grid two" style="margin-top:1.5rem">
-      <div class="card">
-        <h3>Spend ceilings that actually bind</h3>
-        <p class="small dim">
-          Declare what an action costs you. Ratchet reserves it against per-key, per-effect-type,
-          and per-workspace daily budgets — atomically, so twenty parallel workers cannot
-          collectively blow a limit that each of them individually respects.
-        </p>
-      </div>
-      <div class="card">
-        <h3>Approval gates without a human in every loop</h3>
-        <p class="small dim">
-          Mark an effect type <code>require_approval</code> and only that type pauses. Everything
-          else keeps running unattended. Configure once; no per-call babysitting.
-        </p>
-      </div>
-      <div class="card">
-        <h3>An audit trail you didn't have to build</h3>
-        <p class="small dim">
-          Every decision, lease, outcome, and resolution is recorded with the agent and run that
-          caused it. When someone asks “did we email them twice?”, there is an answer.
-        </p>
-      </div>
-      <div class="card">
-        <h3>Fencing tokens, not just locks</h3>
-        <p class="small dim">
-          A stalled worker that wakes up after its lease expired cannot overwrite the newer
-          attempt's result. It's told its lease was superseded, which is what it needed to know.
-        </p>
-      </div>
-    </div>
+    <ul class="rest">
+      <li>
+        <a href="/docs#circuit"><strong>A loop that never fails</strong></a>
+        Every call succeeds, so nothing alerts — and the bill arrives anyway. Set a
+        ceiling per effect type, or a multiple of your own normal, and the breaker trips.
+      </li>
+      <li>
+        <a href="/vendors"><strong>Agents that never ask</strong></a>
+        The gate only stops the code that calls it. Where a vendor honours idempotency
+        keys, Ratchet derives the one <em>they</em> deduplicate on, so the refusal happens
+        at their end whether or not your agent cooperated.
+      </li>
+      <li>
+        <a href="/docs#groups"><strong>Step five of five fails</strong></a>
+        Declare the steps as one unit and how to undo each. Ratchet returns the rollback
+        plan in reverse order — and each undo is itself gated, so a retried refund cannot
+        double.
+      </li>
+      <li>
+        <a href="/docs#mcp-tools"><strong>Approvals, webhooks, audit</strong></a>
+        Effects above a threshold can wait for a human. Every decision fans out to your
+        webhooks, signed. Everything lands in an audit trail you can read.
+      </li>
+    </ul>
   </div>
 </section>
 
