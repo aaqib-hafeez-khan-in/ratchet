@@ -53,8 +53,12 @@ try {
   const cs = document.getElementById('crypto-status');
   if (cs) {
     cs.innerHTML = data.crypto?.enabled
-      ? '<span class="pill go">enabled</span> Accepted assets are listed at '
-        + '<a href="/v1/billing/crypto/assets">/v1/billing/crypto/assets</a>.'
+      // A bare API path dropped mid-sentence reads like a broken template.
+      // Name the destination in prose and tag the format, the way the footer
+      // does, so a person knows they are about to get JSON.
+      ? '<span class="pill go">enabled</span> '
+        + '<a href="/v1/billing/crypto/assets" target="_blank" rel="noopener">'
+        + 'See the accepted assets<span class="fmt">JSON</span></a>'
       : '<span class="pill flat">not configured</span> This instance has no receiving address set, '
         + 'so crypto payments are off.';
   }

@@ -439,12 +439,18 @@ ul.checks li::before {
 .packet.s4 { top: calc(50% + 46px); transition-delay: 0.29s; }
 
 /* the counter that never moves — the whole point, made visible */
+/* The running count sits ABOVE the wire, not centred on it.
+   Centred, it occupied the same band as the node labels: "charge made"
+   overlapped "the vendor" by ~45px at 1280px wide, and the collision got worse
+   as the scene narrowed. The wire and its labels own the middle of the scene;
+   the tally gets its own corner. */
 .tally {
-  position: absolute; right: -4px; top: 50%; transform: translateY(-50%);
+  position: absolute; right: 0; top: 0;
   text-align: right; font-size: 0.72rem; color: var(--text-faint);
+  line-height: 1.25; pointer-events: none;
 }
 .tally strong {
-  display: block; font-size: clamp(1.8rem, 4vw, 2.6rem); color: var(--ok);
+  display: block; font-size: clamp(1.5rem, 3.2vw, 2.1rem); color: var(--ok);
   font-variant-numeric: tabular-nums; line-height: 1;
 }
 @media (max-width: 720px) { .tally { display: none; } }
