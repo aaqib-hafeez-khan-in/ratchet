@@ -46,7 +46,7 @@
 <section>
   <div class="wrap">
     <p class="eyebrow">Execution control for autonomous agents</p>
-    <h1>Your agent retried.<br>Did the email send twice?</h1>
+    <h1>Your agent retried.<br>Do you know what it already did?</h1>
     <p class="lede">
       Ratchet is how you let an agent charge a card, send an email or book a flight —
       and know the action was only ever attempted once.
@@ -288,6 +288,102 @@ Reached the vendor: 20. Held back: 80.</code></pre>
       Vendor idempotency keys help for the handful of vendors that offer them. They do nothing for
       SMTP, Slack, git, internal APIs, or the other twenty tools your agent touches — and nothing
       at all across separate processes.
+    </p>
+  </div>
+</section>
+
+<!-- A reader asked whether this saves tokens and time. It does not touch model
+     calls at all and saying otherwise would be a lie, so this says what it
+     actually removes: the reasoning an agent does to work out what it already
+     did. Every number here comes from scripts/bench.ts and the case-study
+     script, and the caveats travel with them. -->
+<section id="cost">
+  <div class="wrap">
+    <p class="eyebrow">What a repeat actually costs</p>
+    <h2>Not knowing is the expensive part</h2>
+    <p class="lede" style="max-width:64ch">
+      An agent that cannot tell whether it already charged the card has three options,
+      and all three cost you.
+    </p>
+
+    <div class="grid three" style="margin-top:2rem">
+      <div class="card">
+        <h3>Do it again</h3>
+        <p class="small dim" style="margin:0">
+          The customer is charged twice. You refund it, eat the fee, and answer the
+          email. The vendor already took the money — the mistake is real before
+          anyone notices.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Don't</h3>
+        <p class="small dim" style="margin:0">
+          The work silently never completes. Nobody finds out until the person who
+          was waiting for it complains, which is the most expensive way to learn
+          anything.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Go and find out</h3>
+        <p class="small dim" style="margin:0">
+          Query the vendor, re-read your own state, hand it back to the model to
+          decide. This is the loop that burns tokens and minutes — on every
+          ambiguous action, for as long as the agent runs.
+        </p>
+      </div>
+    </div>
+
+    <p style="max-width:64ch;margin-top:1.75rem">
+      The gate replaces all three with one call. A repeat is answered from the
+      recorded outcome, which is why the interesting number is not how fast the gate
+      decides but how much work it removes: the third option above is a round trip to
+      a vendor plus a model turn, and it becomes a single lookup.
+    </p>
+
+    <div class="figures" style="margin-top:1.5rem">
+      <div class="fig good">
+        <dt>Repeat answered in</dt>
+        <dd>2.3ms</dd>
+        <div class="note">p50, from the recorded result, instead of performing the action again.</div>
+      </div>
+      <div class="fig">
+        <dt>First ask</dt>
+        <dd>5.1ms</dd>
+        <div class="note">p50 for a brand-new effect, including the durable write.</div>
+      </div>
+      <div class="fig">
+        <dt>200 at once, one key</dt>
+        <dd>1</dd>
+        <div class="note">Exactly one caller authorised, settled in 189ms.</div>
+      </div>
+      <div class="fig good">
+        <dt>Runaway loop, capped</dt>
+        <dd>20 / 100</dd>
+        <div class="note">100 distinct charges attempted, 80 refused by the ceiling you set.</div>
+      </div>
+    </div>
+
+    <p class="small faint" style="max-width:66ch;margin-top:1rem">
+      Measured with <code>scripts/bench.ts</code> and <code>scripts/case-study.ts</code>,
+      both in the repository. Latency is in-process against a real Postgres and excludes
+      network time to you — your number will be dominated by the round trip, which is
+      the honest way to read it.
+      <a href="/notes/what-happens-when-step-five-fails">The full transcripts</a>.
+    </p>
+
+    <p class="dim" style="max-width:64ch;margin-top:1.5rem">
+      <strong>And your console adds it up.</strong> Every refusal on an effect that
+      declared a cost is counted, so <code>/usage/prevented</code> answers “what did
+      this save me” in dollars not spent at your vendors — never an estimate we
+      invented, and reported as <em>at least</em> that figure, because effects
+      without a declared cost are not counted at all.
+    </p>
+
+    <p class="small faint" style="max-width:64ch;margin-top:1.25rem">
+      <strong>What this does not do.</strong> Ratchet never sees your model calls. It
+      does not make inference cheaper, prompts shorter, or a model faster, and anyone
+      telling you a gate does that is selling something. What it removes is the work
+      you would otherwise do to find out what already happened.
     </p>
   </div>
 </section>
