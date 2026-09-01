@@ -102,15 +102,35 @@ workspace, pick one by hash, and sum on read. Standard, and does not disturb the
 
 ---
 
-## 4. Single-region, single-primary database
+## 4. Two-node database: replicated, but no automatic failover
 
-No read replicas, no multi-region, no automatic failover. Correctness depends on a single
-authoritative Postgres, which is the right trade for a service whose entire value is one
-authoritative answer.
+*Updated 1 September 2026.* A streaming replica was added
+(`7845455b310328`, zone `7494`, alongside the primary `857597a4492d58` in zone
+`e4b5` — both in `sjc`). Verified streaming with 0 bytes lag, and identical row
+counts read from each node's local Postgres on port 5433.
 
-**Consequence:** cross-region callers pay the round trip, and a primary failure is an outage.
-**Fix:** managed Postgres with automated failover. Multi-region would require rethinking the
-uniqueness guarantee and is not a small change.
+**What this buys:** a continuously updated second physical copy in a different
+zone. A lost host or volume is now a promotion rather than a restore.
+
+**What it does not buy: automatic failover.** `/data/repmgr.internal.conf` sets
+`failover = 'automatic'` with `primary_visibility_consensus = true` and a
+`failover_validation_command` comparing visible nodes to total. With two nodes,
+a standby that loses the primary sees one of two — not a majority — so it
+**refuses to promote**. That is the safe outcome (no split-brain), but it means
+a primary failure still needs a human running `repmgr standby promote`.
+
+**Three nodes is what buys automatic promotion**, because two visible of three
+is a majority. That is one more `fly machine clone` when it is worth the cost.
+
+**A footgun that was closed on the way in:** `max_slot_wal_keep_size` was `-1`
+(unlimited), so a replica that died and stayed dead would have retained WAL on
+the primary until its disk filled and writes stopped. Now bounded to 2 GB
+(`ALTER SYSTEM`, reload-only). A stale slot gets invalidated and the replica
+needs a rebuild — prefer a broken replica over a dead primary.
+
+**Still true:** single region. Cross-region callers pay the round trip, and
+multi-region would require rethinking the uniqueness guarantee — not a small
+change.
 
 ---
 
