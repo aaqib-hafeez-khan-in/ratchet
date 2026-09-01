@@ -1,3 +1,4 @@
+import { stricterThan } from '../rate-limit.js';
 /**
  * OAuth 2.1 endpoints.
  *
@@ -94,7 +95,7 @@ export default async function oauthRoutes(app: FastifyInstance) {
     // directory's servers — legitimately registers many clients, and a
     // registration grants nothing until a human approves it. Stale, never-used
     // clients are swept by the worker, so this only has to bound growth.
-    config: { rateLimit: { max: 100, timeWindow: '1 hour' } },
+    config: { rateLimit: stricterThan(100, '1 hour') },
   }, async (req, reply) => {
     const b = (req.body ?? {}) as Record<string, unknown>;
     const uris = Array.isArray(b.redirect_uris) ? b.redirect_uris.map(String) : [];
@@ -241,7 +242,7 @@ ${hidden}
 
   app.get('/oauth/authorize', {
     schema: { hide: true },
-    config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    config: { rateLimit: stricterThan(60, '1 minute') },
   }, async (req, reply) => {
     const q = req.query as AuthzParams;
     const v = await validate(q);
@@ -280,7 +281,7 @@ ${hidden}
 
   app.post('/oauth/authorize', {
     schema: { hide: true },
-    config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    config: { rateLimit: stricterThan(60, '1 minute') },
   }, async (req, reply) => {
     const b = (req.body ?? {}) as AuthzParams
       & { api_key?: string; decision?: string; workspace_id?: string };
@@ -390,7 +391,7 @@ ${hidden}
 
   app.post('/oauth/token', {
     schema: { hide: true },
-    config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+    config: { rateLimit: stricterThan(120, '1 minute') },
   }, async (req, reply) => {
     const b = (req.body ?? {}) as Record<string, string | undefined>;
 
@@ -457,7 +458,7 @@ ${hidden}
   // RFC 7009. Always answers 200, so it cannot be used to probe for valid tokens.
   app.post('/oauth/revoke', {
     schema: { hide: true },
-    config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    config: { rateLimit: stricterThan(60, '1 minute') },
   }, async (req, reply) => {
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     if (b.token) await revokeToken(b.token);

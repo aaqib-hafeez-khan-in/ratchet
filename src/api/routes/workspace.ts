@@ -5,6 +5,7 @@ import { errors } from '../../lib/errors.js';
 import { wsOf, actorOf } from '../plugins/auth.js';
 import { createWorkspace, getWorkspace, createApiKey, listApiKeys, revokeApiKey,
          createConsoleSession, destroyConsoleSession, claimWorkspace, isScope, SCOPES, DEFAULT_AGENT_SCOPES, type Scope } from '../../domain/auth.js';
+import { stricterThan } from '../rate-limit.js';
 import { listPolicies, upsertPolicy, deletePolicy, getPolicy } from '../../domain/policy.js';
 import { getSpendSummary } from '../../domain/budget.js';
 import { listLedger } from '../../domain/metering.js';
@@ -29,7 +30,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
    */
   app.post('/workspaces/claim', {
     preHandler: app.requireKey('effects:begin'),
-    config: { rateLimit: { max: 10, timeWindow: '1 hour' } },
+    config: { rateLimit: stricterThan(10, '1 hour') },
     schema: {
       tags: ['Workspace'], operationId: 'claimWorkspace',
       summary: 'Claim an anonymously provisioned workspace',
@@ -61,7 +62,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
   });
 
   app.post('/workspaces', {
-    config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
+    config: { rateLimit: stricterThan(5, '1 hour') },
     schema: {
       tags: ['Workspace'], operationId: 'createWorkspace',
       summary: 'Create a workspace and its first API key',

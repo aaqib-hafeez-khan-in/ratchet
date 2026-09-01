@@ -1,3 +1,4 @@
+import { stricterThan } from '../rate-limit.js';
 /**
  * Receipts, chain audit, and reconciliation.
  *
@@ -162,7 +163,7 @@ export default async function receiptRoutes(app: FastifyInstance) {
    */
   app.post('/reconcile', {
     preHandler: app.requireConsole('effects:read'),
-    config: { rateLimit: { max: 60, timeWindow: '1 hour' } },
+    config: { rateLimit: stricterThan(60, '1 hour') },
     schema: {
       tags: ['Receipts'], operationId: 'reconcile',
       summary: 'Find real-world actions that bypassed the gate',

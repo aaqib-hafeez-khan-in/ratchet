@@ -1,3 +1,4 @@
+import { stricterThan } from '../rate-limit.js';
 /**
  * Circuit breakers: the surge containment controls.
  *
@@ -73,7 +74,7 @@ export default async function circuitRoutes(app: FastifyInstance) {
     preHandler: app.requireConsole('policies:write'),
     // Deliberately generous: this is the control someone reaches for in a
     // panic, and a rate limit that refuses it would be indefensible.
-    config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+    config: { rateLimit: stricterThan(120, '1 minute') },
     schema: {
       tags: TAG, operationId: 'openCircuit',
       summary: 'Stop an effect type now — or the whole workspace with "*"',
