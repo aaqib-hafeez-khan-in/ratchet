@@ -161,3 +161,35 @@ describe('no stale hostnames in anything the site renders', () => {
     }
   });
 });
+
+/**
+ * One left edge per page.
+ *
+ * `.wrap` centres a 1040px column and `.narrow` caps it at 780px, so a narrow
+ * section on an otherwise wide page begins 130px further right than everything
+ * above it. A reader tracks a left edge down a page and a jog reads as a
+ * mistake — somebody spotted it on Works with within a day of the page going up.
+ *
+ * `.wrap.reading` exists for the case that caused it: long prose that wants a
+ * comfortable measure without moving the column. Pages that are narrow from top
+ * to bottom keep `.narrow`, because there is no edge for them to disagree with.
+ */
+describe('column alignment', () => {
+  const pages = readdirSync(WEB).filter((f) => f.endsWith('.html'));
+
+  for (const page of pages) {
+    test(`${page} does not mix wide and narrow columns`, () => {
+      const html = readFileSync(join(WEB, page), 'utf8');
+      const wide = (html.match(/class="wrap"/g) ?? []).length;
+      const narrow = (html.match(/class="wrap narrow"/g) ?? []).length;
+
+      // The console is an application, not a document: its centred forms are a
+      // deliberate layout rather than a jog in a reading column.
+      if (page === 'console.html') return;
+
+      assert.ok(!(wide > 0 && narrow > 0),
+        `${page} has ${wide} wide and ${narrow} narrow sections, so its left edge `
+        + 'jumps mid-page. Use "wrap reading" for a narrow measure that stays put.');
+    });
+  }
+});

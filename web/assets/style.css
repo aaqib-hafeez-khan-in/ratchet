@@ -1030,3 +1030,16 @@ ul.checks li::before {
   margin: 0; font-size: 0.92rem; color: var(--text-faint);
   max-width: 58ch;
 }
+
+/* ── One left edge per page ──────────────────────────────────────────────────
+   `.narrow` caps the column at 780px, and because `.wrap` centres, a narrow
+   section on an otherwise wide page starts 130px further right than everything
+   above it. A reader tracks a left edge down a page; a jog reads as a mistake,
+   and on Works with somebody noticed within a day.
+
+   Long prose still wants a comfortable measure, so this gives it one without
+   moving the column: the box stays where every other section's does, and the
+   text inside is capped. Pages that are narrow from top to bottom — the docs,
+   Get started, the FAQ, the notes — keep `.narrow`, because there is no edge
+   for them to disagree with. */
+.wrap.reading > * { max-width: 780px; }
