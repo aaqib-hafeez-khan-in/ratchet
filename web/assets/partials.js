@@ -59,6 +59,7 @@ export function mountChrome(current) {
           <h3>Product</h3>
           <ul>
             <li><a href="/docs">Documentation</a></li>
+            <li><a href="/faq">Questions</a></li>
             <li><a href="/pricing">Pricing</a></li>
             <li><a href="/console">Operator console</a></li>
             <li><a href="/docs#groups">Rollback groups</a></li>
@@ -67,7 +68,8 @@ export function mountChrome(current) {
         <div>
           <h3>Works with</h3>
           <ul>
-            <li><a href="/works-with">Every supported platform</a></li>
+            <li><a href="/works-with">Where your agent runs</a></li>
+            <li><a href="/vendors">What your agent acts on</a></li>
             <li><a href="/start">Claude Code</a></li>
             <li><a href="/start">Claude Desktop</a></li>
             <li><a href="/start">Cursor</a></li>

@@ -22,7 +22,7 @@ const pages = readdirSync(WEB).filter((f) => f.endsWith('.html'));
  * missed every link in the site chrome — which is most of the links on every
  * page. They were fine, but by luck rather than by test.
  */
-const CHROME = ['assets/partials.js', 'assets/works-with.js'];
+const CHROME = ['assets/partials.js', 'assets/works-with.js', 'assets/vendors.js'];
 
 let app: Awaited<ReturnType<typeof buildApp>>;
 before(async () => { app = await buildApp(); await app.ready(); });

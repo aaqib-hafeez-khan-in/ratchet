@@ -128,3 +128,56 @@ describe('notes section', () => {
     }
   });
 });
+
+/**
+ * Every one of these exists because a user told us something was missing that
+ * was not missing. Figma was in the vendor directory for a day before somebody
+ * said it was absent — it was absent from the site, not from the product. These
+ * assert that the human-readable page exists, not merely the JSON.
+ */
+describe('the things people could not find', () => {
+  test('the vendor directory is a page, not only an endpoint', async () => {
+    const page = await app.inject({ method: 'GET', url: '/vendors' });
+    assert.equal(page.statusCode, 200);
+
+    const api = await app.inject({ method: 'GET', url: '/v1/vendors' });
+    assert.equal(api.statusCode, 200);
+    const { vendors } = api.json() as { vendors: Array<{ vendor: string }> };
+    assert.ok(vendors.some((v) => v.vendor === 'figma'),
+      'figma should be in the directory the page renders');
+  });
+
+  // CLAUDE.md §6: the wire is snake_case. This endpoint spread the domain
+  // object straight into the response and published `maxLength`.
+  test('the vendor endpoint emits no camelCase', async () => {
+    for (const url of ['/v1/vendors', '/v1/vendors/stripe']) {
+      const r = await app.inject({ method: 'GET', url });
+      const seen = JSON.stringify(r.json());
+      const keys = [...seen.matchAll(/"([A-Za-z_]+)":/g)].map((m) => m[1]!);
+      const camel = keys.filter((k) => /[a-z][A-Z]/.test(k));
+      assert.deepEqual(camel, [], `${url} leaks camelCase keys: ${camel.join(', ')}`);
+    }
+  });
+
+  test('the FAQ answers the questions people actually asked', async () => {
+    const r = await app.inject({ method: 'GET', url: '/faq' });
+    assert.equal(r.statusCode, 200);
+    // Other pages deep-link to these, and faq.js opens the target on load.
+    for (const id of ['allowance', 'mcp', 'figma', 'learns']) {
+      assert.match(r.body, new RegExp(`id="${id}"`), `/faq#${id} has no target`);
+    }
+    assert.match(r.body, /100 gated effects/, 'the allowance answer should name the cap');
+    assert.match(r.body, /1,000 gated effects/, 'and the free plan');
+  });
+
+  test('every page deep-linking into the FAQ points at an anchor that exists', async () => {
+    const faq = await app.inject({ method: 'GET', url: '/faq' });
+    for (const page of ['/', '/pricing', '/start', '/works-with', '/vendors']) {
+      const r = await app.inject({ method: 'GET', url: page });
+      for (const m of r.body.matchAll(/href="\/faq#([a-z-]+)"/g)) {
+        assert.match(faq.body, new RegExp(`id="${m[1]}"`),
+          `${page} links to /faq#${m[1]}, which does not exist`);
+      }
+    }
+  });
+});

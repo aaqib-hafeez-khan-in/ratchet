@@ -6,7 +6,7 @@ import { SCOPES } from '../../domain/auth.js';
 import { EVENT_TYPES } from '../../domain/events.js';
 import { MCP_TOOLS } from '../../mcp/tools.js';
 import { recipes } from '../../domain/integrate.js';
-import { VENDOR_PROFILES } from '../../domain/vendor-keys.js';
+import { VENDOR_PROFILES, type VendorProfile } from '../../domain/vendor-keys.js';
 import { workerHealth } from '../../worker/heartbeat.js';
 
 const startedAt = Date.now();
@@ -290,6 +290,21 @@ export default async function metaRoutes(app: FastifyInstance) {
    * It is also honest where it hurts: vendors that do NOT deduplicate are
    * listed as not deduplicating, including ones we would rather claim.
    */
+  /**
+   * The wire is snake_case; the domain is camelCase. Spreading the profile
+   * straight into the response published `maxLength`, which is the one rule in
+   * the conventions that has no exceptions. Fixed while the endpoint is young
+   * enough that almost nobody consumes it.
+   */
+  const onWire = (v: VendorProfile) => ({
+    vendor: v.vendor,
+    placement: v.placement,
+    max_length: v.maxLength,
+    retention: v.retention,
+    enforced: v.enforced,
+    note: v.note,
+  });
+
   app.get('/v1/vendors', {
     schema: {
       tags: ['Meta'], operationId: 'listVendors',
@@ -310,7 +325,7 @@ export default async function metaRoutes(app: FastifyInstance) {
       summary: 'Whether each vendor refuses a repeated request, and where its key goes.',
       note: 'An idempotency key only helps where the vendor honours it. Where "enforced" is '
         + 'false, retrying really can perform the action twice, whatever your code does.',
-      vendors: rows,
+      vendors: rows.map(onWire),
       detail: `${base}/v1/vendors/{vendor}`,
     };
   });
@@ -332,7 +347,7 @@ export default async function metaRoutes(app: FastifyInstance) {
         detail: { known: Object.keys(VENDOR_PROFILES) } } };
     }
     return {
-      ...v,
+      ...onWire(v),
       how_to_get_a_key: `${config.publicUrl.replace(/\/+$/, '')}/v1/integrate?runtime=http`,
     };
   });

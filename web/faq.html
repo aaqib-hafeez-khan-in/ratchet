@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Questions — Ratchet</title>
+<meta name="description" content="What Ratchet does, what a gated effect is, why the free allowance changes from 100 to 1,000, and what happens when an agent crashes mid-action. Each answer also in plain words.">
+<link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+<link rel="canonical" href="https://ratchetgate.com/faq">
+<meta name="theme-color" content="#1c5cff">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ratchet">
+<meta property="og:title" content="Questions about Ratchet">
+<meta property="og:description" content="Plain answers to what Ratchet does, what you are charged for, and what happens when an agent crashes mid-action.">
+<meta property="og:url" content="https://ratchetgate.com/faq">
+<meta name="twitter:card" content="summary">
+<link rel="alternate" type="text/plain" href="/llms.txt" title="Ratchet for LLMs — the whole service in one file">
+<link rel="alternate" type="application/json" href="/.well-known/agent-manifest.json" title="Capability manifest">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+<section>
+  <div class="wrap narrow">
+    <p class="eyebrow">Questions</p>
+    <h1>Plain answers</h1>
+    <p class="lede">
+      Every answer here is the real one. Where a question is genuinely hard, there is also a
+      one-line version in ordinary words, marked <strong>In plain words</strong>. Asking for
+      that is not a failure to understand — it is usually a sign the explanation was bad.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow faq">
+
+    <p class="faq-group">Starting out</p>
+
+    <details>
+      <summary>What does Ratchet actually do?</summary>
+      <div class="faq-body">
+        <p>Your agent asks Ratchet for permission immediately before it does something
+           irreversible — send the email, charge the card, book the flight. Ratchet answers
+           <code>execute</code>, <code>duplicate</code>, <code>blocked</code>, or a few others,
+           and records that answer durably. If the same action is attempted again, from any
+           process or machine, it gets the recorded answer instead of a second go-ahead.</p>
+        <p class="eli5"><strong>In plain words:</strong> it is a bouncer with a very good
+           memory. Your agent asks "may I?", and the bouncer says yes once.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Do I need to sign up, or not? The site says both.</summary>
+      <div class="faq-body">
+        <p>Both, because there are two ways in. A <strong>person</strong> creates a workspace
+           with an email and gets the free plan. An <strong>agent</strong> can call the gate
+           with no credential at all — a workspace and key come back alongside the decision.
+           They are the same product. Claiming an agent-made workspace with an email later
+           turns it into the first kind.</p>
+        <p class="eli5"><strong>In plain words:</strong> you can sign up, or your agent can
+           just start using it and you can put your name on it afterwards.</p>
+      </div>
+    </details>
+
+    <details id="allowance">
+      <summary>Why does it say 100 gated effects in one place and 1,000 in another?</summary>
+      <div class="faq-body">
+        <p>Those are two different states of the same workspace.</p>
+        <p>A workspace created by an agent with <strong>no email attached</strong> is capped at
+           <strong>100 gated effects, total</strong> — not per month. It is a real workspace,
+           not a demo, but nobody owns it: we have no way to reach whoever made it, so it
+           cannot be allowed to grow without limit.</p>
+        <p>Attaching an email is called <strong>claiming</strong>. A claimed workspace is on the
+           free plan: <strong>1,000 gated effects every month</strong>, and it resets each
+           month. Claiming keeps the same workspace, the same key and all the history — nothing
+           migrates and nothing breaks.</p>
+        <p class="eli5"><strong>In plain words:</strong> unclaimed is a hotel room key with 100
+           uses on it. Adding your email turns it into your own key, and you get 1,000 a month
+           instead. Same room, same key, no move-out.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>What counts as a "gated effect"? Am I billed per API call?</summary>
+      <div class="faq-body">
+        <p>No. A gated effect is the <em>first</em> time you ask about a particular action —
+           the call that creates the record. Everything after that about the same action is
+           free: the duplicate checks, the report of what happened, the reads, the replays. An
+           action retried forty times is one gated effect, not forty-one calls.</p>
+        <p class="eli5"><strong>In plain words:</strong> you pay once per real-world thing, not
+           once per question about it. Retries are free — which is the whole point, because
+           retries are what you are trying to survive.</p>
+      </div>
+    </details>
+
+    <p class="faq-group">How it works</p>
+
+    <details>
+      <summary>Does Ratchet send my emails or charge my cards?</summary>
+      <div class="faq-body">
+        <p>Never. Ratchet holds no vendor credentials, has no outbound access to your systems,
+           and cannot retry anything on your behalf. It answers a question; your code does the
+           work and reports back what happened. That boundary is deliberate and it is the main
+           safety property of the design.</p>
+        <p class="eli5"><strong>In plain words:</strong> we are the bouncer, not the barman. We
+           never touch the drinks.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>What happens if my agent dies halfway through charging a card?</summary>
+      <div class="faq-body">
+        <p>The permission it was holding expires with nothing reported, and the effect becomes
+           <strong><code>indeterminate</code></strong>. We do not guess. We will not mark it
+           succeeded because it probably worked, and we will not mark it failed because it
+           probably did not. Your policy for that effect type decides what happens next: stop
+           and wait for a human, retry if the action is genuinely safe to repeat, or go and
+           check the vendor first.</p>
+        <p class="eli5"><strong>In plain words:</strong> if nobody knows whether the card was
+           charged, we say "nobody knows" instead of picking. Guessing here is how people get
+           billed twice.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Why won't you promise exactly-once?</summary>
+      <div class="faq-body">
+        <p>Because it is not achievable, by anyone, in a system where messages can be lost. Any
+           service promising it is either redefining the words or is wrong. What is achievable
+           is at-most-once <em>initiation</em> — the same action is never authorised twice —
+           plus a recorded outcome that later callers replay, plus an explicit state for the
+           case where the truth is genuinely unknown.</p>
+        <p class="eli5"><strong>In plain words:</strong> we can promise never twice. Nobody can
+           promise exactly once, and we would rather say so than sell you a word.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>What is an idempotency key, and how do I choose one?</summary>
+      <div class="faq-body">
+        <p>It is the name you give one piece of real-world work, so that two attempts at the
+           same work can be recognised as the same. Build it from what makes the action unique
+           and nothing else: <code>invoice:2026-08:acct_8812</code>, not a timestamp and not a
+           random value. If two attempts should be the same action, they must produce the same
+           string — byte for byte.</p>
+        <p class="eli5"><strong>In plain words:</strong> it is a label on the job. Two workers
+           holding the same label are doing the same job, so only one should start.</p>
+      </div>
+    </details>
+
+    <p class="faq-group">Does it work with…</p>
+
+    <details id="mcp">
+      <summary>Does Ratchet work with MCP?</summary>
+      <div class="faq-body">
+        <p>Yes — Ratchet ships as an MCP server, published to the registry and installable with
+           <code>npx -y ratchet-mcp</code>. That is the primary way agents use it. Claude Code,
+           Claude Desktop, Cursor, Windsurf, Zed, Cline, Continue, Goose, VS Code agent mode,
+           JetBrains AI, Warp, Raycast and a dozen more speak it;
+           <a href="/works-with">Works with</a> lists them all with the setup for each.</p>
+      </div>
+    </details>
+
+    <details id="figma">
+      <summary>Does it work with Figma? With Stripe? With something you haven't listed?</summary>
+      <div class="faq-body">
+        <p>Yes to all three, and the site has two different lists which is what makes this
+           confusing. Here is the distinction.</p>
+        <p><a href="/works-with"><strong>Works with</strong></a> is where your agent
+           <em>runs</em> — Claude Code, Cursor, LangChain, n8n, a model provider. 90 of them.</p>
+        <p><a href="/vendors"><strong>The vendor directory</strong></a> is what your agent
+           <em>acts on</em> — Stripe, Figma, Slack, GitHub. It records whether that vendor
+           refuses a repeated request by itself. Figma is in there: its REST API documents no
+           idempotency key, so the answer is no, and the gate stays advisory for it.</p>
+        <p>Neither list is a limit. Ratchet gates anything your code can call, including
+           services in neither list. The vendor directory only records which vendors add
+           enforcement of their own on top of ours.</p>
+        <p class="eli5"><strong>In plain words:</strong> one list is where your robot lives.
+           The other is what your robot touches. Everything works either way.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>How much do I have to change my code?</summary>
+      <div class="faq-body">
+        <p>Two calls around something you already do. Ask before, report after. No SDK is
+           required — it is HTTP — and there is nothing to rewrite. The
+           <a href="/start">five-minute setup</a> shows the before and after side by side.</p>
+      </div>
+    </details>
+
+    <p class="faq-group">Running it for real</p>
+
+    <details id="learns">
+      <summary>Can Ratchet learn what normal looks like for my agent?</summary>
+      <div class="faq-body">
+        <p>Yes. You can set a hard ceiling if you know your numbers — at most 40 charges an
+           hour. Most people do not know their numbers, so instead you set a
+           <strong>multiple</strong>: never more than three times normal. Ratchet computes
+           normal itself, as the median of the last seven days of that effect type, recomputed
+           continuously in the background.</p>
+        <p>The median rather than the average, deliberately — one runaway hour would drag an
+           average upward and quietly raise the ceiling that was supposed to catch it. A
+           learned ceiling also never falls below 30, so a quiet effect type is not tripped by
+           one unusually busy afternoon, and it does nothing at all until there are at least
+           six hours of real history to learn from.</p>
+        <p class="eli5"><strong>In plain words:</strong> you can say "never more than three
+           times normal" without knowing what normal is. It works that out, and it ignores the
+           bad days when it does.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>What happens to my agent if Ratchet goes down?</summary>
+      <div class="faq-body">
+        <p>Your agent decides, and it should decide deliberately rather than by accident. Ratchet
+           is a gate, so the safe default is to stop: if you cannot get permission, do not
+           perform the irreversible action. For effects where not acting is worse than acting
+           twice, you can choose to proceed and reconcile afterwards. What matters is that this
+           is a choice you make once, in code, rather than a question your agent improvises
+           during an outage.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Do you store what my agent is actually doing?</summary>
+      <div class="faq-body">
+        <p>No. We store a SHA-256 fingerprint of the payload, never the payload. We can tell
+           you that two attempts differ; we cannot tell you, or anyone else, what was in them.
+           API keys are stored as a peppered HMAC and cannot be recovered, only replaced. The
+           <a href="/security">security page</a> is specific about what we do and do not hold,
+           including what we cannot claim.</p>
+        <p class="eli5"><strong>In plain words:</strong> we keep a fingerprint, not a copy. It
+           is enough to spot a duplicate and useless for anything else.</p>
+      </div>
+    </details>
+
+    <p class="small faint" style="margin-top:2.5rem">
+      A question that is not here, or an answer that did not land? Mail
+      <a href="mailto:hello@ratchetgate.com">hello@ratchetgate.com</a>. Questions that turn out
+      to be our fault for explaining badly are the useful ones, and several of the answers above
+      exist because somebody said so.
+    </p>
+  </div>
+</section>
+</main>
+<footer class="site"></footer>
+<script type="module" src="/assets/faq.js"></script>
+</body>
+</html>

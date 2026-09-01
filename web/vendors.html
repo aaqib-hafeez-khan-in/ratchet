@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vendor directory — Ratchet</title>
+<meta name="description" content="Which third-party services refuse a repeated request and which quietly do it twice. Free, no account, no key.">
+<link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+<link rel="canonical" href="https://ratchetgate.com/vendors">
+<meta name="theme-color" content="#1c5cff">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ratchet">
+<meta property="og:title" content="Which vendors actually refuse a repeated request">
+<meta property="og:description" content="Stripe deduplicates. Slack does not. A free directory of which is which, and where each key goes.">
+<meta property="og:url" content="https://ratchetgate.com/vendors">
+<meta name="twitter:card" content="summary">
+<link rel="alternate" type="application/json" href="/v1/vendors" title="The same directory as JSON">
+<link rel="alternate" type="text/plain" href="/llms.txt" title="Ratchet for LLMs — the whole service in one file">
+<link rel="alternate" type="application/json" href="/.well-known/agent-manifest.json" title="Capability manifest">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Vendor directory</p>
+    <h1>Does this vendor refuse a repeated request?</h1>
+    <p class="lede">
+      An idempotency key only helps if the vendor on the other end honours it. Many do not,
+      and almost none say so on the page you are reading when you decide. This is the list.
+      It is free, needs no account, and is the same data our own gate uses.
+    </p>
+    <p class="dim" style="max-width:62ch">
+      Where a vendor deduplicates, Ratchet can derive the key it will deduplicate on, and
+      at-most-once <em>initiation</em> becomes at-most-once <em>execution at that vendor</em> —
+      enforced by them, not by your agent's good manners.
+      <a href="/docs#vendor-keys">How that works</a>.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div id="vendors" aria-live="polite">
+      <p class="dim">Loading the directory…</p>
+    </div>
+    <noscript>
+      <p class="dim">This page renders from
+        <a href="/v1/vendors">/v1/vendors</a>, which you can read directly.</p>
+    </noscript>
+  </div>
+</section>
+
+<section>
+  <div class="wrap narrow">
+    <h2>Not the list you wanted?</h2>
+    <p class="dim">
+      This page is about services your agent <strong>acts on</strong> — where the money moves
+      or the message sends. If you are looking for where your agent <strong>runs</strong> —
+      Claude Code, Cursor, LangChain, n8n, a model provider — that is
+      <a href="/works-with">Works with</a>, which lists 90 of them.
+    </p>
+    <p class="small faint">
+      A vendor missing here is not a vendor Ratchet cannot gate. The gate works with anything
+      you can call; this directory only records which vendors add enforcement of their own.
+      Ask for one at <a href="mailto:hello@ratchetgate.com">hello@ratchetgate.com</a>.
+    </p>
+  </div>
+</section>
+</main>
+<footer class="site"></footer>
+<script type="module" src="/assets/vendors.js"></script>
+</body>
+</html>

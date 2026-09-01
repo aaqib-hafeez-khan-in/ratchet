@@ -821,3 +821,103 @@ ul.checks li::before {
 }
 .caption + .copywrap, .caption + pre { margin-top: 0; }
 #c-setup .copywrap + .caption, #c-setup pre + .caption { margin-top: 1.1rem; }
+
+/* ── Vendor directory ────────────────────────────────────────────────────────
+   Two groups, and the second one is the point: vendors that do NOT deduplicate
+   get the same visual weight as the ones that do, because that is the half of
+   the answer nobody else publishes. */
+.vgroup { margin-top: 2.5rem; }
+.vgroup:first-child { margin-top: 0; }
+.vgroup h2 { display: flex; align-items: baseline; gap: 0.6rem; }
+.vcount {
+  font-size: 0.78rem; font-weight: 600; color: var(--text-faint);
+  border: 1px solid var(--border); border-radius: 999px; padding: 0.1rem 0.55rem;
+}
+.vgrid {
+  display: grid; gap: 1rem; margin-top: 1.25rem;
+  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+}
+.vcard {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1.1rem 1.15rem; background: var(--bg-sunk);
+  display: flex; flex-direction: column; gap: 0.5rem;
+}
+.vcard h3 {
+  margin: 0; font-size: 1rem; text-transform: capitalize;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+/* The dot carries the answer, so it needs a text equivalent for anyone who
+   cannot see it — hence the ::after label rather than colour alone. */
+.vcard h3::before {
+  content: ""; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--stop); flex: none;
+}
+.vcard.yes h3::before { background: var(--ok); }
+.vcard h3::after {
+  content: "no"; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--stop);
+}
+.vcard.yes h3::after { content: "yes"; color: var(--ok); }
+.vplace { margin: 0; font-family: var(--mono); font-size: 0.78rem; color: var(--text-dim); }
+.vmeta { display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem; margin: 0.15rem 0 0; }
+.vmeta div { display: flex; gap: 0.4rem; align-items: baseline; }
+.vmeta dt { font-size: 0.72rem; color: var(--text-faint); margin: 0; }
+.vmeta dd { margin: 0; font-size: 0.78rem; color: var(--text-dim); }
+.vcard p.small { margin: 0.25rem 0 0; }
+
+/* ── Questions ───────────────────────────────────────────────────────────────
+   Collapsed by default. Fourteen open answers is a wall; fourteen questions is
+   a page someone will actually scan. The chevron is drawn rather than using the
+   default disclosure triangle, which differs between browsers and is the one
+   element that would make this look unfinished. */
+.faq-group {
+  margin: 2.75rem 0 0.4rem; font-size: 0.72rem; font-weight: 600;
+  letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-faint);
+}
+.faq-group:first-child { margin-top: 0; }
+
+.faq details { border-bottom: 1px solid var(--border); }
+.faq details:first-of-type { border-top: 1px solid var(--border); }
+
+.faq summary {
+  list-style: none; cursor: pointer; position: relative;
+  padding: 1.05rem 2.5rem 1.05rem 0;
+  font-size: 1.02rem; font-weight: 600; line-height: 1.4;
+  transition: color 0.16s ease;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary:hover { color: var(--accent); }
+.faq summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px;
+}
+/* The chevron: two borders rotated, so it scales with the text and needs no
+   asset. Sits on a fixed baseline rather than centred, so a question that wraps
+   to two lines does not drag the marker down to the middle of nowhere. */
+.faq summary::after {
+  content: ""; position: absolute; right: 0.35rem; top: 1.45rem;
+  width: 7px; height: 7px;
+  border-right: 2px solid var(--text-faint); border-bottom: 2px solid var(--text-faint);
+  transform: rotate(45deg); transform-origin: center;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.faq details[open] summary::after {
+  transform: rotate(-135deg); border-color: var(--accent);
+}
+.faq summary:hover::after { border-color: var(--accent); }
+
+.faq-body { padding: 0 0 1.35rem; max-width: 62ch; }
+.faq-body p { color: var(--text-dim); margin: 0 0 0.85rem; }
+.faq-body p:last-child { margin-bottom: 0; }
+
+/* The plain-language line. Set apart enough to be findable by someone skimming
+   for it, quiet enough that it does not read as the important half. */
+.faq-body .eli5 {
+  margin-top: 1.1rem; padding: 0.7rem 0 0.7rem 0.95rem;
+  border-left: 2px solid var(--accent);
+  color: var(--text); font-size: 0.94rem;
+}
+.faq-body .eli5 strong { color: var(--accent); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) {
+  .faq summary, .faq summary::after { transition: none; }
+}

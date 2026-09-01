@@ -317,6 +317,10 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   // agent calls, not the site a human reads.
   // Clean URLs for notes. Kept explicit rather than a catch-all so a typo 404s
   // instead of silently serving the index.
+  app.get('/vendors', { schema: { hide: true } },
+    async (_req, reply) => reply.sendFile('vendors.html'));
+  app.get('/faq', { schema: { hide: true } },
+    async (_req, reply) => reply.sendFile('faq.html'));
   app.get('/notes', { schema: { hide: true } },
     async (_req, reply) => reply.sendFile('notes/index.html'));
   const POSTS = ['idempotency-keys-are-broken-on-macos',
