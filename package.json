@@ -26,7 +26,7 @@
     "test:e2e": "node --test --test-concurrency=1 --import tsx test/e2e/*.test.ts",
     "openapi": "tsx scripts/emit-openapi.ts",
     "audit": "npm audit --omit=dev",
-    "stripe:listen": "stripe listen --forward-to localhost:8787/v1/billing/webhook/stripe --events checkout.session.completed",
+    "stripe:listen": "stripe listen --forward-to localhost:8787/v1/billing/webhook/stripe --events checkout.session.completed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,charge.refunded,charge.dispute.created",
     "stripe:trigger": "stripe trigger checkout.session.completed",
     "stripe:check": "tsx scripts/check-stripe.ts",
     "metrics": "tsx scripts/metrics.ts",
