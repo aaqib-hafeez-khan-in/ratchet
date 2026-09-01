@@ -124,8 +124,28 @@ if (!res.ok) {
   } catch { /* not JSON; the status is all there is */ }
   console.error(`Alert send failed: HTTP ${res.status}${why ? ` — ${why}` : ''}`);
   if (res.status === 422) {
-    console.error('A 422 here is almost always ALERT_EMAIL: it must be a bare');
-    console.error('address, with no quotes, label or trailing newline.');
+    /*
+     * Describe the shape of ALERT_EMAIL, never its value.
+     *
+     * These logs are public — the repository is — so the address itself must
+     * not appear. But "invalid to field" with nothing else sent us round twice
+     * guessing whether the problem was a stray newline, a display name, or a
+     * value that had never been set at all. Length and a few booleans settle
+     * that in one run and disclose nothing.
+     */
+    const shape = {
+      length: TO.length,
+      hasAt: TO.includes('@'),
+      hasDot: TO.split('@').pop()?.includes('.') ?? false,
+      hasWhitespace: /\s/.test(TO),
+      hasQuotes: /["']/.test(TO),
+      hasAngles: /[<>]/.test(TO),
+      startsAlnum: /^[A-Za-z0-9]/.test(TO),
+    };
+    console.error(`ALERT_EMAIL shape: ${JSON.stringify(shape)}`);
+    console.error('It must be a bare address — no quotes, no display name, no');
+    console.error('trailing newline. Set it with printf, which adds none:');
+    console.error("  printf '%s' 'you@example.com' | gh secret set ALERT_EMAIL --repo <owner>/<repo>");
   }
   process.exit(1);
 }
