@@ -5,6 +5,7 @@ import { getPool } from '../../db/pool.js';
 import { errors, ApiError } from '../../lib/errors.js';
 import { config } from '../../lib/config.js';
 import { planRateLimit } from '../rate-limit.js';
+import { recallRun } from '../../domain/recall.js';
 import { wsOf, actorOf } from '../plugins/auth.js';
 import { beginBody, beginResponse, reportBody, effectView, errorResponses } from '../schemas.js';
 import { beginOut, effectOut, reportOut } from '../serialize.js';
@@ -267,6 +268,44 @@ export default async function effectRoutes(app: FastifyInstance) {
       actor: actorOf(req), approve: b.approve, note: b.note,
     });
     return { effect_id: r.effectId, state: r.state };
+  });
+
+  // ----------------------------------------------------------------- recall
+  app.get('/runs/:runId', {
+    // effects:read, not a console session: this is for the agent that did the
+    // work, mid-run, not for a person looking at a dashboard afterwards.
+    preHandler: app.requireKey('effects:read'),
+    config: { rateLimit: planRateLimit },
+    schema: {
+      tags: TAG,
+      operationId: 'recallRun',
+      summary: 'What has this run already done?',
+      description:
+        'A compact digest of every effect gated under one run id, grouped by what the caller '
+        + 'must do about it. Built for an agent resuming work after a restart or a compacted '
+        + 'context: it answers "what have I already done" in about a seventeenth of the bytes '
+        + 'of listing the same effects, because a memory that costs more than re-deriving the '
+        + 'answer does not get used. Actions with an unknown outcome are separated out, because '
+        + 'they are the only ones that can hurt you.',
+      params: {
+        type: 'object', required: ['runId'],
+        properties: { runId: { type: 'string', maxLength: 128 } },
+      },
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => {
+    const { runId } = req.params as { runId: string };
+    const r = await recallRun(wsOf(req), runId);
+    return {
+      run_id: r.runId,
+      steps: r.steps,
+      spent_micros: r.spentMicros,
+      done: r.done,
+      in_flight: r.inFlight,
+      unknown: r.unknown,
+      not_done: r.notDone,
+      next: r.next,
+    };
   });
 
   // ------------------------------------------------------------------ reads

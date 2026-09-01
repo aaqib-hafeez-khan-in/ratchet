@@ -221,6 +221,30 @@ export const MCP_TOOLS: McpToolDef[] = [
     },
   },
   {
+    name: 'ratchet_recall',
+    title: 'What have I already done in this run?',
+    scope: 'effects:read',
+    readOnly: true,
+    description:
+      'Recall the work already gated under a run id, before doing anything that might repeat it. '
+      + 'Call this FIRST when resuming a task — after a restart, a handoff, or when your context '
+      + 'has been compacted and you are no longer certain what you did. It returns what succeeded '
+      + 'with the recorded results, what is still in flight, what failed, and — separately, because '
+      + 'it is the only category that can hurt you — what has an unknown outcome. Anything under '
+      + '"done" has already happened: use its result rather than performing it again. Costs about a '
+      + 'seventeenth of the context of listing the same effects.',
+    inputSchema: {
+      type: 'object',
+      required: ['run_id'],
+      properties: {
+        run_id: {
+          type: 'string', maxLength: 128,
+          description: 'The run id you passed to ratchet_begin_effect for this task.',
+        },
+      },
+    },
+  },
+  {
     name: 'ratchet_list_effects',
     title: 'List recent gated effects',
     scope: 'effects:read',
