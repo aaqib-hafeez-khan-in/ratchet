@@ -144,7 +144,7 @@ $('key-done').addEventListener('click', async () => {
   // subscribe buttons in front of them — deliberately NOT auto-starting
   // checkout, because someone who clicked a price button has expressed intent,
   // not consent to be charged.
-  openChosenPlan();
+  void primeChosenPlan();
 });
 
 /**
@@ -155,18 +155,20 @@ $('key-done').addEventListener('click', async () => {
  * Deliberately does not start checkout: clicking a price button is intent, not
  * consent to be charged.
  */
-function openChosenPlan() {
+async function primeChosenPlan() {
   if (!wantedPlan) return;
-  const tab = $('panel-tabs')?.querySelector('[data-tab="billing"]');
-  if (!tab) return;
-  tab.click();
-  setTimeout(() => {
+  // Wait for the button to exist instead of guessing how long a render takes.
+  // Bounded, so a workspace already on a paid plan — which shows no subscribe
+  // buttons at all — simply gives up rather than spinning.
+  for (let i = 0; i < 25; i++) {
     const btn = $('panel')?.querySelector(`[data-sub="${wantedPlan}"]`);
     if (btn) {
       btn.scrollIntoView({ block: 'center', behavior: 'smooth' });
       btn.classList.add('primed');
+      return;
     }
-  }, 400);
+    await new Promise((r) => setTimeout(r, 120));
+  }
 }
 $('sign-out').addEventListener('click', async () => {
   apiKey = null;
@@ -190,10 +192,6 @@ async function boot() {
   hide('key-view');
   show('console-view');
 
-  // Someone already signed in who clicked a price button gets the same
-  // treatment as a new arrival.
-  if (wantedPlan) setTimeout(openChosenPlan, 300);
-
   $('ws-title').textContent = workspace.name;
   $('ws-id').textContent = workspace.workspace_id;
   $('stat-plan').textContent = workspace.plan.name ?? workspace.plan.id;
@@ -206,7 +204,9 @@ async function boot() {
     `${usd(workspace.external_spend_today.workspace_micros)} external spend today`;
 
   await renderAlerts();
-  tabs($('panel-tabs'), (name) => { void PANELS[name](); });
+  tabs($('panel-tabs'), (name) => { void PANELS[name](); },
+       wantedPlan ? 'billing' : undefined);
+  if (wantedPlan) void primeChosenPlan();
 }
 
 /**

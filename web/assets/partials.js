@@ -118,14 +118,18 @@ export function highlight(text) {
     .replace(/:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/g, ': <span class="c-str">"$1"</span>');
 }
 
-export function tabs(container, onSelect) {
+export function tabs(container, onSelect, initial) {
   const buttons = [...container.querySelectorAll('.tab')];
   const select = (name) => {
     for (const b of buttons) b.setAttribute('aria-selected', String(b.dataset.tab === name));
     onSelect(name);
   };
   for (const b of buttons) b.addEventListener('click', () => select(b.dataset.tab));
-  select(buttons[0]?.dataset.tab);
+  // Choosing the opening tab HERE rather than clicking one afterwards matters:
+  // each panel renders asynchronously, so a later click races the first tab's
+  // in-flight render and loses to it.
+  const start = buttons.find((b) => b.dataset.tab === initial) ?? buttons[0];
+  select(start?.dataset.tab);
 }
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g,
