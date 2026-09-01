@@ -49,6 +49,30 @@ if [ -z "$MAJOR" ]; then
 fi
 echo "  production server: $MAJOR"
 
+# Check we can actually write to the bucket BEFORE dumping and restoring.
+#
+# Three runs in a row failed only at the very end: once on a missing module,
+# once on bucket permissions — each time after ninety seconds of dumping
+# production, pulling a Postgres image and verifying 443 receipts. Discovering
+# a credential problem at the last step is the most expensive possible moment.
+if [ -n "${TIGRIS_ACCESS_KEY_ID:-}" ] && [ -n "${TIGRIS_BUCKET:-}" ]; then
+  echo "  checking write access to the bucket…"
+  PROBE_KEY="preflight/.write-check"
+  PROBE_FILE=$(mktemp)
+  printf 'ratchet backup preflight' > "$PROBE_FILE"
+  if ! node scripts/s3-put.mjs "$PROBE_FILE" "$PROBE_KEY" >/dev/null 2>&1; then
+    echo "  cannot write to bucket \"$TIGRIS_BUCKET\"."
+    echo "  Check, in the Tigris console:"
+    echo "    - the bucket exists and is spelled exactly that way"
+    echo "    - the access key has read/write on it (not another bucket)"
+    echo "    - TIGRIS_ACCESS_KEY_ID and TIGRIS_SECRET_ACCESS_KEY are from the SAME key pair"
+    rm -f "$PROBE_FILE"
+    exit 1
+  fi
+  rm -f "$PROBE_FILE"
+  echo "  bucket is writable."
+fi
+
 echo "  dumping…"
 flyctl ssh console -a "$PG_APP" \
   -C "sh -c 'PGPASSWORD=\$OPERATOR_PASSWORD pg_dump -h $PG_APP.internal -U postgres -d $DB -Fc -f /tmp/b.dump'" >/dev/null
