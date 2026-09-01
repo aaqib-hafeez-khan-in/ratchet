@@ -580,6 +580,19 @@ ul.checks li::before {
 
 /* Long-form reading measure, narrower than the app pages. */
 .post { max-width: 34rem; }
+
+/* Terms and privacy are reference documents, not articles.
+   They were sharing .post, whose 34rem measure is right for reading prose
+   straight through and wrong for a page carrying a processors table and nested
+   lists: on a 1280px screen the column was 544px and the table was squeezed to
+   504px across three columns, wrapping cells that should fit on one line.
+   They keep the post typography and take the full narrow column instead;
+   paragraphs stay capped at --measure so the prose is still comfortable. */
+.legal h2 { margin-top: 2.6rem; }
+.legal h3 { margin-top: 1.8rem; font-size: 1.05rem; }
+.legal p, .legal li { line-height: 1.72; }
+.legal table { width: 100%; margin: 1.1rem 0 1.4rem; }
+.legal td, .legal th { vertical-align: top; }
 .post h2 { margin-top: 2.6rem; }
 .post h3 { margin-top: 1.8rem; font-size: 1.05rem; }
 .post p, .post li { line-height: 1.72; }
