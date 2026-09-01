@@ -101,8 +101,33 @@ nav.site a { color: var(--text-dim); font-size: 0.92rem; }
 nav.site a:hover, nav.site a[aria-current="page"] { color: var(--text); text-decoration: none; }
 
 @media (max-width: 640px) {
-  header.site .wrap { height: auto; padding-top: 0.7rem; padding-bottom: 0.7rem; flex-wrap: wrap; gap: 0.75rem; }
-  nav.site { margin-left: 0; width: 100%; gap: 1rem; overflow-x: auto; }
+  header.site .wrap { height: auto; padding-top: 0.7rem; padding-bottom: 0.55rem; flex-wrap: wrap; gap: 0.6rem; }
+
+  /* The nav is a horizontal strip on small screens, and it used to be an inset
+     one: the links were clipped at the wrap's 1.25rem padding, so "Console" —
+     the primary call to action — was cut mid-word at 375px and looked broken
+     rather than scrollable.
+     Bleeding the strip to the viewport edges makes it read as a scroller
+     instead of a mistake, and the fade on the right says there is more without
+     needing a scrollbar the platform may refuse to draw. */
+  nav.site {
+    margin-left: 0;
+    width: auto;
+    margin-inline: -1.25rem;
+    padding-inline: 1.25rem;
+    gap: 1.15rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.25rem), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 2.25rem), transparent);
+  }
+  nav.site::-webkit-scrollbar { display: none; }
+  /* Once you have reached the end there is nothing more to hint at, and a
+     permanent fade over the last link would just look like a rendering fault. */
+  nav.site.at-end { -webkit-mask-image: none; mask-image: none; }
+  nav.site a { white-space: nowrap; scroll-snap-align: start; }
 }
 
 main { display: block; }
@@ -119,6 +144,23 @@ footer.site .cols { display: flex; flex-wrap: wrap; gap: 2.5rem; }
 footer.site h3 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em;
                  color: var(--text-faint); margin: 0 0 0.6rem; }
 footer.site ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+
+/* Some footer links are machine endpoints — they return JSON or plain text, not
+   a page. Agents want them in the footer; a person clicking one got an
+   unexplained wall of JSON and no way back. The tag says what you will get
+   before you click, and these open in a new tab so the page you were reading
+   survives. */
+footer.site .fmt {
+  font: 600 0.62rem/1 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.14rem 0.3rem;
+  margin-left: 0.4rem;
+  vertical-align: 0.06em;
+}
+footer.site a:hover .fmt { color: var(--text-dim); border-color: var(--border-strong, var(--border)); }
 
 /* --------------------------------------------------------------- typography */
 h1, h2, h3 { letter-spacing: -0.022em; line-height: 1.2; margin: 0 0 0.6rem; }

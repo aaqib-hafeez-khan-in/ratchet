@@ -370,6 +370,27 @@ offer them, and never across separate agent processes or model providers.
 3. POST ${config.publicUrl}/v1/effects/{effect_id}/report
    { "lease_token": "...", "outcome": "succeeded", "result": {...} }
 
+## Do not rely on being asked
+A gate only stops the agents that call it. When Ratchet answers "execute" it also
+returns vendor_idempotency_key: the key the VENDOR deduplicates on. Send it to
+Stripe, Square, Adyen, PayPal — and the vendor refuses the duplicate itself, even
+if some other process never calls Ratchet at all.
+  "vendor_idempotency_key": { "key": "rtk_...", "placement": "Idempotency-Key header",
+                              "enforced": true }
+When "enforced" is false the vendor does not deduplicate and the gate stays
+advisory. That field is the truth; do not assume it.
+
+## When an agent starts looping
+Spend ceilings catch an agent burning money. They do not catch one doing too MUCH,
+which is usually free: five thousand emails instead of three costs about a dollar.
+A per-effect-type circuit breaker opens when volume passes a ceiling, and the
+default response is to hold the work for a human rather than kill you. If a begin
+returns approval_required or denied citing a circuit breaker: STOP creating that
+effect type. Retrying will not help. Do not rename the effect type, split the work
+across keys, or vary the idempotency key to get around it — that defeats a control
+protecting the people your actions reach. Call ratchet_circuit_status (MCP) or
+GET /v1/circuits to see when it clears.
+
 ## The important part
 If your process dies between step 2 and step 3, Ratchet does NOT silently let the
 next caller retry. The lease expires and the effect becomes "indeterminate" — a
@@ -388,6 +409,12 @@ block (default), retry (only for vendors that are genuinely idempotent), or prob
 - GET/PUT /v1/policies/{effect_type}       per-effect-type policy
 - GET    /v1/workspace                     plan, credit balance, usage
 - GET    /v1/billing/plans                 pricing
+- GET    /v1/circuits                      open circuit breakers + your own volume
+- POST   /v1/circuits/{effect_type}/open   emergency stop ("*" = the whole workspace)
+- GET    /v1/effects/{id}/receipts         signed receipts for one effect
+- GET    /v1/receipts/audit                verify your chain end to end
+- GET    /v1/vendors                       does a vendor deduplicate? (free, no key)
+- GET    /workerz                          is lease expiry running? 503 if not
 
 ## Authentication
 Authorization: Bearer rk_test_<prefix>_<secret>   (or X-API-Key)

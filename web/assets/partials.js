@@ -29,6 +29,20 @@ export function mountChrome(current) {
     </div>`;
   }
 
+  /* Drop the right-hand fade once the nav strip is scrolled to its end, so the
+     hint disappears when there is nothing left to hint at. Passive listener:
+     this must never delay a scroll. */
+  const nav = header?.querySelector('nav.site');
+  if (nav) {
+    const sync = () => {
+      const atEnd = nav.scrollLeft + nav.clientWidth >= nav.scrollWidth - 2;
+      nav.classList.toggle('at-end', atEnd || nav.scrollWidth <= nav.clientWidth + 2);
+    };
+    nav.addEventListener('scroll', sync, { passive: true });
+    addEventListener('resize', sync, { passive: true });
+    sync();
+  }
+
   const footer = document.querySelector('footer.site');
   if (footer) {
     footer.innerHTML = `<div class="wrap">
@@ -56,10 +70,10 @@ export function mountChrome(current) {
         <div>
           <h3>For agents</h3>
           <ul>
-            <li><a href="/openapi.json">OpenAPI spec</a></li>
-            <li><a href="/llms.txt">llms.txt</a></li>
-            <li><a href="/.well-known/agent-manifest.json">Capability manifest</a></li>
-            <li><a href="/mcp/info">MCP server info</a></li>
+            <li><a href="/openapi.json" target="_blank" rel="noopener">OpenAPI spec<span class="fmt">JSON</span></a></li>
+            <li><a href="/llms.txt" target="_blank" rel="noopener">llms.txt<span class="fmt">TXT</span></a></li>
+            <li><a href="/.well-known/agent-manifest.json" target="_blank" rel="noopener">Capability manifest<span class="fmt">JSON</span></a></li>
+            <li><a href="/mcp/info" target="_blank" rel="noopener">MCP server info<span class="fmt">JSON</span></a></li>
           </ul>
         </div>
         <div>
@@ -67,16 +81,16 @@ export function mountChrome(current) {
           <ul>
             <li><a href="/terms">Terms of service</a></li>
             <li><a href="/privacy">Privacy</a></li>
-            <li><a href="/.well-known/security.txt">Report a vulnerability</a></li>
+            <li><a href="/.well-known/security.txt" target="_blank" rel="noopener">Report a vulnerability<span class="fmt">TXT</span></a></li>
           </ul>
         </div>
         <div>
           <h3>Operations</h3>
           <ul>
             <li><a href="/security">Security posture</a></li>
-            <li><a href="/healthz">Health</a></li>
-            <li><a href="/readyz">Readiness</a></li>
-            <li><a href="/v1/billing/crypto/assets">Crypto payments</a></li>
+            <li><a href="/healthz" target="_blank" rel="noopener">Health<span class="fmt">JSON</span></a></li>
+            <li><a href="/readyz" target="_blank" rel="noopener">Readiness<span class="fmt">JSON</span></a></li>
+            <li><a href="/docs#crypto">Crypto payments</a></li>
           </ul>
         </div>
       </div>
