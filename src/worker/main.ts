@@ -19,6 +19,7 @@ import { gcRunBudgets } from '../domain/run-budget.js';
 import { deliverDue } from './webhooks.js';
 import { watchChainOnce, expireQuotes } from './chain.js';
 import { deliverEmails, generateAlerts } from './email.js';
+import { checkReplication } from './replication.js';
 import { startActivityFlusher, stopActivityFlusher } from '../domain/activity.js';
 import { recordOk, recordFailure, staleAfterMs } from './heartbeat.js';
 import { randomUUID } from 'node:crypto';
@@ -45,7 +46,9 @@ const INSTANCE = process.env.FLY_MACHINE_ID ?? randomUUID().slice(0, 12);
 /** Every loop, so the watchdog can see which of them has stopped finishing. */
 const loops: Array<{ name: string; intervalMs: number; busySince: number | null }> = [];
 
-function loop(name: string, intervalMs: number, fn: () => Promise<number | void>) {
+type Tick = number | void | { count?: number; note?: string };
+
+function loop(name: string, intervalMs: number, fn: () => Promise<Tick>) {
   const self = { name, intervalMs, busySince: null as number | null };
   loops.push(self);
 
@@ -56,9 +59,12 @@ function loop(name: string, intervalMs: number, fn: () => Promise<number | void>
     if (self.busySince !== null || !running) return;
     self.busySince = Date.now();
     try {
-      const n = await fn();
+      const r = await fn();
+      const n = typeof r === 'number' ? r : r?.count;
+      const note = typeof r === 'object' && r !== null ? r.note : undefined;
       if (typeof n === 'number' && n > 0) log('info', `${name} processed`, { count: n });
-      await recordOk(name, INSTANCE, intervalMs).catch(() => {});
+      if (note) log('error', `${name} found a problem`, { detail: note });
+      await recordOk(name, INSTANCE, intervalMs, undefined, note).catch(() => {});
     } catch (err) {
       const message = (err as Error).message;
       log('error', `${name} failed`, { err: message });
@@ -141,6 +147,14 @@ async function main() {
   // the request path: a median over a growing history is exactly the kind of
   // aggregate that must never sit in front of a decision.
   loop('surge-baseline', 15 * 60_000, () => refreshSurgeBaselines());
+
+  // Watching the database that is watching everything else. A standby froze for
+  // over half an hour with every surface reporting health, and only a migration
+  // exposed it — see src/worker/replication.ts.
+  loop('replication-watch', config.worker.replicationCheckIntervalMs, async () => {
+    const r = await checkReplication();
+    return r.problems.length ? { note: r.problems.join('; ') } : {};
+  });
 
   loop('retention-gc', config.worker.gcIntervalMs, async () => {
     const effects = await collectExpiredEffects();

@@ -35,8 +35,14 @@ interface WsRow {
  * nobody to warn, so refusing is the only honest end to it.
  */
 export class AnonymousQuotaExhausted extends Error {
-  constructor(readonly quota: number) {
-    super('Anonymous workspace quota exhausted');
+  /**
+   * `claimed` separates two states that hit the same ceiling and need opposite
+   * instructions. Telling somebody who has already given us their address to go
+   * and give us their address is the kind of error message that makes people
+   * think the product is broken rather than that they have one click left.
+   */
+  constructor(readonly quota: number, readonly claimed = false) {
+    super('Workspace quota exhausted');
     this.name = 'AnonymousQuotaExhausted';
   }
 }
@@ -114,7 +120,7 @@ export async function meterEffect(
   if (!withinAllowance && !onPlan) {
     // No overage path for an unclaimed workspace: there is nobody to bill and
     // nobody to warn. Refusing here is the honest end of a free trial.
-    throw new AnonymousQuotaExhausted(ANONYMOUS_EFFECT_QUOTA);
+    throw new AnonymousQuotaExhausted(ANONYMOUS_EFFECT_QUOTA, !ws.anonymous);
   }
 
   if (!withinAllowance) {

@@ -139,6 +139,18 @@ export const config = {
     leaseSweepIntervalMs: int('LEASE_SWEEP_INTERVAL_MS', 2000),
     webhookPollIntervalMs: int('WEBHOOK_POLL_INTERVAL_MS', 1000),
     gcIntervalMs: int('GC_INTERVAL_MS', 300000),
+    replicationCheckIntervalMs: int('REPLICATION_CHECK_INTERVAL_MS', 60000),
+    // Getters, not values. `int()` at module load means whichever module is
+    // imported first decides the number for the whole process, which has
+    // already caught a provisioning limit out once here.
+    //
+    // Well under the cluster's max_slot_wal_keep_size of 2 GB, which is the
+    // point of no return: past it the slot is invalidated and the replica can
+    // only be rebuilt. The alert exists to leave room to act before that.
+    get replicaLagAlertBytes() { return int('REPLICA_LAG_ALERT_BYTES', 268_435_456); },
+    // Zero disables the check. An operator who has not said how many replicas
+    // to expect should not be told one is missing.
+    get expectedReplicas() { return int('EXPECTED_REPLICAS', 0); },
   },
 
   // Read live from the environment rather than captured at import. Payment

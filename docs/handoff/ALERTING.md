@@ -102,3 +102,27 @@ worked; shell quoting was the likely culprit throughout.
   caller reads it, so we would learn we were at the global ceiling from a
   complaint.
 - No staging environment, so every deploy is tested in production.
+
+---
+
+## Replica health (added 1 Sep 2026)
+
+The uptime workflow now fails — and therefore emails — on `replication` in the `/workerz`
+body:
+
+| Value | Meaning | Action |
+|---|---|---|
+| `ok` | Every standby is streaming and close behind | none |
+| `degraded` | A standby is far behind, frozen, or missing | `flyctl logs -a ratchet-gate \| grep replication-watch` for which node and how far |
+| `unobserved` | The watcher itself is not running | **Also a failure.** A watcher that is not running looks exactly like a healthy cluster |
+
+`degraded` arrives with HTTP **200**, not 503. A sick replica is not worker death: leases are
+still expiring and the gate is still correct. Returning 503 would invite the platform to
+restart the one process that cannot fix a database.
+
+Detail is deliberately absent from the response. The repository is public and `/workerz`
+takes no credential, so which node and how far behind stays in the worker's logs.
+
+Background and the reasoning behind the byte-distance measure:
+[`INCIDENT_2026-09-01_FROZEN_STANDBY.md`](INCIDENT_2026-09-01_FROZEN_STANDBY.md).
+

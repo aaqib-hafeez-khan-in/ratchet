@@ -40,26 +40,42 @@ export function staleAfterMs(intervalMs: number): number {
 }
 
 const lastWrite = new Map<string, number>();
+/** Last finding written per loop, so a change is never rate limited away. */
+const lastNote = new Map<string, string | undefined>();
 
+/**
+ * `note` records something the loop FOUND, as distinct from the loop failing.
+ * A watcher that successfully observes a sick cluster has done its job; calling
+ * that a loop failure would age out its heartbeat and report the worker as
+ * stalled, which would be a lie about the wrong component — and on a platform
+ * that restarts unhealthy workers, a restart that cannot fix a database.
+ */
 export async function recordOk(
   loopName: string, instance: string, intervalMs: number, db: Db = getPool(),
+  note?: string,
 ): Promise<void> {
   const now = Date.now();
-  if (now - (lastWrite.get(loopName) ?? 0) < MIN_WRITE_INTERVAL_MS) return;
+  // Any CHANGE in what is being reported bypasses the throttle, in both
+  // directions. Letting only the arrival of a problem through would leave a
+  // resolved one on display until the next unthrottled write — an alarm for
+  // something already fixed, which is how monitoring gets ignored.
+  const changed = lastNote.get(loopName) !== note;
+  if (!changed && now - (lastWrite.get(loopName) ?? 0) < MIN_WRITE_INTERVAL_MS) return;
   await db.query(
     `INSERT INTO worker_heartbeats
        (loop_name, instance, interval_ms, last_ok_at, last_error,
         consecutive_failures, updated_at)
-     VALUES ($1,$2,$3,now(),NULL,0,now())
+     VALUES ($1,$2,$3,now(),$4,0,now())
      ON CONFLICT (loop_name) DO UPDATE SET
        instance = EXCLUDED.instance, interval_ms = EXCLUDED.interval_ms,
-       last_ok_at = now(), last_error = NULL,
+       last_ok_at = now(), last_error = EXCLUDED.last_error,
        consecutive_failures = 0, updated_at = now()`,
-    [loopName, instance, intervalMs]);
+    [loopName, instance, intervalMs, note ?? null]);
   // Marked only after the write lands. Recording the attempt instead would let
   // a transient database error suppress the next fifteen seconds of heartbeats,
   // making a brief blip look like the beginning of a stall.
   lastWrite.set(loopName, now);
+  lastNote.set(loopName, note);
 }
 
 /**

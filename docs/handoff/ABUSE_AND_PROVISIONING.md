@@ -86,3 +86,47 @@ Both limits are now getters, like `rateLimitOverride`.
   agent is refused alongside the attacker. 250/hour is generous enough that this
   should be rare, but the failure mode is real and should be measured before it
   is tuned.
+
+---
+
+## Claimed-workspace farming — closed 1 Sep 2026
+
+**The hole.** Claiming a workspace wrote `owner_email` and lifted the cap from 100 gated
+effects to the free plan's 1,000. Nothing checked the address existed. Measured: one source
+could open **five workspaces an hour, each a full free plan**, with addresses that never had
+to be reachable — and rotating the source removed even that bound. After keyless
+provisioning was tightened, this was the cheapest remaining route to free gates, and the
+only one with no ceiling at all.
+
+**What was done.** Migration 028 adds `email_verified_at`, `verification_hash` and
+`verification_sent_at`. A workspace runs at the unclaimed cap until the address answers.
+
+**The distinction that matters: this gates the ALLOWANCE, never the signup.** A workspace is
+still created and a working key returned in one request. Keyless provisioning could be
+refused outright because there is a fallback — create one the ordinary way. Refusing a real
+signup has no fallback, and turning away customers during a launch spike is a worse failure
+than serving an attacker a hundred free effects.
+
+**Grandfathering.** The migration backfills every already-claimed workspace to
+`COALESCE(claimed_at, created_at)`. Without it, all 28 claimed production workspaces would
+have dropped from 1,000 effects to 100 on deploy — including the one running our own uptime
+probe. Verified after deploy: **28 claimed, 0 demoted, 0 anonymous wrongly promoted.**
+
+**Token handling.** Stored as HMAC-SHA256 under `AUTH_SECRET`, compared in constant time,
+48-hour TTL. A verification link flips billing state for whoever holds it, so it is treated
+as the bearer credential it is.
+
+**Not cleared on redemption.** Clearing it looked tidier and made a second click report *"we
+do not recognise that link"*. Mail clients prefetch links and people click twice, so that
+message would have gone to people whose accounts were fine. Idempotency comes from
+`email_verified_at` instead, leaving the token inert — all it can do is set something already
+set.
+
+**Both refusals carry their own instruction.** An anonymous workspace at the cap is told to
+claim it; a claimed-but-unconfirmed one is told to click the link it already has. The code
+stays `quota_exhausted` for both. Telling somebody who has already given us their address to
+go and give us their address reads as a broken product rather than as one remaining click.
+
+**What an attacker now pays.** A reachable inbox per workspace. That was the cost that was
+missing.
+

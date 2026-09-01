@@ -40,6 +40,48 @@ describe('worker liveness endpoint', () => {
     assert.equal(JSON.parse(r.payload).status, 'ok');
   });
 
+  /**
+   * The uptime probe branches on this word, so it is a contract. A replica that
+   * has stopped applying WAL is invisible from every other public surface —
+   * that is how one stayed frozen for 37 minutes.
+   */
+  test('replication health is reported alongside a healthy worker', async () => {
+    await recordOk('replication-watch', 'i-1', 60_000, getPool(),
+      'replica standby_a is 400.0 MB behind');
+    const r = await workerz();
+
+    // Still 200: leases are expiring and the gate is correct. Failing here
+    // would invite a restart of the one process that cannot fix a database.
+    assert.equal(r.statusCode, 200);
+    const body = JSON.parse(r.payload);
+    assert.equal(body.status, 'ok');
+    assert.equal(body.replication, 'degraded');
+
+    // The repository is public and this endpoint takes no credential, so the
+    // word travels and the detail stays in the worker's logs.
+    assert.equal(r.payload.includes('standby_a'), false);
+    assert.equal(r.payload.includes('400.0'), false);
+  });
+
+  test('a clean replication check reports ok', async () => {
+    await recordOk('replication-watch', 'i-1', 60_000, getPool());
+    const r = await workerz();
+    assert.equal(JSON.parse(r.payload).replication, 'ok');
+  });
+
+  /**
+   * The failure mode that would quietly undo all of this: the watcher not
+   * running at all looks exactly like a healthy cluster unless it is said.
+   */
+  test('a missing watcher is "unobserved", never "ok"', async () => {
+    await getPool().query(
+      `DELETE FROM worker_heartbeats WHERE loop_name = 'replication-watch'`);
+    await recordOk(`e2e-other-${Date.now()}`, 'i-1', 2000);
+    const r = await workerz();
+    assert.equal(r.statusCode, 200);
+    assert.equal(JSON.parse(r.payload).replication, 'unobserved');
+  });
+
   test('a stalled loop is 503 and names the loop', async () => {
     const loop = `e2e-stalled-${Date.now()}`;
     await recordOk(loop, 'i-1', 2000);

@@ -52,6 +52,22 @@ for (const p of ['/healthz', '/readyz']) {
   if (r.status === 200) ok('/workerz', `${r.json?.loops ?? '?'} loops`);
   else fail('/workerz', `HTTP ${r.status} — ${r.json?.status ?? ''} ${JSON.stringify(r.json?.stalled_loops ?? '')}. `
     + 'Lease expiry may have stopped: effects will sit at pending and retries will be told in_flight.');
+
+  // Separate from worker liveness on purpose: the control plane can be perfectly
+  // healthy while a standby quietly stops applying what it receives. That is
+  // what happened, and nothing here noticed until a migration exposed it.
+  const rep = r.json?.replication;
+  if (rep === 'degraded') {
+    fail('replication', 'A database replica is behind or frozen. If the cluster fails over to it, '
+      + 'committed effects will be lost — an agent would be told an action had never been decided. '
+      + 'Run: flyctl logs -a ratchet-gate | grep replication-watch');
+  } else if (rep === 'ok') {
+    ok('replication', 'replicas streaming');
+  } else if (r.status === 200) {
+    // Never silently pass: an absent field means the watcher is not running,
+    // which is indistinguishable from a healthy cluster if it is not said.
+    fail('replication', 'The replication watcher has not checked in, so replica health is unknown.');
+  }
 }
 
 // ---- 3. Does the gate still gate? -------------------------------------------

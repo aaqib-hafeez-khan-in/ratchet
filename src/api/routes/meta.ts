@@ -73,7 +73,20 @@ export default async function metaRoutes(app: FastifyInstance) {
         return { status: 'stalled', stalled_loops: stale,
           detail: 'A worker loop has stopped completing. Leases may not be expiring.' };
       }
-      return { status: 'ok', loops: h.loops.length };
+      // Replication trouble is not worker death: leases are still expiring and
+      // the control plane is still correct. It is reported alongside a 200 so a
+      // monitor can raise it without a restart loop being the platform's answer
+      // to a sick database.
+      //
+      // A word, never the detail. The repository is public and this endpoint
+      // needs no credential; "which node, how far behind" is operator
+      // information and stays in the worker's logs where it belongs.
+      const rep = h.loops.find((l) => l.loop === 'replication-watch');
+      return {
+        status: 'ok',
+        loops: h.loops.length,
+        replication: rep === undefined ? 'unobserved' : rep.lastError ? 'degraded' : 'ok',
+      };
     } catch {
       reply.code(503);
       return { status: 'unknown', detail: 'Could not read worker heartbeats.' };

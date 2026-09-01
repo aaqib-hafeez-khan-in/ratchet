@@ -171,6 +171,26 @@ caused by moving from one node to three:
 multi-region would require rethinking the uniqueness guarantee — not a small
 change.
 
+**A standby can be streaming and still not hold your data.** On 1 Sep 2026 one
+node stopped applying WAL for 34 minutes while reporting `streaming`, holding a
+healthy replication slot, and sitting idle at 0.39 load. It was found only
+because a migration added a column that two nodes had and one did not. A restart
+cleared it and the slot had preserved its position, so nothing needed rebuilding.
+
+`replication-watch` in the worker now samples this every minute and `/workerz`
+reports `replication: ok | degraded | unobserved`. Two things to know when
+reading it:
+
+- **Do not trust `replay_lag`.** It measures how long ago the last applied
+  transaction committed, which on a quiet database is a statement about traffic,
+  not health — it read 37 minutes on a cluster doing almost nothing. Byte
+  distance is the honest measure.
+- **A replay position pinned at a segment boundary while the primary advances is
+  a wedged receiver**, and is dangerous well before the byte distance looks
+  alarming. Restart that node; if it recurs, rebuild it.
+
+Full account: [`INCIDENT_2026-09-01_FROZEN_STANDBY.md`](INCIDENT_2026-09-01_FROZEN_STANDBY.md).
+
 ---
 
 ## 4b. Surge containment is absolute, not learned

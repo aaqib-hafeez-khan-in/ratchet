@@ -450,11 +450,19 @@ async function meter(
      * rather than leaking as a 500 — which is what it did before this.
      */
     if (err instanceof AnonymousQuotaExhausted) {
+      // Same ceiling, opposite remedies. The code stays `quota_exhausted` either
+      // way so anything branching on it keeps working; only the instruction
+      // differs, because only the instruction is different.
       throw new ApiError(402, 'quota_exhausted',
-        `This anonymous workspace has used its ${err.quota} free gated effects. `
-        + 'Claim it with an email at POST /v1/workspaces/claim to continue on the free '
-        + 'plan, or pay to continue without an account.',
-        { quota: err.quota });
+        err.claimed
+          ? `This workspace has used its ${err.quota} free gated effects and its email `
+            + 'address has not been confirmed yet. Click the link in the message we sent to '
+            + 'move onto the free plan — the key and everything already recorded stay as '
+            + 'they are.'
+          : `This anonymous workspace has used its ${err.quota} free gated effects. `
+            + 'Claim it with an email at POST /v1/workspaces/claim to continue on the free '
+            + 'plan, or pay to continue without an account.',
+        { quota: err.quota, awaiting_confirmation: err.claimed });
     }
 
     if (err instanceof InsufficientCredit) {

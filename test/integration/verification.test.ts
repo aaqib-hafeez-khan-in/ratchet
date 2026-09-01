@@ -160,6 +160,30 @@ describe('what the allowance depends on', () => {
     assert.equal(rows[0]!.same, true);
   });
 
+  /**
+   * Two states, one ceiling, opposite instructions. Telling somebody who has
+   * already given us their address to go and give us their address reads as a
+   * broken product rather than as one remaining click.
+   */
+  test('the refusal tells each state what to actually do', async () => {
+    const { AnonymousQuotaExhausted } = await import('../../src/domain/metering.js');
+
+    const unconfirmed = new AnonymousQuotaExhausted(100, true);
+    assert.equal(unconfirmed.claimed, true);
+
+    const anonymous = new AnonymousQuotaExhausted(100, false);
+    assert.equal(anonymous.claimed, false);
+
+    // And the flag actually reaches the caller through begin().
+    const ws = await freshWorkspace(false);
+    await unverify(ws.workspaceId);
+    await setPeriodDecisions(ws.workspaceId, ANONYMOUS_EFFECT_QUOTA);
+    const refused = await meterOnce(ws.workspaceId);
+    assert.ok(refused instanceof Error);
+    assert.equal((refused as InstanceType<typeof AnonymousQuotaExhausted>).claimed, true,
+      'a claimed workspace must be told to confirm, not to claim again');
+  });
+
   test('the backfill does not hand a plan to anything unclaimed', async () => {
     const { rows } = await getPool().query<{ n: string }>(
       `SELECT count(*) AS n FROM workspaces
