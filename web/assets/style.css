@@ -977,3 +977,56 @@ ul.checks li::before {
   .fb-btn { min-height: 44px; padding-inline: 1.35rem; }
 }
 @media (prefers-reduced-motion: reduce) { .fb-btn { transition: none; } }
+
+/* ── What you get ────────────────────────────────────────────────────────────
+   Three lines, above the fold, each a claim a reader can check by scrolling.
+   Deliberately not cards: cards imply three separate things, and these are one
+   product described three ways. */
+.gains {
+  list-style: none; padding: 0;
+  margin: 1.6rem 0 0; max-width: 60ch;
+  display: grid; gap: 0.55rem;
+}
+.gains li {
+  color: var(--text-dim); font-size: 1.02rem; line-height: 1.5;
+  padding-left: 1.1rem; position: relative;
+}
+.gains li::before {
+  content: ""; position: absolute; left: 0; top: 0.62em;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+}
+.gains a { color: inherit; text-decoration: none; }
+.gains a strong { color: var(--text); font-weight: 600; }
+.gains a:hover strong { color: var(--accent); }
+.gains a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+/* The three questions every visitor has — does it work with mine, what does it
+   cost, how much work is it — answered before they have scrolled. They used to
+   be at positions 13 and 15 of a fifteen-section page. */
+.quickfacts {
+  margin: 1.35rem 0 0; font-size: 0.87rem; color: var(--text-faint);
+  display: flex; flex-wrap: wrap; gap: 0.5rem 0.7rem; align-items: baseline;
+}
+.quickfacts a { color: var(--text-dim); text-decoration: none; border-bottom: 1px solid var(--border-strong, var(--border)); }
+.quickfacts a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+.quickfacts span { opacity: 0.55; }
+
+/* ── Where the pitch ends ────────────────────────────────────────────────────
+   A reader asked whether the page runs highest value to lowest. It did not — it
+   ran as an argument, which is the right shape for convincing a sceptic and the
+   wrong one for orienting somebody who arrived half a minute ago. Rather than
+   reorder fifteen sections and lose the thread that makes them work, this names
+   the seam, so a scanner knows they have already had the point. */
+.depth { padding: 2.5rem 0 0.5rem; }
+.depth .wrap {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 0.9rem;
+  border-top: 1px solid var(--border); padding-top: 1.5rem;
+}
+.depth span {
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--accent); flex: none;
+}
+.depth p {
+  margin: 0; font-size: 0.92rem; color: var(--text-faint);
+  max-width: 58ch;
+}

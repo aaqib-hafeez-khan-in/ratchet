@@ -48,9 +48,39 @@
     <p class="eyebrow">Execution control for autonomous agents</p>
     <h1>Your agent retried.<br>Did the email send twice?</h1>
     <p class="lede">
-      Ratchet is a gate you call <em>before</em> a side effect. It answers durably — go, stop,
-      or “we genuinely don't know” — so the same real-world action is attempted at most once,
-      across every process, machine, and model provider you run.
+      Ratchet is how you let an agent charge a card, send an email or book a flight —
+      and know the action was only ever attempted once.
+    </p>
+
+    <!-- Two readers said the same thing on the same day: one could not find the
+         value at a glance, the other said the page took too much focus. Both were
+         right and both had one cause — every word above the fold described what
+         Ratchet IS, and none described what you GET. These three are the whole
+         product, scannable in about five seconds, each linking to the section
+         that argues it properly for anyone who wants that. -->
+    <ul class="gains">
+      <li>
+        <a href="#duplicates"><strong>Never twice.</strong></a>
+        A retry, a restart and two workers racing all get the same answer.
+      </li>
+      <li>
+        <a href="#unknown"><strong>Never a guess.</strong></a>
+        When nobody can know whether it happened, we say so instead of assuming.
+      </li>
+      <li>
+        <a href="#anything"><strong>Never per-vendor.</strong></a>
+        One gate in front of Stripe, Resend, Slack, or anything else you already call.
+      </li>
+    </ul>
+
+    <p class="quickfacts">
+      <a href="/works-with">Works with 90 platforms</a>
+      <span>·</span>
+      <a href="/pricing">1,000 effects a month, free</a>
+      <span>·</span>
+      <span>No card</span>
+      <span>·</span>
+      <span>Two HTTP calls</span>
     </p>
 
     <!-- A visitor asked why the site says "no signup" in one place and "get a key"
@@ -223,7 +253,7 @@ Reached the vendor: 20. Held back: 80.</code></pre>
   </div>
 </section>
 
-<section>
+<section id="duplicates">
   <div class="wrap">
     <h2>The problem is not that agents fail. It's that they retry.</h2>
     <p class="dim" style="max-width:64ch">
@@ -300,7 +330,7 @@ Reached the vendor: 20. Held back: 80.</code></pre>
   </div>
 </section>
 
-<section>
+<section id="unknown">
   <div class="wrap">
     <p class="eyebrow">The part that makes it worth paying for</p>
     <h2>When we don't know, we say so.</h2>
@@ -431,6 +461,20 @@ Reached the vendor: 20. Held back: 80.</code></pre>
   </div>
 </section>
 
+<!-- A reader asked whether the page is ordered highest value to lowest. It was
+     not: it was ordered as an argument, which is what you write to convince a
+     sceptic and not what you write to orient someone who arrived thirty seconds
+     ago. Everything above this line is the product. Everything below is the
+     part you want on the day you need it, and this rule says so rather than
+     making anyone infer it from length. -->
+<div class="depth">
+  <div class="wrap">
+    <span>That is the whole product.</span>
+    <p>What follows is the part you will want later — the runaway loop, the agent that
+       does not ask, and undoing four steps when the fifth fails.</p>
+  </div>
+</div>
+
 <section>
   <div class="wrap">
     <p class="eyebrow">New: surge containment</p>
@@ -476,7 +520,7 @@ Reached the vendor: 20. Held back: 80.</code></pre>
   </div>
 </section>
 
-<section>
+<section id="anything">
   <div class="wrap">
     <p class="eyebrow">Vendor-enforced idempotency</p>
     <h2>A gate only stops the agents that ask</h2>
