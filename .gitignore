@@ -12,3 +12,10 @@ openapi.json
 # key hash, and receipt in production.
 backups/
 *.dump
+
+# Encrypted secrets. This repository is public: an encrypted blob here is an
+# offline brute-force target that never expires. Keep them in a password
+# manager instead.
+*.enc
+*.age
+env.enc

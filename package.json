@@ -38,7 +38,8 @@
     "stress": "tsx scripts/stress.ts",
     "probe:prod": "tsx scripts/prod-probe.ts",
     "snapshot:code": "bash scripts/snapshot-code.sh",
-    "uptime": "node scripts/uptime-check.mjs"
+    "uptime": "node scripts/uptime-check.mjs",
+    "encrypt:env": "bash scripts/encrypt-env.sh"
   },
   "dependencies": {
     "@fastify/cookie": "11.1.2",

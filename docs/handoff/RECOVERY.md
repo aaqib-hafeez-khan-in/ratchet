@@ -91,17 +91,19 @@ is used, and this table says how to re-obtain it.
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Fly secret | Stripe dashboard → roll |
 | `EMAIL_API_KEY` | Fly secret | Resend dashboard → new key |
 | `FLY_API_TOKEN` | GitHub secret | `flyctl tokens create ssh -a ratchet-gate-pg` |
-| `TIGRIS_ACCESS_KEY_ID` / `_SECRET_ACCESS_KEY` | GitHub secret + local `.env` | Tigris console → new key pair, **needs read/write** on the bucket |
+| `TIGRIS_ACCESS_KEY_ID` / `_SECRET_ACCESS_KEY` | **GitHub secret only** — not in `.env`, so a local `npm run snapshot:code` keeps the bundle local unless you export them | Tigris console → new key pair, **needs read/write** on the bucket |
 | `TIGRIS_BUCKET` | GitHub secret | literal: `ratchet-backups` |
 | `MCP_REGISTRY_PRIVATE_KEY` | GitHub secret | Rotate: generate ed25519, publish the **public** half at `/.well-known/mcp-registry-auth` (in `src/api/routes/meta.ts`), deploy, `mcp-publisher login http --domain ratchetgate.com --private-key <hex>` |
 | Receipt signing key | Derived via HKDF from `AUTH_SECRET` | Public halves stay published forever so old receipts verify |
-| Local `.env` | `/Users/w0lfi3/ajbs/.env` — **gitignored, 35 vars, 9 credential-bearing** | Not backed up anywhere. See below |
+| Local `.env` | `/Users/w0lfi3/ajbs/.env` — gitignored, 34 populated vars | **Only TWO are real credentials**: `STRIPE_SECRET_KEY` (a *test* key) and `STRIPE_WEBHOOK_SECRET`. Both re-obtainable from the Stripe dashboard in a minute. `AUTH_SECRET` and `DATABASE_URL` here are dev placeholders; production's live in Fly. The blockchain addresses are public by design and the RPC URLs carry no embedded keys |
 
-> **`.env` is the single unbacked-up artefact.** It is gitignored (correctly) and
-> Fly/GitHub secrets are write-only, so it cannot be reconstructed automatically.
-> The owner should encrypt it into a password manager:
-> `openssl enc -aes-256-cbc -pbkdf2 -in .env -out env.enc` — Claude must never
-> hold the passphrase or the plaintext.
+> **`.env` is the only unbacked-up artefact, but it is far less critical than it
+> looks.** Audited 1 Sep 2026: two real credentials, both Stripe, both
+> replaceable from their dashboard. Losing this laptop costs a few minutes of
+> reconfiguration, not a recovery incident.
+>
+> `npm run encrypt:env` makes an encrypted copy for a password manager. Claude
+> must never hold the passphrase or the plaintext.
 
 **Rules you must not break:** never print a secret, never `pbpaste` a credential
 into context (this happened once and burned a Cloudflare token), never ask the
