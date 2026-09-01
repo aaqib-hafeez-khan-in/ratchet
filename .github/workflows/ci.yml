@@ -1,0 +1,65 @@
+# The suite, on every push.
+#
+# There was no CI. The only thing between a broken change and production was
+# whoever remembered to run `npm test`, and on 1 September that failed exactly
+# as you would expect: five failing tests were deployed because the deploy was
+# chained into the same command as the test run.
+#
+# This runs what a developer runs — scripts/test.sh, not a reimplementation of
+# it — so CI passing and "it works on my machine" cannot mean different things.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        # The suite depends on FOR UPDATE, SKIP LOCKED, partial indexes and
+        # advisory locks, so this has to be real Postgres rather than a stub.
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ratchet
+          POSTGRES_PASSWORD: ratchet
+          POSTGRES_DB: postgres
+        # 5433 on the host, because that is the port the scripts and the
+        # developer default already use.
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U ratchet"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Full suite
+        run: npm test
+
+      - name: Production dependency audit
+        # A vulnerable production dependency should fail the build; a vulnerable
+        # dev tool should not stop a release at midnight.
+        run: npm run audit
