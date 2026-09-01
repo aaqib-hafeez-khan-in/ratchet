@@ -16,3 +16,10 @@ Disallow: /mcp
 Disallow: /oauth/
 
 Sitemap: https://ratchetgate.com/sitemap.xml
+
+# For readers that are not crawlers. The whole service, written to be read by a
+# model rather than rendered: what the decisions mean, what to do with each one,
+# and what NOT to do — including not working around a circuit breaker.
+# llms.txt: https://ratchetgate.com/llms.txt
+# manifest: https://ratchetgate.com/.well-known/agent-manifest.json
+# openapi:  https://ratchetgate.com/openapi.json
