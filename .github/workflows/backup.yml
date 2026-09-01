@@ -12,6 +12,9 @@
 # Schedule and manual dispatch only, both of which run trusted code from the
 # default branch.
 #
+# For the same reason it refuses to run outside the default branch: dispatch can
+# target any ref, and branch code must not reach these secrets.
+#
 # It also never echoes a secret, and the dump is retained as an artifact for a
 # short window only — it contains every workspace, key hash, and receipt in
 # production.
@@ -38,6 +41,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
+      # Default branch only.
+      #
+      # This job dumps the entire production database and holds the credentials
+      # to do it. workflow_dispatch can target any ref, which means a branch
+      # that edits scripts/backup-verify.sh could run its own code against those
+      # secrets — the same objection this file already makes to the
+      # pull_request trigger, differing only in that it needs write access
+      # rather than none.
+      #
+      # The cost is real: the backup cannot be exercised on a branch before
+      # merging. That is the right trade for a job with unrestricted read of
+      # every workspace, key hash and receipt in production.
+      - name: Refuse to run outside the default branch
+        if: github.ref != format('refs/heads/{0}', github.event.repository.default_branch)
+        run: |
+          echo "This workflow only runs on ${{ github.event.repository.default_branch }}."
+          echo "It dumps production and holds the credentials to do so, and"
+          echo "workflow_dispatch can target any ref — so branch code must not"
+          echo "reach these secrets."
+          exit 1
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
