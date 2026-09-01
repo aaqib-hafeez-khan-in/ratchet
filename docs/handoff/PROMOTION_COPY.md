@@ -3,7 +3,7 @@
 *Prepared 1 September 2026. Everything below needs a human to post it: these are
 accounts under your name, and the judgement about your reputation is yours.*
 
-URL: `https://ratchetgate.com/blog/idempotency-keys-are-broken-on-macos`
+URL: `https://ratchetgate.com/notes/idempotency-keys-are-broken-on-macos`
 
 ---
 
@@ -47,7 +47,7 @@ Your idempotency keys are broken on macOS
 conflict of interest before someone else does:
 
 ```
-Author here. This is on our company blog and we sell a product in this area, so
+Author here. This is on our own site and we sell a product in this area, so
 take the context for what it is — but the bug is real, it was ours, and it had
 shipped.
 
@@ -75,7 +75,7 @@ the point.
 ## 2. Reddit — r/programming
 
 Link post, same title. Read the current self-promotion rules first; r/programming
-removes company-blog links that read as marketing. This one survives on the
+removes company links that read as marketing. This one survives on the
 technical content, but only if you engage in comments rather than dropping and
 leaving.
 
@@ -101,7 +101,7 @@ Compare idempotency keys as raw bytes and two machines can each be told
 "execute" for the same work. Same invoice, charged twice.
 
 We found this in our own code, after it shipped:
-https://ratchetgate.com/blog/idempotency-keys-are-broken-on-macos
+https://ratchetgate.com/notes/idempotency-keys-are-broken-on-macos
 ```
 
 The link now renders a proper preview card — `og:image` was an SVG until

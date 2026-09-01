@@ -207,7 +207,7 @@ scoped agent keys at signup · 442 tests · security probe 47/47 · npm publishe
 MCP registry v0.2.0.
 
 **Open:**
-1. **Blog post unpromoted** — copy ready in `docs/handoff/PROMOTION_COPY.md`.
+1. **Notes post unpromoted** — copy ready in `docs/handoff/PROMOTION_COPY.md`.
    Post Tue–Thu 08:00–10:00 ET. Needs the owner's accounts.
 2. **Stripe has never taken a real payment.** Last untested hypothesis.
 3. **No uptime monitor on `/workerz`** yet.

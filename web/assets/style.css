@@ -652,3 +652,16 @@ ul.checks li::before {
 @keyframes primed-fade { 0%, 60% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #1c5cff) 35%, transparent); }
                          100% { box-shadow: 0 0 0 0 transparent; } }
 @media (prefers-reduced-motion: reduce) { .btn.primed { animation: none; } }
+
+/* Two entry points, stated side by side.
+   A visitor reported having to reconcile "no signup" in one section with
+   "get an API key" in another. They are two doors into the same workspace;
+   showing them together, with the sentence that joins them, removes the work. */
+.entry { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem 2rem;
+         padding: 1.25rem 1.4rem; border: 1px solid var(--border);
+         border-radius: 12px; max-width: 62rem; }
+.entry > div > p:last-child { margin: 0; font-size: 0.95rem; color: var(--text-dim); max-width: 42ch; }
+.entry .eyebrow { margin-bottom: 0.35rem; }
+.entry-join { grid-column: 1 / -1; margin: 0; padding-top: 0.9rem;
+              border-top: 1px solid var(--border); max-width: none; }
+@media (max-width: 640px) { .entry { grid-template-columns: 1fr; } }

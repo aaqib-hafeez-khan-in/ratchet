@@ -46,3 +46,41 @@ describe('canonical host redirect', () => {
     assert.notEqual(r.statusCode, 301);
   });
 });
+
+describe('notes section', () => {
+  // Renamed from /blog on 31 August 2026. The article was already published at
+  // the old path, so the redirects are part of the contract, not tidy-up.
+  test('serves the notes index and the article', async () => {
+    for (const url of ['/notes', '/notes/idempotency-keys-are-broken-on-macos']) {
+      const r = await app.inject({ method: 'GET', url });
+      assert.equal(r.statusCode, 200, `${url} should be served`);
+    }
+  });
+
+  test('old blog URLs redirect permanently rather than 404', async () => {
+    const cases: Array<[string, string]> = [
+      ['/blog', '/notes'],
+      ['/blog/idempotency-keys-are-broken-on-macos',
+       '/notes/idempotency-keys-are-broken-on-macos'],
+    ];
+    for (const [from, to] of cases) {
+      const r = await app.inject({ method: 'GET', url: from });
+      assert.equal(r.statusCode, 301, `${from} should be a permanent redirect`);
+      assert.equal(r.headers.location, to);
+    }
+  });
+
+  test('an unknown slug still 404s under either prefix', async () => {
+    for (const url of ['/blog/nope', '/notes/nope']) {
+      const r = await app.inject({ method: 'GET', url });
+      assert.equal(r.statusCode, 404, `${url} should not resolve`);
+    }
+  });
+
+  test('no page still links to the old prefix', async () => {
+    for (const url of ['/', '/notes', '/docs', '/pricing']) {
+      const r = await app.inject({ method: 'GET', url });
+      assert.doesNotMatch(r.body, /href="\/blog/, `${url} links to the old prefix`);
+    }
+  });
+});

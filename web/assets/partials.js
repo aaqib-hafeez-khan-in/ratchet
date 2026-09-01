@@ -11,7 +11,7 @@ const NAV = [
   ['/start', 'Get started'],
   ['/docs', 'Docs'],
   ['/works-with', 'Works with'],
-  ['/blog', 'Blog'],
+  ['/notes', 'Notes'],
   ['/pricing', 'Pricing'],
   ['/security', 'Security'],
   ['/console', 'Console'],

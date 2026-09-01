@@ -1,5 +1,5 @@
 import { mountChrome } from './partials.js';
-mountChrome('/blog');
+mountChrome('/notes');
 
 import { revealSections } from '/assets/reveal.js';
 revealSections({});

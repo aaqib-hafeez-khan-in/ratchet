@@ -317,12 +317,22 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   // agent calls, not the site a human reads.
   // Clean URLs for notes. Kept explicit rather than a catch-all so a typo 404s
   // instead of silently serving the index.
-  app.get('/blog', { schema: { hide: true } },
-    async (_req, reply) => reply.sendFile('blog/index.html'));
+  app.get('/notes', { schema: { hide: true } },
+    async (_req, reply) => reply.sendFile('notes/index.html'));
   const POSTS = ['idempotency-keys-are-broken-on-macos'];
   for (const slug of POSTS) {
+    app.get(`/notes/${slug}`, { schema: { hide: true } },
+      async (_req, reply) => reply.sendFile(`notes/${slug}.html`));
+  }
+  // The section was called Blog until 31 August 2026. These are permanent
+  // redirects rather than deletions: the one article is already indexed, and
+  // the URL appears in prepared promotion copy. A rename should not cost link
+  // equity or break somebody's bookmark.
+  app.get('/blog', { schema: { hide: true } },
+    async (_req, reply) => reply.redirect('/notes', 301));
+  for (const slug of POSTS) {
     app.get(`/blog/${slug}`, { schema: { hide: true } },
-      async (_req, reply) => reply.sendFile(`blog/${slug}.html`));
+      async (_req, reply) => reply.redirect(`/notes/${slug}`, 301));
   }
 
   for (const page of ['docs', 'console', 'pricing', 'security', 'start', 'works-with',
