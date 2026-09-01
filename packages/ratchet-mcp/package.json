@@ -1,7 +1,7 @@
 {
   "name": "ratchet-mcp",
   "mcpName": "com.ratchetgate/ratchet",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "MCP server for Ratchet \u2014 the effect gate for AI agents. Ask before you act, so the same side effect happens at most once.",
   "license": "Apache-2.0",
   "homepage": "https://ratchetgate.com",

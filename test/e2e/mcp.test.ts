@@ -92,9 +92,14 @@ describe('MCP handshake and discovery', () => {
 });
 
 describe('MCP authentication', () => {
+  // Was tools/list, which is now deliberately open — see "MCP discovery is
+  // open, acting is not" below. The property this test exists for is unchanged
+  // and still worth pinning: a call that IS refused must say how to
+  // authenticate, because that header is how a client bootstraps OAuth.
   test('an unauthenticated call is refused and advertises how to authenticate', async () => {
     const res = await app.inject({ method: 'POST', url: '/mcp',
-      payload: { jsonrpc: '2.0', id: 1, method: 'tools/list' } });
+      payload: { jsonrpc: '2.0', id: 1, method: 'tools/call',
+        params: { name: 'ratchet_begin_effect', arguments: {} } } });
     assert.equal(res.statusCode, 401);
     assert.match(res.headers['www-authenticate'] as string, /Bearer/);
   });
@@ -383,5 +388,70 @@ describe('proof and reconciliation tools over MCP', () => {
       const r = await call(name);
       assert.notEqual(r.isError, true, `${name} errored on a plain call`);
     }
+  });
+});
+
+/**
+ * Discovery without a credential.
+ *
+ * An MCP client connects, calls initialize and tools/list, and only then asks
+ * the user for configuration. Answering those with 401 meant the client showed
+ * "connection closed" and the user never learned a key was the missing piece.
+ * A directory indexing the server reported the same thing and graded us
+ * unrated. None of these methods reads tenant data.
+ */
+describe('MCP discovery is open, acting is not', () => {
+  const rpc = (method: string, params?: unknown, headers: Record<string, string> = {}) =>
+    app.inject({
+      method: 'POST', url: '/mcp',
+      headers: { 'content-type': 'application/json', ...headers },
+      payload: { jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) },
+    });
+
+  for (const method of ['initialize', 'ping', 'tools/list']) {
+    test(`${method} needs no credential`, async () => {
+      const r = await rpc(method);
+      assert.equal(r.statusCode, 200, `${method} should not require auth`);
+      assert.ok(!(r.json() as { error?: unknown }).error, `${method} returned an error`);
+    });
+  }
+
+  test('an unauthenticated tools/list returns the real tools', async () => {
+    const r = await rpc('tools/list');
+    const tools = (r.json() as { result: { tools: Array<{ name: string }> } }).result.tools;
+    assert.ok(tools.length > 0, 'a directory grading this needs the definitions');
+    assert.ok(tools.some((t) => t.name === 'ratchet_begin_effect'));
+  });
+
+  // The 401 is how a client that has never seen this server discovers where to
+  // start an OAuth flow. Turning it into a JSON-RPC error would break that.
+  test('tools/call still answers 401 with the OAuth challenge', async () => {
+    const r = await rpc('tools/call', { name: 'ratchet_begin_effect', arguments: {} });
+    assert.equal(r.statusCode, 401);
+    assert.match(String(r.headers['www-authenticate']), /resource_metadata=/);
+  });
+
+  test('a batch mixing public and private methods is refused as a whole', async () => {
+    const r = await app.inject({
+      method: 'POST', url: '/mcp',
+      headers: { 'content-type': 'application/json' },
+      payload: [
+        { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+        { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'x' } },
+      ],
+    });
+    assert.equal(r.statusCode, 401, 'a private method in the batch must require auth');
+  });
+
+  test('an anonymous caller is given no session id', async () => {
+    const r = await rpc('tools/list');
+    assert.equal(r.headers['mcp-session-id'], undefined,
+      'there is no workspace to name, so none may be implied');
+  });
+
+  test('an invalid key is still rejected, not treated as anonymous', async () => {
+    const r = await rpc('tools/call', { name: 'ratchet_begin_effect', arguments: {} },
+      { authorization: 'Bearer rk_live_totallyinvalid' });
+    assert.equal(r.statusCode, 401);
   });
 });

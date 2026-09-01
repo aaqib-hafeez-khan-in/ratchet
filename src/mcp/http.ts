@@ -3,7 +3,7 @@ import { planRateLimit } from '../api/rate-limit.js';
 import { authenticate } from '../domain/auth.js';
 import { authenticateOAuth } from '../domain/oauth.js';
 import { config } from '../lib/config.js';
-import { handleRpc, PROTOCOL_VERSION, SERVER_INFO, type JsonRpcRequest } from './protocol.js';
+import { handleRpc, isPublicMethod, PROTOCOL_VERSION, SERVER_INFO, type JsonRpcRequest } from './protocol.js';
 import { MCP_TOOLS } from './tools.js';
 import { ApiError } from '../lib/errors.js';
 
@@ -34,7 +34,25 @@ export async function registerMcpHttp(app: FastifyInstance) {
     const challenge = `Bearer realm="ratchet", `
       + `resource_metadata="${base}/.well-known/oauth-protected-resource"`;
 
-    if (!token) {
+    /*
+     * Discovery works without a credential; acting does not.
+     *
+     * An MCP client connects, calls initialize and tools/list, and only then
+     * asks the user for configuration. Answering those with 401 meant the
+     * client reported "connection closed" and the user never learned that a key
+     * was the missing piece. None of those methods reads tenant data — they
+     * return the same bytes for everyone — so there is nothing to protect.
+     *
+     * Anything else still gets the 401 with WWW-Authenticate, because that
+     * challenge is precisely how a client that has never seen this server
+     * discovers where to start an OAuth flow. Losing it would break the thing
+     * OAuth support exists for.
+     */
+    const methods = (Array.isArray(req.body) ? req.body : [req.body])
+      .map((m) => (m as JsonRpcRequest | undefined)?.method);
+    const allPublic = methods.length > 0 && methods.every(isPublicMethod);
+
+    if (!token && !allPublic) {
       reply.code(401).header('WWW-Authenticate', challenge);
       return {
         jsonrpc: '2.0', id: null,
@@ -49,8 +67,8 @@ export async function registerMcpHttp(app: FastifyInstance) {
     // An OAuth access token and an API key are both bearer credentials here.
     // Whichever it is, it resolves to the same AuthContext, so nothing
     // downstream can treat one differently from the other by accident.
-    let ctx = await authenticateOAuth(token, `${base}/mcp`);
-    if (!ctx) {
+    let ctx = token ? await authenticateOAuth(token, `${base}/mcp`) : null;
+    if (token && !ctx) {
       try {
         ctx = await authenticate(token);
       } catch (err) {
@@ -66,7 +84,9 @@ export async function registerMcpHttp(app: FastifyInstance) {
       }
     }
 
-    reply.header('Mcp-Session-Id', `ws_${ctx.workspaceId}`);
+    // Only a resolved tenant gets a session id; an anonymous discovery call has
+    // no workspace to name and must not be handed one.
+    if (ctx) reply.header('Mcp-Session-Id', `ws_${ctx.workspaceId}`);
     reply.header('MCP-Protocol-Version', PROTOCOL_VERSION);
 
     const body = req.body as JsonRpcRequest | JsonRpcRequest[];

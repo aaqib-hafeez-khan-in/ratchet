@@ -26,11 +26,24 @@ const TIMEOUT_MS = Number.parseInt(process.env.RATCHET_TIMEOUT_MS ?? '15000', 10
 const log = (m) => process.stderr.write(`[ratchet-mcp] ${m}\n`);
 const send = (o) => process.stdout.write(`${JSON.stringify(o)}\n`);
 
+/*
+ * A missing key used to be fatal. It should not be.
+ *
+ * MCP clients connect first and configure second: they call initialize and
+ * tools/list before the user has pasted anything. Exiting here meant the client
+ * reported "connection closed" — and a directory scanning the server reported
+ * "MCP error -32000" — while neither ever learned that a key was the only thing
+ * missing.
+ *
+ * So we start. Discovery works unauthenticated; the first tools/call returns a
+ * JSON-RPC error naming exactly what to set. An error the client can show beats
+ * a dead process it cannot explain.
+ */
 if (!KEY) {
-  log('RATCHET_API_KEY is not set.');
-  log('Add it to the "env" block of your MCP client config — not "args", which');
-  log('is visible in process listings. Get a key at ' + BASE + '/console');
-  process.exit(1);
+  log('RATCHET_API_KEY is not set — starting anyway.');
+  log('Discovery (initialize, tools/list) works without it; calling a tool will not.');
+  log('Put it in the "env" block of your MCP client config, not "args", which is');
+  log('visible in process listings. Get a key at ' + BASE + '/console');
 }
 
 const rpcError = (id, code, message, data) => ({
@@ -45,7 +58,10 @@ async function forward(msg) {
     const res = await fetch(`${BASE}/mcp`, {
       method: 'POST',
       headers: {
-        authorization: `Bearer ${KEY}`,
+        // Omitted entirely when unset. `Bearer undefined` is a credential the
+        // server must reject, which turns "no key" into "bad key" and sends
+        // whoever is debugging down the wrong path.
+        ...(KEY ? { authorization: `Bearer ${KEY}` } : {}),
         'content-type': 'application/json',
         accept: 'application/json',
       },

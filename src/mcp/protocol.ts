@@ -52,8 +52,33 @@ export const INSTRUCTIONS =
  * Handle one JSON-RPC message. Returns null for notifications, which by spec
  * receive no response.
  */
+/**
+ * Methods that carry no tenant data and therefore need no credential.
+ *
+ * Every one of these returns the same bytes for every caller: the protocol
+ * version, the server name, and the tool definitions — which live in a public
+ * repository and are described on the website. Requiring a key to read them
+ * protected nothing and cost a great deal, because an MCP client lists tools
+ * BEFORE the user has configured credentials. A server that refuses is reported
+ * to that user as "connection closed", with no hint that a key was all it
+ * wanted.
+ *
+ * `tools/call` is not here, and must not be: that is where a credential starts
+ * mattering, and where the 401 challenge that bootstraps OAuth is issued.
+ */
+export const PUBLIC_METHODS: ReadonlySet<string> = new Set([
+  'initialize',
+  'notifications/initialized',
+  'notifications/cancelled',
+  'ping',
+  'tools/list',
+]);
+
+export const isPublicMethod = (m: unknown): boolean =>
+  typeof m === 'string' && PUBLIC_METHODS.has(m);
+
 export async function handleRpc(
-  msg: JsonRpcRequest, ctx: AuthContext,
+  msg: JsonRpcRequest, ctx: AuthContext | null,
 ): Promise<JsonRpcResponse | null> {
   const id = msg.id ?? null;
 
@@ -99,6 +124,14 @@ export async function handleRpc(
       });
 
     case 'tools/call': {
+      // Belt and braces. The HTTP layer answers an unauthenticated tools/call
+      // with 401 so the client can discover OAuth; this makes it impossible for
+      // any other caller of handleRpc to reach a tool without a context.
+      if (!ctx) {
+        return fail(id, -32001,
+          'Authentication required for tools/call. Set RATCHET_API_KEY, or complete '
+          + 'the OAuth flow at /.well-known/oauth-protected-resource.');
+      }
       const name = msg.params?.name;
       const args = msg.params?.arguments ?? {};
       if (typeof name !== 'string') return fail(id, -32602, 'Missing tool name');

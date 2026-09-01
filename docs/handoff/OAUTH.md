@@ -110,3 +110,47 @@ records the owning address, asserted by test.
 - **No `client_secret` rotation** and no registration access token (RFC 7592 management API).
 - **Not yet submitted to any directory.** That still needs the npm package published and a
   public repository.
+
+---
+
+## Discovery without a credential — 1 September 2026
+
+`initialize`, `ping`, `notifications/*` and `tools/list` no longer require a
+credential. `tools/call` still does, and still answers 401 with the
+`WWW-Authenticate` challenge, because that header is the entire mechanism by
+which a client that has never seen this server discovers where to start an OAuth
+flow.
+
+**Why it changed.** MCP clients connect first and configure second: they call
+`initialize` and `tools/list` before the user has pasted anything. Refusing
+those meant the client reported *"connection closed"* and the user never learned
+that a key was the missing piece. Glama, indexing the server, hit the same wall
+and graded tool quality as unrated because it could never read the definitions.
+
+**Why it is safe.** None of those methods reads `ctx` — they return identical
+bytes for every caller. The tool definitions live in `src/mcp/tools.ts` in a
+public repository and are described on the website; withholding them protected
+nothing. `handleRpc` now takes `AuthContext | null` and `tools/call` fails
+closed if it is ever reached without one, so the HTTP layer is not the only
+thing standing between an anonymous caller and a tool.
+
+An anonymous caller is given no `Mcp-Session-Id`, since there is no workspace to
+name. A batch containing any private method is refused as a whole.
+
+## The bridge no longer exits without a key
+
+`packages/ratchet-mcp` used to `process.exit(1)` when `RATCHET_API_KEY` was
+unset. That turned a configuration problem into a dead process, which every
+client reports as a connection failure. It now starts, serves discovery, and
+returns a JSON-RPC error naming the variable on the first `tools/call`. It also
+omits the `authorization` header entirely when there is no key, rather than
+sending `Bearer undefined` — which the server must reject, turning "no key" into
+"bad key" and sending whoever is debugging down the wrong path.
+
+## packages/ratchet-mcp/Dockerfile
+
+The root `Dockerfile` builds the Ratchet *service* and its CMD starts an HTTP
+API. A directory that builds it, hands it a stdio proxy and waits for MCP gets
+"connection closed" — which is exactly what happened. The new Dockerfile beside
+the package builds the bridge alone: one file, no dependencies, no install step,
+non-root.
