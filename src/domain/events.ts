@@ -11,6 +11,7 @@ export const EVENT_TYPES = [
   'effect.rejected',
   'effect.denied',
   'budget.exceeded',
+  'circuit.tripped',
 ] as const;
 
 export type EventType = (typeof EVENT_TYPES)[number];
@@ -21,7 +22,7 @@ export type EventType = (typeof EVENT_TYPES)[number];
  * transaction) can never produce a duplicate delivery.
  */
 export async function enqueueEvent(
-  tx: PoolClient, workspaceId: string, eventType: string,
+  tx: PoolClient, workspaceId: string, eventType: EventType,
   payload: Record<string, unknown>,
 ): Promise<void> {
   const { rows } = await tx.query<{ id: string }>(

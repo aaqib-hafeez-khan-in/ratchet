@@ -378,6 +378,51 @@
 
 <section>
   <div class="wrap">
+    <p class="eyebrow">New: surge containment</p>
+    <h2>The loop that costs nothing is the&nbsp;one that ruins you</h2>
+    <p class="lede" style="max-width:66ch">
+      Spend limits catch an agent burning money. They don't catch an agent doing too
+      <em>much</em> — and that failure is usually free. Five thousand emails instead of
+      three costs about a dollar. Every one of them is small, authorised, and
+      indistinguishable from correct work.
+    </p>
+    <p style="max-width:66ch">
+      No per-effect limit can see it, because nothing is wrong with any single effect.
+      Only the <em>rate</em> gives it away. Ratchet sits at the one place that sees the
+      rate — every intended effect passes through the gate before it happens — so the
+      surge gets caught while it's still three emails in.
+    </p>
+
+    <pre class="snippet"><code>PUT /v1/policies/email.send  { "surge_per_hour": 400 }
+
+# 400/hour is fine here. 401 means something is looping.
+
+→ { "decision": "approval_required",
+    "reason":   "Circuit breaker open for \"email.send\": 401 effects
+                 this hour exceeds the configured ceiling of 400." }</code></pre>
+
+    <p style="max-width:66ch">
+      Notice what that decision <em>isn't</em>. The agent isn't killed — it's held. A
+      blocked agent loses its work and its context; a waiting one keeps both while a human
+      decides, and nothing irreversible happens in between. Choose <code>deny</code> if you
+      really do want it stopped dead, or <code>monitor</code> to watch for a week before
+      enforcing anything.
+    </p>
+    <p class="dim" style="max-width:66ch">
+      And when you need the big red button, it's one call:
+      <code>POST /v1/circuits/*/open</code> halts every effect type in the workspace. A
+      breaker you open by hand has no cooldown — it stays open until you close it, because
+      a control you reached for in a panic must not quietly undo itself while you sleep.
+    </p>
+    <p class="small dim" style="max-width:66ch">
+      Off until you set a threshold. Agent keys can't close a breaker — an agent that can
+      switch off its own containment hasn't been contained.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
     <p class="eyebrow">Vendor-enforced idempotency</p>
     <h2>A gate only stops the agents that ask</h2>
     <p class="lede" style="max-width:66ch">

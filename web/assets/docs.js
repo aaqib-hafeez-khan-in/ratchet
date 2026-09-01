@@ -8,8 +8,14 @@ const S = {
   -H "Content-Type: application/json" \\
   -d '{ "name": "Acme Agents", "email": "ops@acme.example" }'
 
-# -> { "workspace_id": "ws_...", "api_key": "rk_test_...", "plan": "free" }
-#    The key is returned once. Store it now; it cannot be retrieved again.`,
+# -> { "workspace_id": "ws_...",
+#      "api_key":       "rk_live_...",   <- OPERATOR: console, policy, breakers
+#      "agent_api_key": "rk_live_...",   <- AGENT: begin + report, nothing else
+#      "plan": "free" }
+#
+# Put agent_api_key in your code. It cannot change policy, mint keys, or close
+# a circuit breaker — an agent that can switch off its own containment was
+# never contained. Both are returned once and cannot be retrieved again.`,
 
   begin: `curl -X POST ${BASE}/v1/effects/begin \\
   -H "Authorization: Bearer $RATCHET_API_KEY" \\
@@ -57,6 +63,55 @@ const S = {
     "daily_budget_micros": 2000000,
     "retention_days": 7
   }'`,
+
+  circuit: `# Stop this effect type if it suddenly runs far more than usual.
+# 200/hour is normal here; 400 means something is looping.
+curl -X PUT ${BASE}/v1/policies/email.send \\
+  -H "Authorization: Bearer $RATCHET_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "mode": "allow",
+    "surge_per_hour": 400,
+    "surge_action": "require_approval",
+    "surge_cooldown_seconds": 3600
+  }'
+
+# What volume am I actually running? Set a threshold from this.
+curl ${BASE}/v1/circuits -H "Authorization: Bearer $RATCHET_API_KEY"
+
+# -> { "circuits": [],
+#      "rates": [ { "effect_type": "email.send",
+#                   "this_hour": 187, "peak_hour": 213 } ] }`,
+
+  'agent-key': `# An agent key: it can ask and report, and nothing else.
+curl -X POST ${BASE}/v1/keys \\
+  -H "Authorization: Bearer $RATCHET_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name": "support-bot",
+    "scopes": ["effects:begin", "effects:report"],
+    "daily_budget_micros": 5000000
+  }'
+
+# -> { "key": "rk_live_...", "scopes": ["effects:begin","effects:report"] }
+#
+# That key cannot close a circuit breaker, change a policy, mint another key,
+# or declare more than $5.00 of external spend in a day.`,
+
+  'circuit-stop': `# Halt every effect type in the workspace, now.
+curl -X POST ${BASE}/v1/circuits/*/open \\
+  -H "Authorization: Bearer $RATCHET_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "action": "deny", "reason": "agent looping on support inbox" }'
+
+# Every begin now returns:
+# -> { "decision": "denied",
+#      "reason": "Circuit breaker open for *: agent looping on support inbox" }
+
+# Back to normal once you have looked at it. This gives the effect type a
+# fresh allowance; it does not disarm the breaker.
+curl -X POST ${BASE}/v1/circuits/*/close \\
+  -H "Authorization: Bearer $RATCHET_API_KEY"`,
 
   resolve: `# You checked Stripe. The charge did land.
 curl -X POST ${BASE}/v1/effects/eff_a3emswr6v37zey5p/resolve \\
@@ -160,7 +215,9 @@ curl -X POST ${BASE}/v1/billing/crypto/intents \\
 
 for (const [id, key] of [['c-signup','signup'], ['c-begin','begin'], ['c-report','report'],
                          ['c-policy','policy'], ['c-resolve','resolve'],
-                         ['c-group','group'], ['c-unwind','unwind'], ['c-crypto','crypto']]) {
+                         ['c-group','group'], ['c-unwind','unwind'], ['c-crypto','crypto'],
+                           ['c-circuit','circuit'], ['c-circuit-stop','circuit-stop'],
+                           ['c-agent-key','agent-key']]) {
   const el = document.getElementById(id);
   if (el) el.innerHTML = highlight(S[key]);
 }
@@ -183,3 +240,6 @@ try {
   document.getElementById('mcp-tools').innerHTML =
     '<p class="notice bad">Could not load the tool list.</p>';
 }
+
+import { revealSections } from '/assets/reveal.js';
+revealSections({});

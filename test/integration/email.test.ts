@@ -8,7 +8,9 @@ const { queueEmail, setPreference, getPreferences, bucket, suppressAddress } =
   await import('../../src/domain/email.js');
 const { deliverEmails, generateAlerts } = await import('../../src/worker/email.js');
 const { beginEffect } = await import('../../src/domain/effects.js');
-const { sweepExpiredLeases } = await import('../../src/worker/reaper.js');
+const { sweepExpiredLeases, drainExpiredLeases } = await import('../../src/worker/reaper.js');
+const { createWorkspace } = await import('../../src/domain/auth.js');
+const { openManually } = await import('../../src/domain/circuit.js');
 
 let ws: Awaited<ReturnType<typeof freshWorkspace>>;
 before(async () => { ws = await freshWorkspace(false); });
@@ -184,5 +186,82 @@ describe('delivery', () => {
   test('emails are workspace-scoped', async () => {
     const other = await freshWorkspace(false);
     assert.equal((await inbox(other.workspaceId)).length, 0);
+  });
+});
+
+describe('one workspace cannot silence everybody else', () => {
+  test('an ownerless workspace is skipped, not fatal', async () => {
+    // Anonymous workspaces have no owner address. They are created by the
+    // zero-friction path — any unauthenticated begin — and their agents crash
+    // like everyone else's, so they accumulate exactly the conditions that
+    // generate alerts. queueEmail used to insert NULL into a NOT NULL column,
+    // and the exception escaped the sweep: every workspace sorted after it
+    // silently stopped receiving alerts. Five such workspaces existed in a
+    // development database within a day of the feature shipping.
+    const anon = await createWorkspace('anon', null, false, true);
+    const r = await queueEmail({
+      workspaceId: anon.workspaceId, category: 'indeterminate',
+      dedupeKey: `owner-test:${Date.now()}`,
+      subject: 'should not send', text: 'should not send',
+    });
+    assert.equal(r.queued, false);
+    assert.match(r.reason ?? '', /no owner/i);
+
+    const { rows } = await getPool().query(
+      'SELECT count(*)::int AS n FROM email_messages WHERE workspace_id = $1',
+      [anon.workspaceId]);
+    assert.equal(rows[0].n, 0, 'nothing may be queued for an address that does not exist');
+  });
+
+  test('the alert sweep completes even when one workspace fails', async () => {
+    // The guarantee is about ordering: a workspace that fails must not prevent
+    // the ones after it from being alerted.
+    const anon = await createWorkspace('anon-2', null, false, true);
+    const owned = await freshWorkspace();
+    for (const w of [anon, owned]) {
+      const r = await beginEffect({
+        workspaceId: w.workspaceId, apiKeyId: w.key.id, apiKeyPrefix: w.key.prefix,
+        keyDailyBudgetMicros: null, effectType: 'sweep.test',
+        idempotencyKey: `s-${w.workspaceId}`, payload: {}, estimatedCostMicros: 0,
+        leaseSeconds: 5,
+      });
+      await expireLease(r.effectId);
+    }
+    await drainExpiredLeases();
+    await generateAlerts();
+
+    const { rows } = await getPool().query(
+      `SELECT count(*)::int AS n FROM email_messages
+        WHERE workspace_id = $1 AND category = 'indeterminate'`, [owned.workspaceId]);
+    assert.equal(rows[0].n, 1, 'the owned workspace must still be alerted');
+  });
+
+  test('an open circuit breaker produces an alert', async () => {
+    const ws = await freshWorkspace();
+    await openManually(getPool(), ws.workspaceId, '*',
+      { action: 'deny', reason: 'agent looping', actor: 'console:owner' });
+    await generateAlerts();
+    const { rows } = await getPool().query(
+      `SELECT subject, body_text FROM email_messages
+        WHERE workspace_id = $1 AND category = 'containment'`, [ws.workspaceId]);
+    assert.equal(rows.length, 1);
+    assert.match(rows[0].subject, /workspace-wide/i);
+    assert.match(rows[0].body_text, /agent looping/);
+    assert.match(rows[0].body_text, /stays open until you close it/);
+  });
+
+  test('a breaker reason cannot inject markup into the email', async () => {
+    // Operator-supplied text reaches an HTML email. This codebase has already
+    // had one injection bug here; the escaping is not optional.
+    const ws = await freshWorkspace();
+    await openManually(getPool(), ws.workspaceId, 'inject.test',
+      { action: 'deny', reason: '<img src=x onerror=alert(1)>', actor: 'console:owner' });
+    await generateAlerts();
+    const { rows } = await getPool().query(
+      `SELECT body_html FROM email_messages
+        WHERE workspace_id = $1 AND category = 'containment'`, [ws.workspaceId]);
+    const html: string = rows[0].body_html;
+    assert.ok(!/<img src=x/.test(html), 'raw markup must never reach the HTML body');
+    assert.match(html, /&lt;img src=x/, 'it should appear escaped instead');
   });
 });

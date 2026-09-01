@@ -81,8 +81,15 @@ export default async function workspaceRoutes(app: FastifyInstance) {
           properties: {
             workspace_id: { type: 'string' },
             name: { type: 'string' },
-            api_key: { type: 'string', description: 'Shown once. Store it securely.' },
+            api_key: { type: 'string',
+              description: 'OPERATOR key: full scope, for the console and for changing policy. '
+                + 'Shown once. Store it securely and do not give it to an agent.' },
             api_key_prefix: { type: 'string' },
+            agent_api_key: { type: 'string',
+              description: 'AGENT key: effects:begin and effects:report only. This is the one '
+                + 'to put in your code. It cannot change policy, mint keys, or close a circuit '
+                + 'breaker — so an agent holding it cannot switch off its own containment.' },
+            agent_api_key_prefix: { type: 'string' },
             plan: { type: 'string' },
             console_url: { type: 'string' },
           },
@@ -93,6 +100,20 @@ export default async function workspaceRoutes(app: FastifyInstance) {
   }, async (req, reply) => {
     const b = req.body as { name: string; email: string };
     const ws = await createWorkspace(b.name, b.email);
+    /**
+     * Two keys, on purpose.
+     *
+     * The key handed over at signup is the one a quickstart invites you to paste
+     * straight into an agent — and until now that was a full-scope operator key,
+     * so the agent could change its own policy and close the circuit breaker
+     * holding it back. An agent that can switch off its own containment was
+     * never contained.
+     *
+     * Issuing the narrow key alongside it makes the safe choice the obvious one
+     * rather than something you have to know to ask for.
+     */
+    const agentKey = await createApiKey(getPool(), ws.workspaceId, 'agent',
+      ['effects:begin', 'effects:report'], null);
     const session = await createConsoleSession(ws.workspaceId, ws.email ?? b.email);
     reply.setCookie('rk_session', session, {
       httpOnly: true, sameSite: 'lax', secure: config.isProd,
@@ -104,6 +125,8 @@ export default async function workspaceRoutes(app: FastifyInstance) {
       name: ws.name,
       api_key: ws.key.plaintext,
       api_key_prefix: ws.key.prefix,
+      agent_api_key: agentKey.plaintext,
+      agent_api_key_prefix: agentKey.prefix,
       plan: 'free',
       console_url: `${config.publicUrl}/console`,
     };
@@ -273,6 +296,25 @@ export default async function workspaceRoutes(app: FastifyInstance) {
             description: 'Refuse a begin for this effect type unless it declares a cost. '
               + 'Turn this on wherever you have set a spend ceiling, so the ceiling cannot '
               + 'be bypassed by simply not declaring anything.' },
+          surge_per_hour: { type: ['integer', 'null'], minimum: 1,
+            description: 'Surge containment. New effects of this type per hour above which '
+              + 'the circuit breaker opens. Budget ceilings catch an agent spending too '
+              + 'much; this catches one doing too MUCH — a retry loop sending five thousand '
+              + 'emails instead of three. Null (the default) disables it.' },
+          surge_action: { type: 'string', enum: ['monitor', 'require_approval', 'deny'],
+            description: 'What an open breaker does. "require_approval" (the default) holds '
+              + 'the work for a human rather than killing the agent, so nothing irreversible '
+              + 'happens and no context is lost. "monitor" records and alerts but changes no '
+              + 'decision — use it to watch before you enforce. "deny" refuses outright.' },
+          surge_multiplier: { type: ['integer', 'null'], minimum: 2,
+            description: 'Relative alternative to surge_per_hour, for when you do not know '
+              + 'your own traffic: how many times normal is definitely wrong. The baseline '
+              + 'is the median hourly volume over the last 7 days, computed for you, and a '
+              + 'learned ceiling never drops below 30 so quiet effect types are not tripped '
+              + 'by an ordinary busy afternoon. surge_per_hour wins if both are set.' },
+          surge_cooldown_seconds: { type: 'integer', minimum: 60, maximum: 86400,
+            description: 'How long a tripped breaker stays open before closing itself. '
+              + 'Closing grants a fresh allowance, so a cooldown is a real second chance.' },
         },
       },
       response: { 200: policySchema, ...errorResponses },
@@ -295,6 +337,10 @@ export default async function workspaceRoutes(app: FastifyInstance) {
       maxCostMicros: b.max_cost_micros, dailyBudgetMicros: b.daily_budget_micros,
       retentionDays: b.retention_days,
       requireCost: b.require_cost,
+      surgePerHour: b.surge_per_hour,
+      surgeAction: b.surge_action,
+      surgeCooldownSeconds: b.surge_cooldown_seconds,
+      surgeMultiplier: b.surge_multiplier,
     });
     await audit(getPool(), workspaceId, 'policy.updated', actorOf(req), effectType, b);
     return policyOut(p);

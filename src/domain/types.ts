@@ -34,6 +34,25 @@ export interface Policy {
   retentionDays: number;
   /** Refuse a begin for this effect type unless it declares a cost. */
   requireCost: boolean;
+  /**
+   * Surge containment. New effects of this type per hour above which the
+   * breaker opens. NULL disables it, which is the default — an unrequested
+   * ceiling that starts refusing work is worse than none.
+   */
+  surgePerHour: number | null;
+  /** What an open breaker does: watch only, escalate to a human, or refuse. */
+  surgeAction: 'monitor' | 'require_approval' | 'deny';
+  /** How long the breaker stays open before it closes itself. */
+  surgeCooldownSeconds: number;
+  /**
+   * Relative surge threshold: how many times normal is definitely wrong.
+   * Asks a question people can answer when `surgePerHour` asks one they cannot.
+   * Does nothing until the worker has computed a baseline from real history.
+   */
+  surgeMultiplier: number | null;
+  /** Median hourly volume over the last 7 days. Computed by the worker. */
+  surgeBaselinePerHour: number | null;
+  surgeBaselineAt: Date | null;
   /** True when no explicit row exists and workspace defaults were applied. */
   isDefault: boolean;
 }

@@ -16,6 +16,14 @@ export const DEFAULT_POLICY = {
   dailyBudgetMicros: null,
   retentionDays: 7,
   requireCost: false,
+  // Surge containment is OFF unless a threshold is set. An unrequested ceiling
+  // that starts refusing work is worse than no ceiling at all.
+  surgePerHour: null as number | null,
+  surgeAction: 'require_approval' as const,
+  surgeCooldownSeconds: 3600,
+  surgeMultiplier: null as number | null,
+  surgeBaselinePerHour: null as number | null,
+  surgeBaselineAt: null as Date | null,
 };
 
 const EFFECT_TYPE_RE = /^[a-z0-9]([a-z0-9._-]{0,62}[a-z0-9])?$/;
@@ -34,6 +42,12 @@ interface PolicyRow {
   daily_budget_micros: number | null;
   retention_days: number;
   require_cost: boolean;
+  surge_per_hour: number | null;
+  surge_action: Policy['surgeAction'];
+  surge_cooldown_seconds: number;
+  surge_multiplier: number | null;
+  surge_baseline_per_hour: number | null;
+  surge_baseline_at: Date | null;
 }
 
 export async function getPolicy(
@@ -41,7 +55,9 @@ export async function getPolicy(
 ): Promise<Policy> {
   const { rows } = await db.query<PolicyRow>(
     `SELECT effect_type, mode, on_indeterminate, lease_seconds, max_attempts,
-            max_cost_micros, daily_budget_micros, retention_days, require_cost
+            max_cost_micros, daily_budget_micros, retention_days, require_cost,
+            surge_per_hour, surge_action, surge_cooldown_seconds,
+            surge_multiplier, surge_baseline_per_hour, surge_baseline_at
        FROM effect_policies
       WHERE workspace_id = $1 AND effect_type = $2`,
     [workspaceId, effectType],
@@ -59,6 +75,12 @@ export async function getPolicy(
     dailyBudgetMicros: row.daily_budget_micros,
     retentionDays: row.retention_days,
     requireCost: row.require_cost,
+    surgePerHour: row.surge_per_hour,
+    surgeAction: row.surge_action,
+    surgeCooldownSeconds: row.surge_cooldown_seconds,
+    surgeMultiplier: row.surge_multiplier,
+    surgeBaselinePerHour: row.surge_baseline_per_hour,
+    surgeBaselineAt: row.surge_baseline_at,
     isDefault: false,
   };
 }
@@ -66,7 +88,9 @@ export async function getPolicy(
 export async function listPolicies(db: Db, workspaceId: string): Promise<Policy[]> {
   const { rows } = await db.query<PolicyRow>(
     `SELECT effect_type, mode, on_indeterminate, lease_seconds, max_attempts,
-            max_cost_micros, daily_budget_micros, retention_days, require_cost
+            max_cost_micros, daily_budget_micros, retention_days, require_cost,
+            surge_per_hour, surge_action, surge_cooldown_seconds,
+            surge_multiplier, surge_baseline_per_hour, surge_baseline_at
        FROM effect_policies WHERE workspace_id = $1 ORDER BY effect_type`,
     [workspaceId],
   );
@@ -81,6 +105,12 @@ export async function listPolicies(db: Db, workspaceId: string): Promise<Policy[
     dailyBudgetMicros: row.daily_budget_micros,
     retentionDays: row.retention_days,
     requireCost: row.require_cost,
+    surgePerHour: row.surge_per_hour,
+    surgeAction: row.surge_action,
+    surgeCooldownSeconds: row.surge_cooldown_seconds,
+    surgeMultiplier: row.surge_multiplier,
+    surgeBaselinePerHour: row.surge_baseline_per_hour,
+    surgeBaselineAt: row.surge_baseline_at,
     isDefault: false,
   }));
 }
@@ -95,6 +125,10 @@ export interface PolicyUpsert {
   dailyBudgetMicros?: number | null;
   retentionDays?: number;
   requireCost?: boolean;
+  surgePerHour?: number | null;
+  surgeAction?: Policy['surgeAction'];
+  surgeCooldownSeconds?: number;
+  surgeMultiplier?: number | null;
 }
 
 export async function upsertPolicy(
@@ -104,8 +138,9 @@ export async function upsertPolicy(
   await db.query(
     `INSERT INTO effect_policies
        (workspace_id, effect_type, mode, on_indeterminate, lease_seconds,
-        max_attempts, max_cost_micros, daily_budget_micros, retention_days, require_cost)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        max_attempts, max_cost_micros, daily_budget_micros, retention_days, require_cost,
+        surge_per_hour, surge_action, surge_cooldown_seconds, surge_multiplier)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
      ON CONFLICT (workspace_id, effect_type) DO UPDATE SET
        mode                = EXCLUDED.mode,
        on_indeterminate    = EXCLUDED.on_indeterminate,
@@ -115,6 +150,10 @@ export async function upsertPolicy(
        daily_budget_micros = EXCLUDED.daily_budget_micros,
        retention_days      = EXCLUDED.retention_days,
        require_cost        = EXCLUDED.require_cost,
+       surge_per_hour      = EXCLUDED.surge_per_hour,
+       surge_action        = EXCLUDED.surge_action,
+       surge_cooldown_seconds = EXCLUDED.surge_cooldown_seconds,
+       surge_multiplier    = EXCLUDED.surge_multiplier,
        updated_at          = now()`,
     [
       workspaceId, input.effectType,
@@ -126,6 +165,10 @@ export async function upsertPolicy(
       input.dailyBudgetMicros ?? d.dailyBudgetMicros,
       input.retentionDays ?? d.retentionDays,
       input.requireCost ?? d.requireCost,
+      input.surgePerHour === undefined ? d.surgePerHour : input.surgePerHour,
+      input.surgeAction ?? d.surgeAction,
+      input.surgeCooldownSeconds ?? d.surgeCooldownSeconds,
+      input.surgeMultiplier === undefined ? d.surgeMultiplier : input.surgeMultiplier,
     ],
   );
   return getPolicy(db, workspaceId, input.effectType);

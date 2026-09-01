@@ -3,6 +3,8 @@ import { withTx, type Db } from '../db/pool.js';
 import { newId, canonicalFingerprint, constantTimeEqual, normalizeText } from '../lib/ids.js';
 import { ApiError, errors } from '../lib/errors.js';
 import { getPolicy } from './policy.js';
+import { countEffect, openBreakers, trip, applyBreaker, surgeBaseline,
+         effectiveCeiling } from './circuit.js';
 import { reserveSpend, adjustSpend, BudgetExceeded } from './budget.js';
 import { vendorIdempotencyKey } from './vendor-keys.js';
 import { writeReceipt, RECEIPT_VERSION } from './receipts.js';
@@ -221,11 +223,60 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
 
     // ---- New effect: apply the policy gate, then meter. --------------------
     if (isNew) {
-      if (policy.mode === 'deny') {
-        await settleAsDenied(tx, effect!.id, 'Policy denies this effect type.');
-        return deniedResult(effect!, 'Policy denies this effect type.', null);
+      /**
+       * Surge containment.
+       *
+       * Only new effects are counted and checked. Duplicates and retries are
+       * not new work in the real world, and counting them would let a caller
+       * retrying a single stuck action trip its own breaker.
+       *
+       * The count comes from the database and the threshold from stored policy.
+       * Nothing the agent sent can reach this decision — a breaker an agent
+       * could talk its way past would be worse than no breaker.
+       */
+      const total = await countEffect(tx, input.workspaceId, input.effectType, now);
+      let breakers = await openBreakers(tx, input.workspaceId, input.effectType, now);
+      // Measured from the last time this breaker was cleared, so a cooldown
+      // grants a genuine fresh allowance instead of expiring straight back into
+      // a re-trip on the hour's existing total.
+      const observed = total - await surgeBaseline(tx, input.workspaceId, input.effectType, now);
+
+      // Either an explicit ceiling, or one derived from this effect type's own
+      // history. Reads a number already on the policy row — no extra query.
+      const { ceiling, source, baseline } = effectiveCeiling(policy);
+
+      if (ceiling !== null && observed > ceiling
+          && !breakers.some((b) => b.effectType === input.effectType)) {
+        const reason = source === 'learned'
+          ? `${observed} "${input.effectType}" effects since this breaker last cleared, `
+            + `against a normal of about ${baseline} an hour — past the ${policy.surgeMultiplier}x `
+            + `ceiling of ${ceiling}.`
+          : `${observed} "${input.effectType}" effects since this breaker last cleared `
+            + `exceeds the configured ceiling of ${ceiling} per hour.`;
+        const opened = await trip(tx, input.workspaceId, input.effectType, {
+          action: policy.surgeAction, observed, threshold: ceiling,
+          cooldownSeconds: policy.surgeCooldownSeconds, reason, now,
+        });
+        await enqueueEvent(tx, input.workspaceId, 'circuit.tripped', {
+          effectType: input.effectType, observed, threshold: ceiling,
+          thresholdSource: source, baselinePerHour: baseline,
+          action: policy.surgeAction, resetsAt: opened.resetsAt, reason,
+          agentId: input.agentId ?? null, runId: input.runId ?? null,
+        });
+        breakers = [...breakers, opened];
       }
-      if (policy.mode === 'require_approval') {
+
+      // An open breaker raises the effective mode; it never lowers it.
+      const { mode: effectiveMode, breaker } = applyBreaker(policy, breakers);
+
+      if (effectiveMode === 'deny') {
+        const why = breaker && breaker.action === 'deny'
+          ? `Circuit breaker open for "${breaker.effectType}": ${breaker.reason}`
+          : 'Policy denies this effect type.';
+        await settleAsDenied(tx, effect!.id, why);
+        return deniedResult(effect!, why, null);
+      }
+      if (effectiveMode === 'require_approval') {
         await tx.query(
           `UPDATE effects SET state='awaiting_approval', approval_state='waiting',
                   updated_at=now() WHERE id=$1`, [effect!.id],
@@ -242,7 +293,10 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
           effectId: effect!.id, effectType: effect!.effect_type,
           idempotencyKey: effect!.idempotency_key,
           state: 'awaiting_approval', attempt: 0,
-          reason: 'An operator must approve this effect before it may run.',
+          reason: breaker && breaker.action === 'require_approval'
+            ? `Circuit breaker open for "${breaker.effectType}": ${breaker.reason} `
+              + 'An operator must approve this effect before it may run.'
+            : 'An operator must approve this effect before it may run.',
           billing: metered,
         };
       }

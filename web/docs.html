@@ -157,6 +157,19 @@
               <td class="small">Refuse a single effect declaring more than this.</td></tr>
           <tr><td class="mono">daily_budget_micros</td><td class="mono small">integer · null</td>
               <td class="small">Daily external-spend ceiling for this type.</td></tr>
+          <tr><td class="mono">require_cost</td><td class="mono small">boolean</td>
+              <td class="small">Refuse a begin that declares no cost, so a spend ceiling
+                cannot be bypassed by simply not declaring anything.</td></tr>
+          <tr><td class="mono">surge_per_hour</td><td class="mono small">integer · null</td>
+              <td class="small"><strong>Surge containment.</strong> Absolute ceiling: new effects
+                of this type per hour above which the breaker opens. Null (the default) is off.</td></tr>
+          <tr><td class="mono">surge_multiplier</td><td class="mono small">integer ≥ 2 · null</td>
+              <td class="small">Relative ceiling, for when you don't know your traffic: how many
+                times normal is definitely wrong. Normal is the median hourly volume over 7 days,
+                computed for you. <code>surge_per_hour</code> wins if both are set.</td></tr>
+          <tr><td class="mono">surge_action</td><td class="mono small">monitor · require_approval · deny</td>
+              <td class="small">What an open breaker does. Defaults to
+                <code>require_approval</code>.</td></tr>
           <tr><td class="mono">retention_days</td><td class="mono small">1–400</td>
               <td class="small">How long records and replayable results are kept.</td></tr>
         </tbody>
@@ -165,6 +178,83 @@
     <p class="small faint">
       Choose <code>retry</code> only when the underlying vendor is genuinely idempotent, or a
       duplicate is truly harmless. Ratchet will not assume that for you.
+    </p>
+  </div>
+</section>
+
+<section id="circuit">
+  <div class="wrap narrow">
+    <h2>When an agent starts doing too much</h2>
+    <p class="dim">
+      Budget ceilings catch an agent spending too much. This catches one doing too
+      <em>much</em> — which is a different failure, and usually a cheaper one.
+    </p>
+    <p>
+      A retry loop that sends five thousand emails instead of three may cost nothing at all.
+      Every individual action is small, authorised, and indistinguishable from correct work.
+      No per-effect limit sees it. Only the rate gives it away — and the gate is the one place
+      that sees the rate, because every intended effect passes through it <em>before</em> it
+      happens.
+    </p>
+    <p>
+      Two ways to set a threshold, and most people should reach for the second.
+      <code>surge_per_hour</code> is an absolute ceiling, which requires knowing your own
+      traffic. <code>surge_multiplier</code> asks a question you can actually answer — how many
+      times normal is definitely wrong — and works out "normal" from your own history: the
+      median hourly volume of that effect type over the last seven days.
+    </p>
+    <p class="small dim">
+      A learned ceiling never drops below 30, so a quiet effect type is not tripped by one busy
+      afternoon, and it does nothing at all until six hours of history exist — a brand new
+      effect type has no normal to be a multiple of. The baseline is a median rather than a
+      mean, so a single runaway hour cannot raise the ceiling meant to catch the next one.
+    </p>
+    <pre><code id="c-circuit"></code></pre>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Action</th><th>What happens when the breaker is open</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">monitor</td>
+              <td class="small">Records the trip and fires a <code>circuit.tripped</code> webhook.
+                <strong>Changes no decision.</strong> Start here — watch before you enforce.</td></tr>
+          <tr><td class="mono">require_approval</td>
+              <td class="small">The default. The work waits for a human instead of the agent
+                being killed.</td></tr>
+          <tr><td class="mono">deny</td>
+              <td class="small">Refused outright.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Why the default isn't a hard stop</h3>
+    <p>
+      A blocked agent loses its work and its context. A waiting agent keeps both while a human
+      decides, and nothing irreversible happens in between. Killing the agent is available —
+      it just isn't the default, because it's rarely what you actually wanted at 3am.
+    </p>
+    <h3>The emergency stop</h3>
+    <p>
+      One call halts every effect type in the workspace:
+    </p>
+    <pre><code id="c-circuit-stop"></code></pre>
+    <p>
+      A breaker you open by hand has <strong>no cooldown</strong>. It stays open until you close
+      it — a control you reached for in a panic must not quietly undo itself while you sleep.
+      Closing gives the effect type a fresh allowance; it does not disarm the breaker, so a
+      second surge trips it again.
+    </p>
+    <h3>Give your agent a key that can't undo this</h3>
+    <p>
+      Circuit routes need <code>policies:write</code>. <strong>The key you get at signup holds
+      every scope</strong>, including that one — it's an operator key. Hand it to an agent and
+      the agent can close its own breaker, which means it was never contained.
+    </p>
+    <pre><code id="c-agent-key"></code></pre>
+    <p class="small faint">
+      Two scopes are all a worker needs. This is worth doing whether or not you use surge
+      containment: a key that can only ask and report cannot change policy, mint keys, read
+      other effects, or spend beyond the ceiling you attach to it. Surge containment stays off
+      until you set a threshold — <code>GET /v1/circuits</code> reports the volume you'd be
+      setting one against.
     </p>
   </div>
 </section>

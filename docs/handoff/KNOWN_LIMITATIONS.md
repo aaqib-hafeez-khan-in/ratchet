@@ -72,6 +72,16 @@ configured rate. Fine for one or two instances; wrong at scale.
 **Fix:** point the plugin at a Redis store. Contained change, one config block. Deferred because it
 would add a second stateful dependency for a problem that does not exist at one instance.
 
+**This is live, not theoretical.** `fly.toml` sets `auto_start_machines = true` with a second app
+machine on standby, so Fly starts it under load. The moment it does, every published limit
+doubles: the free plan's advertised 120/min becomes 240/min, and the manifest at
+`/.well-known/agent-manifest.json` is telling agents a number the system no longer enforces.
+
+**The choice, when it matters:** move the counter to a shared store (Redis or a Postgres table —
+the latter adds a write to the hot path), or pin the app to a single machine and accept the
+throughput ceiling. Doing neither is defensible only while traffic is low enough that nobody
+reaches the limit at all, which is true today and stops being true silently.
+
 ---
 
 ## 3. New-effect creation serialises per workspace
@@ -80,9 +90,12 @@ The lock ordering that fixes the metering deadlock (ARCHITECTURE, and DECISIONS 
 a new effect takes an exclusive lock on the workspace row for the transaction. Duplicates,
 in-flight checks, and retries skip it entirely.
 
-**Measured:** 200 concurrent callers complete in 16–19 ms, so this is not a practical ceiling at
-current scale. It becomes one somewhere in the low thousands of *new* effects per second for a
-single workspace.
+**Measured** (`npm run stress 4`, 31 Aug 2026, Apple M5 Pro, local Postgres): 200 concurrent
+callers on *distinct* keys complete in 202 ms and on *one* key in 219 ms — contention is nearly
+free, because the unlocked pre-check means duplicates never take the workspace lock at all.
+Sustained throughput plateaus near **680 rps**, and it is pool-bound (`DB_POOL_MAX` = 10), not
+lock-bound. The serialisation becomes the binding constraint only above that, and only for *new*
+effects in a single workspace.
 
 **Fix when needed:** shard the counter — replace `workspaces.period_decisions` with N rows per
 workspace, pick one by hash, and sum on read. Standard, and does not disturb the lock order.
@@ -98,6 +111,41 @@ authoritative answer.
 **Consequence:** cross-region callers pay the round trip, and a primary failure is an outage.
 **Fix:** managed Postgres with automated failover. Multi-region would require rethinking the
 uniqueness guarantee and is not a small change.
+
+---
+
+## 4b. Surge containment is absolute, not learned
+
+`surge_per_hour` is a number an operator chooses. There is no relative rule
+("10x the trailing 7-day median"), so a workspace that never configures anything
+gets no containment at all — and the workspaces most likely to need it are the
+ones least likely to have configured it.
+
+A learned baseline needs history that only started being collected on 31 August
+2026, and a wrong automatic threshold refuses real work. The console suggests
+3x the busiest hour in the last 30 days, which is guidance, not enforcement.
+
+Also: windows are hourly. A burst inside one minute that stays under the hourly
+ceiling passes untouched.
+
+See `docs/handoff/CIRCUIT_BREAKER.md`.
+
+---
+
+## 4c. The default key can switch off its own containment
+
+Circuit routes require `policies:write`, and the key issued at signup holds every
+scope. An operator who hands that key to an agent has an agent that can close its
+own breaker.
+
+The console's key form already defaults to "Gate only (least privilege)", so the
+exposure is narrower than it first appears: it is specifically the signup key,
+which is full-scope and is what a quickstart invites you to paste into an agent.
+
+There is no code fix that does not break legitimate use — the default key is an
+operator key and has to be. The docs end the containment section with the
+two-scope agent key and the reason for it. Worth doing properly: issue a
+gate-only key alongside the operator key at signup.
 
 ---
 
@@ -128,34 +176,41 @@ again. Both paths are tested and produce identical results.
 
 ---
 
-## 7. Not yet deployed (the path is built and rehearsed)
+## 7. Deployed — but operated by one person, with no alerting
 
-No hosting or DNS credentials were available. The build is verified: `npm run build` produces a
-working `dist/`, the compiled artifact was smoke-tested in production mode, a multi-stage
-`Dockerfile` runs non-root under tini with a healthcheck, and `docker-compose.yml` brings up
-database, control plane, and worker together.
+Live at `https://ratchetgate.com` (Fly.io, region `sjc`): one `shared-cpu-1x` control plane,
+one worker, one 1 GB Postgres. `npm run deploy:fly` remains idempotent, and
+`npm run deploy:preflight` still gates it.
 
-**Rehearsed, not assumed:** the production images were built and the full stack — database,
-control plane, worker — was run under `docker compose`, and the complete workflow was driven
-through it: signup, gate, report, replay, MCP tool listing, a crashed lease swept to
-`indeterminate` by the worker container, the next caller correctly `blocked`, and the analytics
-flusher writing from inside the container. That rehearsal found and fixed a real defect: compose
-published the database on port 5433, colliding with the dev database.
+**What is genuinely missing is operational, not architectural:**
 
-**To deploy:** `npm run deploy:fly` (idempotent; creates app, managed Postgres, secrets, both
-process groups, then verifies). `npm run deploy:preflight` gates it. Any container platform works;
-only `fly.toml` is Fly-specific.
-
-**What still requires the owner:** a hosting account. Every provider needs an interactive browser
-login, so this is the one step that cannot be automated from here.
+- **No alerting.** Health checks hit `/readyz` every 15s and Fly restarts an unhealthy machine,
+  but nothing pages a human. An outage at 03:00 is discovered whenever someone next looks.
+- **No automated backup running.** The pipeline exists (`.github/workflows/backup.yml`, nightly,
+  dump → restore → re-verify every receipt signature → ship off-machine) and has been executed
+  by hand end-to-end successfully. It cannot run on schedule until four repository secrets are
+  added: `FLY_API_TOKEN`, `TIGRIS_ACCESS_KEY_ID`, `TIGRIS_SECRET_ACCESS_KEY`, `TIGRIS_BUCKET`.
+  Until then the only off-machine copy is the one taken manually on 31 Aug 2026.
+- **Fly volume snapshots not enabled.** `flyctl pg backup enable -a ratchet-gate-pg` needs an
+  interactive terminal (the non-interactive form advertises a `--yes` flag the command does not
+  accept).
 
 ---
 
-## 8. Multi-instance operation is designed but unexercised
+## 8. Multi-instance operation — exercised once, in production
 
 Every worker claim uses `FOR UPDATE SKIP LOCKED`, migrations are advisory-locked, and the control
-plane holds no local state. Concurrency is tested *within* a process and the migration race is
-covered, but two API instances plus two workers were never run simultaneously against one database.
+plane holds no local state.
+
+**Verified 31 Aug 2026** against the live service running two app machines: 25 concurrent `begin`
+calls on one idempotency key produced exactly one `execute`, one effect id, one lease, and one
+vendor key. The gate holds across processes, not merely within one.
+
+Still unexercised: two *workers* at once (one runs today), and any failover, since there is no
+replica to fail over to — see §4.
+
+**One caveat that is easy to forget:** rate limiting is per-process (§2), so N app instances
+multiply the effective limit by N. Adding instances quietly loosens every published ceiling.
 
 ---
 

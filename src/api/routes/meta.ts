@@ -7,6 +7,7 @@ import { EVENT_TYPES } from '../../domain/events.js';
 import { MCP_TOOLS } from '../../mcp/tools.js';
 import { recipes } from '../../domain/integrate.js';
 import { VENDOR_PROFILES } from '../../domain/vendor-keys.js';
+import { workerHealth } from '../../worker/heartbeat.js';
 
 const startedAt = Date.now();
 
@@ -29,6 +30,53 @@ export default async function metaRoutes(app: FastifyInstance) {
     } catch {
       reply.code(503);
       return { status: 'not_ready', database: { ok: false } };
+    }
+  });
+
+  /**
+   * Is the worker actually working?
+   *
+   * A SEPARATE endpoint from /readyz on purpose. /readyz is what the platform
+   * uses to decide whether this API machine should receive traffic, and a
+   * stalled worker must never take the control plane offline — the gate still
+   * works perfectly without it, it just stops expiring leases.
+   *
+   * This one returns 503 when a worker loop has stopped finishing, so an
+   * external uptime monitor can alert on it. That matters more than it sounds:
+   * if the worker dies, leases never expire, effects stay `pending` for ever,
+   * and every retry is answered `in_flight` — indefinitely, with no error
+   * anywhere. A worker that has never checked in at all reports separately from
+   * one that has stalled, because "never deployed" and "stopped" need different
+   * fixes.
+   *
+   * Unauthenticated, because a monitor should not need a credential, and
+   * deliberately terse: loop names and staleness, no instance identifiers.
+   */
+  app.get('/workerz', {
+    schema: {
+      tags: ['Meta'], operationId: 'workerz',
+      summary: 'Worker liveness probe (point an uptime monitor at this)',
+      response: { 200: { type: 'object', additionalProperties: true },
+                  503: { type: 'object', additionalProperties: true } },
+    },
+  }, async (_req, reply) => {
+    try {
+      const h = await workerHealth();
+      if (!h.everStarted) {
+        reply.code(503);
+        return { status: 'never_started',
+          detail: 'No worker has ever checked in. Leases will never expire.' };
+      }
+      const stale = h.loops.filter((l) => l.stale).map((l) => l.loop);
+      if (stale.length > 0) {
+        reply.code(503);
+        return { status: 'stalled', stalled_loops: stale,
+          detail: 'A worker loop has stopped completing. Leases may not be expiring.' };
+      }
+      return { status: 'ok', loops: h.loops.length };
+    } catch {
+      reply.code(503);
+      return { status: 'unknown', detail: 'Could not read worker heartbeats.' };
     }
   });
 
@@ -95,9 +143,16 @@ export default async function metaRoutes(app: FastifyInstance) {
       'leases with fencing tokens so a stalled worker cannot overwrite a newer attempt',
       'explicit indeterminate state when an attempt neither completes nor cleanly fails',
       'per-effect, per-key, and per-type daily external spend ceilings',
+      'surge containment: a circuit breaker per effect type that opens when an agent '
+        + 'starts performing one far more often than its configured hourly ceiling, and a '
+        + 'workspace-wide emergency stop. An open breaker raises the effect type to '
+        + 'require_approval by default, so work waits for a human rather than the agent '
+        + 'being killed',
       'operator approval gating for named effect types',
       'signed webhooks with SSRF protection',
       'immutable credit ledger and audit trail',
+      'worker liveness at GET /workerz, which returns 503 when lease expiry has stopped '
+        + 'running — the failure that would otherwise leave effects pending for ever',
     ],
     does_not: [
       'execute code, shell commands, or HTTP requests on the caller\'s behalf',

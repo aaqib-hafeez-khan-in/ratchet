@@ -29,6 +29,27 @@ const effectTypeProp = {
 
 export const MCP_TOOLS: McpToolDef[] = [
   {
+    name: 'ratchet_circuit_status',
+    title: 'Check whether surge containment is holding your work',
+    scope: 'policies:read',
+    readOnly: true,
+    description:
+      'Call this when a begin returned "approval_required" or "denied" and the reason mentions ' +
+      'a circuit breaker. A breaker opens when an effect type is being performed far more often ' +
+      'than its configured hourly ceiling — usually because something is looping.\n' +
+      '\nWhat to do with the answer:\n' +
+      '- If a breaker is open, STOP creating effects of that type. Retrying will not help and ' +
+      'each attempt is recorded.\n' +
+      '- resets_at tells you when it closes itself. If it is null, a human opened it deliberately ' +
+      'and only a human will close it — do not wait, and do not poll.\n' +
+      '- Report the reason to your operator and stop. Do not attempt to work around it by ' +
+      'renaming the effect type, splitting the work across keys, or using a different ' +
+      'idempotency key: that defeats a safety control that exists to protect the people your ' +
+      'actions reach.\n' +
+      '- effect_type "*" means every effect type in the workspace is stopped.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
     name: 'ratchet_begin_effect',
     title: 'Ask permission to perform a side effect',
     scope: 'effects:begin',

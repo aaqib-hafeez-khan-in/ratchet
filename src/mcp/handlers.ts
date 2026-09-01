@@ -7,6 +7,7 @@ import { beginEffect, reportEffect, extendLease, resolveEffect, lookupEffect, li
 import { getPolicy } from '../domain/policy.js';
 import { getWorkspace, requireScope, type AuthContext, type Scope } from '../domain/auth.js';
 import { getSpendSummary } from '../domain/budget.js';
+import { listCircuits, currentRates } from '../domain/circuit.js';
 import { toolByName } from './tools.js';
 import { beginOut, effectOut, reportOut, policyOut } from '../api/serialize.js';
 
@@ -24,6 +25,23 @@ export async function callTool(
   requireScope(ctx, def.scope as Scope);
 
   switch (name) {
+    case 'ratchet_circuit_status': {
+      const [circuits, rates] = await Promise.all([
+        listCircuits(getPool(), ctx.workspaceId),
+        currentRates(getPool(), ctx.workspaceId),
+      ]);
+      return {
+        circuits: circuits.map((c) => ({
+          effect_type: c.effectType, state: c.state, action: c.action,
+          reason: c.reason, threshold: c.threshold, observed: c.observed,
+          tripped_at: c.trippedAt?.toISOString() ?? null,
+          resets_at: c.resetsAt?.toISOString() ?? null,
+        })),
+        rates: rates.map((r) => ({
+          effect_type: r.effectType, this_hour: r.thisHour, peak_hour: r.peakHour,
+        })),
+      };
+    }
     case 'ratchet_begin_effect': {
       const r = await beginEffect({
         workspaceId: ctx.workspaceId,

@@ -16,6 +16,38 @@ import { recordActivityTx, recordMilestoneTx } from '../domain/activity.js';
  *  - The outstanding external-spend reservation is released, because an
  *    indeterminate effect is no longer holding budget for future work.
  */
+/**
+ * Drain expired leases until there are none left, in bounded batches.
+ *
+ * `sweepExpiredLeases` handles one batch and is the right primitive: each batch
+ * is its own transaction, so locks are held briefly and replicas interleave
+ * cleanly via SKIP LOCKED. But calling it once per tick capped the transition
+ * at one batch per interval — 25 leases/second at the default 50 per 2s — while
+ * the same loop measured at over 1,300/second when allowed to run. A fleet of
+ * agents that dies at once produces exactly that burst, and every effect in the
+ * backlog stays `pending` until its turn, so a caller retrying is told
+ * `in_flight` and waits instead of learning the outcome is unknown.
+ *
+ * Safety never depended on the sweep being fast — a lease that has not been
+ * swept yet is still expired, and nothing hands out a second `execute`. This is
+ * about how long the truth takes to become visible.
+ *
+ * Bounded by both batches and wall clock so one tick cannot monopolise the
+ * worker or starve the webhook loop beside it.
+ */
+export async function drainExpiredLeases(
+  { batchSize = 50, maxBatches = 40, maxMs = 5_000 } = {},
+): Promise<number> {
+  const deadline = Date.now() + maxMs;
+  let total = 0;
+  for (let i = 0; i < maxBatches; i++) {
+    const n = await sweepExpiredLeases(batchSize);
+    total += n;
+    if (n < batchSize || Date.now() >= deadline) break;
+  }
+  return total;
+}
+
 export async function sweepExpiredLeases(batchSize = 50): Promise<number> {
   return withTx(async (tx) => {
     const { rows } = await tx.query<{
@@ -88,7 +120,8 @@ export async function collectExpiredEffects(batchSize = 500): Promise<number> {
 
 /** Console sessions, delivered webhooks, and spent OAuth records past their use. */
 export async function collectStaleRecords(): Promise<
-  { sessions: number; deliveries: number; oauth: number; anonymous: number; orphanReceipts: number }> {
+  { sessions: number; deliveries: number; oauth: number; anonymous: number;
+    orphanReceipts: number; rateLimitWindows: number; surgeWindows: number }> {
   const pool = getPool();
   const s = await pool.query('DELETE FROM console_sessions WHERE expires_at <= now()');
   const d = await pool.query(
@@ -124,6 +157,27 @@ export async function collectStaleRecords(): Promise<
           SELECT 1 FROM effects e
            WHERE e.workspace_id = w.id AND e.created_at > now() - interval '7 days')`);
 
+  // Surge counters older than the longest window anyone can measure against.
+  // Kept for 30 days because currentRates reports a 30-day peak, which is what
+  // an operator uses to choose a threshold.
+  const erw = await pool.query(
+    `DELETE FROM effect_rate_windows WHERE hour_start < now() - interval '31 days'`);
+
+  // Breakers belonging to workspaces that no longer exist. Like receipts, this
+  // table has no foreign key — see migration 022 for why.
+  const orphanCircuits = await pool.query(
+    `DELETE FROM circuit_breakers c
+      WHERE NOT EXISTS (SELECT 1 FROM workspaces w WHERE w.id = c.workspace_id)`);
+  const orphanRates = await pool.query(
+    `DELETE FROM effect_rate_windows r
+      WHERE NOT EXISTS (SELECT 1 FROM workspaces w WHERE w.id = r.workspace_id)`);
+
+  // Rate-limit windows are only interesting while they are open. Keeping one
+  // extra window is enough for an instance that is a flush behind; beyond that
+  // the row can never be read again.
+  const rl = await pool.query(
+    `DELETE FROM rate_limit_counters WHERE window_start < now() - interval '10 minutes'`);
+
   // Receipts deliberately have no foreign key to workspaces — it deadlocked the
   // decision path — so deleting a workspace's audit trail happens here instead.
   const orphans = await pool.query(
@@ -131,6 +185,9 @@ export async function collectStaleRecords(): Promise<
       WHERE NOT EXISTS (SELECT 1 FROM workspaces w WHERE w.id = r.workspace_id)`);
 
   return { orphanReceipts: orphans.rowCount ?? 0,
+           rateLimitWindows: rl.rowCount ?? 0,
+           surgeWindows: (erw.rowCount ?? 0) + (orphanRates.rowCount ?? 0)
+                       + (orphanCircuits.rowCount ?? 0),
            sessions: s.rowCount ?? 0, deliveries: d.rowCount ?? 0,
            oauth: (c.rowCount ?? 0) + (t.rowCount ?? 0) + (cl.rowCount ?? 0),
            anonymous: anon.rowCount ?? 0 };

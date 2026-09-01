@@ -27,10 +27,69 @@ done
 # The dump format version tracks the SERVER major version, so the restore side
 # must be equal or newer. A Postgres 18 dump cannot be read by 16 tooling —
 # found the hard way.
-MAJOR=$(flyctl ssh console -a "$PG_APP" \
+#
+# Errors are NOT swallowed here. This probe used to redirect stderr to
+# /dev/null, so when flyctl could not reach the app — a bad token, no
+# wireguard, the wrong org — `set -e` killed the script with no output at all
+# and a failed nightly backup looked like a mystery. A backup that fails must
+# say why; that is most of its job.
+PROBE=$(flyctl ssh console -a "$PG_APP" \
   -C "sh -c 'PGPASSWORD=\$OPERATOR_PASSWORD psql -h $PG_APP.internal -U postgres -d $DB -At -c \"SHOW server_version\"'" \
-  2>/dev/null | tr -d '\r' | grep -oE '^[0-9]+' | head -1)
-echo "  production server: ${MAJOR:-unknown}"
+  2>&1) || {
+    echo "  could not reach $PG_APP over flyctl ssh. Raw output:"
+    echo "$PROBE" | sed 's/^/    /'
+    echo "  Most likely: FLY_API_TOKEN is missing, expired, or not scoped to this app."
+    exit 1
+  }
+MAJOR=$(printf '%s' "$PROBE" | tr -d '\r' | grep -oE '^[0-9]+' | head -1)
+if [ -z "$MAJOR" ]; then
+  echo "  could not read the server version. Raw output:"
+  printf '%s' "$PROBE" | sed 's/^/    /'
+  exit 1
+fi
+echo "  production server: $MAJOR"
+
+# Check we can actually write to the bucket BEFORE dumping and restoring.
+#
+# Three runs in a row failed only at the very end: once on a missing module,
+# once on bucket permissions — each time after ninety seconds of dumping
+# production, pulling a Postgres image and verifying 443 receipts. Discovering
+# a credential problem at the last step is the most expensive possible moment.
+if [ -n "${TIGRIS_ACCESS_KEY_ID:-}" ] && [ -n "${TIGRIS_BUCKET:-}" ]; then
+  echo "  checking write access to the bucket…"
+  PROBE_KEY="preflight/.write-check"
+  PROBE_FILE=$(mktemp)
+  printf 'ratchet backup preflight' > "$PROBE_FILE"
+  if ! node scripts/s3-put.mjs "$PROBE_FILE" "$PROBE_KEY" >/dev/null 2>&1; then
+    # A 403 here is ambiguous: the bucket may not exist, or it may exist and
+    # this key may not be allowed near it. Ask the credential what it CAN see —
+    # that distinguishes the two without anyone opening a browser. Bucket names
+    # are not secrets.
+    echo "  first write attempt failed. Buckets this key can see:"
+    node scripts/s3-list.mjs 2>&1 | sed 's/^/    /' || true
+
+    echo "  attempting to create \"$TIGRIS_BUCKET\"…"
+    if node scripts/s3-mkbucket.mjs "$TIGRIS_BUCKET" 2>&1 | sed 's/^/    /'; then
+      if node scripts/s3-put.mjs "$PROBE_FILE" "$PROBE_KEY" >/dev/null 2>&1; then
+        rm -f "$PROBE_FILE"
+        echo "  bucket created and writable."
+        SKIP_PREFLIGHT_OK=1
+      fi
+    fi
+
+    if [ -z "${SKIP_PREFLIGHT_OK:-}" ]; then
+      echo "  cannot write to bucket \"$TIGRIS_BUCKET\"."
+      echo "  Check, in the Tigris console:"
+      echo "    - the bucket exists and is spelled exactly that way"
+      echo "    - the access key has read/write on it (not another bucket)"
+      echo "    - TIGRIS_ACCESS_KEY_ID and TIGRIS_SECRET_ACCESS_KEY are from the SAME key pair"
+      rm -f "$PROBE_FILE"
+      exit 1
+    fi
+  fi
+  rm -f "$PROBE_FILE"
+  echo "  bucket is writable."
+fi
 
 echo "  dumping…"
 flyctl ssh console -a "$PG_APP" \

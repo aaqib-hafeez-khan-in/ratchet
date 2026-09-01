@@ -79,8 +79,10 @@
         <strong>7 days</strong> by default. Deleted by an automated sweep after that.</li>
       <li><strong>Receipts</strong> — <strong>90 days</strong>. Older ones are pruned behind a
         signed checkpoint so the audit chain stays verifiable across the gap.</li>
-      <li><strong>Anonymous workspaces</strong> — deleted after <strong>7 days</strong> if never
-        claimed and never used.</li>
+      <li><strong>Anonymous workspaces</strong> — deleted after <strong>7 days of
+        inactivity</strong>, unless claimed. Using one resets the clock; claiming it with an
+        email makes it a normal workspace that is never swept. An unclaimed workspace you
+        stop using is removed along with its effects and receipts.</li>
       <li><strong>Backups</strong> — database snapshots retained 30 days; logical backups stored
         off-machine.</li>
     </ul>

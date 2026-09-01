@@ -267,6 +267,57 @@ console.log('\n-- protocol handling --');
 }
 
 // ── 13. Enumeration ───────────────────────────────────────────────────────
+// ── Circuit breakers: a control that stops an agent must not be reachable BY one
+console.log('\n-- surge containment --');
+{
+  const unauth = await req('/v1/circuits');
+  ok('circuits are not readable without a credential',
+     unauth.status === 401 || unauth.status === 403, `got ${unauth.status}`);
+
+  const stopUnauth = await req('/v1/circuits/*/open', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'deny', reason: 'unauthenticated attempt' }),
+  });
+  ok('the emergency stop cannot be pulled anonymously',
+     stopUnauth.status === 401 || stopUnauth.status === 403, `got ${stopUnauth.status}`);
+
+  // B opens a breaker; A must neither see it nor be affected by it.
+  await req('/v1/circuits/probe.iso/open', {
+    method: 'POST', headers: AUTH(keyB),
+    body: JSON.stringify({ action: 'deny', reason: 'B only' }),
+  });
+  const aSees = await req('/v1/circuits', { headers: AUTH(keyA) });
+  const leaked = JSON.stringify(aSees.json?.circuits ?? []).includes('probe.iso');
+  ok('one tenant cannot see another tenant circuit breaker', !leaked);
+
+  const aWorks = await req('/v1/effects/begin', {
+    method: 'POST', headers: AUTH(keyA),
+    body: JSON.stringify({ effect_type: 'probe.iso', idempotency_key: `iso-c-${Date.now()}` }),
+  });
+  ok('another tenant breaker does not stop my effects',
+     aWorks.json?.decision === 'execute', `got ${aWorks.json?.decision}`);
+
+  const aCloses = await req('/v1/circuits/probe.iso/close', {
+    method: 'POST', headers: AUTH(keyA), body: '{}',
+  });
+  ok('one tenant cannot close another tenant breaker', aCloses.status === 404,
+     `got ${aCloses.status}`);
+
+  // The reason is operator text and is echoed to callers — it must not be markup.
+  await req('/v1/circuits/probe.xss/open', {
+    method: 'POST', headers: AUTH(keyB),
+    body: JSON.stringify({ action: 'deny', reason: '<img src=x onerror=alert(1)>' }),
+  });
+  const blocked = await req('/v1/effects/begin', {
+    method: 'POST', headers: AUTH(keyB),
+    body: JSON.stringify({ effect_type: 'probe.xss', idempotency_key: `x-${Date.now()}` }),
+  });
+  ok('a breaker reason is returned as data, never as executable markup',
+     blocked.headers.get('content-type')?.includes('application/json') === true,
+     `content-type ${blocked.headers.get('content-type')}`);
+  await req('/v1/circuits/probe.xss/close', { method: 'POST', headers: AUTH(keyB), body: '{}' });
+}
+
 console.log('\n-- enumeration --');
 {
   const real = await req('/v1/effects/eff_0000000000000000', { headers: AUTH(keyA) });

@@ -224,6 +224,72 @@ export const policySchema = {
     daily_budget_micros: { type: ['integer', 'null'] },
     retention_days: { type: 'integer' },
     require_cost: { type: 'boolean' },
+    surge_per_hour: { type: ['integer', 'null'],
+      description: 'New effects of this type per hour above which the circuit breaker opens. '
+        + 'Null disables surge containment, which is the default.' },
+    surge_action: { type: 'string', enum: ['monitor', 'require_approval', 'deny'] },
+    surge_cooldown_seconds: { type: 'integer' },
+    surge_multiplier: { type: ['integer', 'null'],
+      description: 'Relative surge threshold: how many times normal is definitely wrong. '
+        + 'Use when you do not know your own traffic. Does nothing until enough history '
+        + 'exists to compute a baseline.' },
+    surge_baseline_per_hour: { type: ['integer', 'null'],
+      description: 'Median hourly volume over the last 7 days. Computed for you.' },
+    surge_effective_ceiling: { type: ['integer', 'null'],
+      description: 'The hourly ceiling actually in force, whichever rule produced it.' },
+    surge_ceiling_source: { type: ['string', 'null'], enum: ['absolute', 'learned', null] },
     is_default: { type: 'boolean' },
+  },
+} as const;
+
+export const circuitSchema = {
+  type: 'object',
+  properties: {
+    effect_type: { type: 'string',
+      description: 'The effect type this breaker governs. "*" is the whole workspace.' },
+    state: { type: 'string', enum: ['closed', 'open'] },
+    action: { type: 'string', enum: ['monitor', 'require_approval', 'deny'] },
+    tripped_at: { type: ['string', 'null'], format: 'date-time' },
+    resets_at: { type: ['string', 'null'], format: 'date-time',
+      description: 'When the breaker closes itself. Null means it was opened by hand '
+        + 'and stays open until a human closes it.' },
+    observed: { type: ['integer', 'null'] },
+    threshold: { type: ['integer', 'null'] },
+    reason: { type: ['string', 'null'] },
+    opened_by: { type: ['string', 'null'] },
+    trip_count: { type: 'integer' },
+  },
+} as const;
+
+export const circuitListSchema = {
+  type: 'object',
+  properties: {
+    circuits: { type: 'array', items: circuitSchema },
+    rates: {
+      type: 'array',
+      description: 'Observed volume per effect type, to choose a threshold from.',
+      items: {
+        type: 'object',
+        properties: {
+          effect_type: { type: 'string' },
+          this_hour: { type: 'integer' },
+          peak_hour: { type: 'integer',
+            description: 'Busiest single hour in the last 30 days.' },
+        },
+      },
+    },
+  },
+} as const;
+
+export const circuitOpenBody = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['reason'],
+  properties: {
+    action: { type: 'string', enum: ['monitor', 'require_approval', 'deny'],
+      default: 'deny',
+      description: 'deny refuses outright; require_approval holds the work for a human.' },
+    reason: { type: 'string', minLength: 1, maxLength: 500,
+      description: 'Recorded on the breaker and shown to callers that are stopped by it.' },
   },
 } as const;

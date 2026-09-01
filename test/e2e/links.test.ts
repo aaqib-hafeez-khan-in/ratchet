@@ -14,6 +14,7 @@ import { buildApp } from '../../src/api/app.js';
 import { closePool } from '../helpers.js';
 
 const WEB = join(import.meta.dirname, '../../web');
+const ROOT = join(import.meta.dirname, '../..');
 const pages = readdirSync(WEB).filter((f) => f.endsWith('.html'));
 
 /**
@@ -71,5 +72,49 @@ describe('site links', () => {
     const robots = (await app.inject({ method: 'GET', url: '/robots.txt' })).body;
     assert.match(robots, /Allow: \/v1\/integrate/,
       'the beacon is under /v1/, which is disallowed — it needs an explicit Allow');
+  });
+});
+
+describe('stylesheet integrity', () => {
+  // A stray brace silently disables every rule after it. This shipped once:
+  // an offset-based edit removed a block and left its closing brace behind,
+  // and the only symptom was elements staying invisible on one page.
+  test('braces balance and never close below zero', () => {
+    const css = readFileSync(join(WEB, 'assets/style.css'), 'utf8');
+    let depth = 0;
+    let line = 0;
+    for (const [i, l] of css.split('\n').entries()) {
+      depth += (l.match(/\{/g) ?? []).length - (l.match(/\}/g) ?? []).length;
+      if (depth < 0 && !line) line = i + 1;
+    }
+    assert.equal(line, 0, `a stray closing brace at line ${line} disables every rule after it`);
+    assert.equal(depth, 0, `stylesheet ends at depth ${depth}; a rule is unclosed`);
+  });
+
+  test('the reveal rules the pages depend on are present', () => {
+    const css = readFileSync(join(WEB, 'assets/style.css'), 'utf8');
+    assert.match(css, /\.js-reveal \[data-reveal\]\s*\{/);
+    assert.match(css, /\.js-reveal \[data-reveal\]\.is-in\s*\{/);
+  });
+});
+
+describe('published retention claims match the code', () => {
+  // A privacy page that overstates how long data is kept is a promise the
+  // reaper quietly breaks. This drifted once: the page said anonymous
+  // workspaces were kept unless "never used", while the sweep deletes any
+  // unclaimed workspace with no effects in the window.
+  test('the anonymous window on /privacy is the window the reaper uses', () => {
+    const reaper = readFileSync(join(ROOT, 'src/worker/reaper.ts'), 'utf8');
+    const sweep = reaper.slice(reaper.indexOf('w.anonymous'), reaper.indexOf('w.anonymous') + 400);
+    const days = [...sweep.matchAll(/interval '(\d+) days'/g)].map((m) => m[1]);
+    assert.ok(days.length >= 1, 'could not read the anonymous sweep interval');
+    const page = readFileSync(join(WEB, 'privacy.html'), 'utf8');
+    const claim = page.slice(page.indexOf('Anonymous workspaces'), page.indexOf('Anonymous workspaces') + 400);
+    for (const d of days) {
+      assert.match(claim, new RegExp(`${d} days`),
+        `the sweep uses ${d} days; /privacy does not say so`);
+    }
+    assert.match(claim, /inactivity/,
+      'the sweep is activity-based, so the page must not imply unused-only deletion');
   });
 });

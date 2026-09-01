@@ -36,12 +36,13 @@ src/
     server.ts     entrypoint; refuses unsafe production config; migrates on boot
     schemas.ts    JSON Schemas — routes validate AND the OpenAPI doc derives from these
     serialize.ts  the ONLY camelCase(domain) ↔ snake_case(wire) conversion
-    routes/       effects · workspace · billing · meta
+    routes/       effects · workspace · billing · meta · circuits
     plugins/      auth guards (requireKey / requireConsole)
   domain/       business logic; no HTTP types cross into here
     effects.ts    the state machine — begin / report / resolve / cancel / approve
     policy.ts     per-effect-type rules, with safe defaults
     budget.ts     external-spend ceilings (customer's money at third parties)
+    circuit.ts    surge containment — stops an agent doing too MUCH, not too costly
     metering.ts   Ratchet's own billing (credit ledger)
     plans.ts      plan definitions
     billing.ts    payment provider boundary (test adapter + signature verification)

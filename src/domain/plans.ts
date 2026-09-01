@@ -58,7 +58,11 @@ export const PLANS: Record<PlanId, Plan> = {
     maxRetentionDays: 7,
     // Three, not two: a default key plus separate dev and prod keys is a
     // legitimate free-tier need, and keys cost nothing to serve.
-    maxApiKeys: 3,
+    // Four, not three, because signup now issues TWO keys of its own: a
+    // full-scope operator key and a gate-only agent key. Keys the service mints
+    // for you must not eat the allowance you were sold, so this preserves the
+    // same two user-created keys the free plan has always allowed.
+    maxApiKeys: 4,
     maxWebhookEndpoints: 1,
   },
   pro: {

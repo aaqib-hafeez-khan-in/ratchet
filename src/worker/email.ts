@@ -161,6 +161,30 @@ export async function generateAlerts(): Promise<number> {
   const db = getPool();
   let queued = 0;
 
+  /**
+   * One workspace must never be able to silence everybody else's alerts.
+   *
+   * This sweep walks every workspace with something to report. An exception
+   * escaping mid-loop abandons the whole pass, so the workspaces that happen to
+   * sort later simply never hear anything — the worst failure an alerting
+   * system can have, because it is completely silent. It happened for real: an
+   * anonymous workspace has no owner address, and queueEmail inserted NULL into
+   * a NOT NULL column. Fixed at the source too, but the loop should survive the
+   * next surprise as well.
+   */
+  const safeQueue = async (args: Parameters<typeof queueEmail>[0]) => {
+    try {
+      const q = await queueEmail(args);
+      if (q.queued) queued++;
+    } catch (err) {
+      console.log(JSON.stringify({
+        level: 'error', svc: 'email', msg: 'could not queue alert for workspace',
+        workspaceId: args.workspaceId, category: args.category,
+        err: (err as Error).message,
+      }));
+    }
+  };
+
   // ---- effects with an unknown outcome ------------------------------------
   const { rows: indet } = await db.query<{ workspace_id: string; n: string; types: string[] }>(
     `SELECT workspace_id, count(*) AS n, array_agg(DISTINCT effect_type) AS types
@@ -168,13 +192,12 @@ export async function generateAlerts(): Promise<number> {
       GROUP BY workspace_id`);
   for (const r of indet) {
     const t = tpl.indeterminateAlert(Number(r.n), r.types);
-    const q = await queueEmail({
+    await safeQueue({
       workspaceId: r.workspace_id, category: 'indeterminate',
       // One per workspace per hour, however many effects are involved.
       dedupeKey: `indeterminate:${bucket(60)}`,
       subject: t.subject, text: t.text, html: t.html,
     });
-    if (q.queued) queued++;
   }
 
   // ---- rollbacks that are stuck or could not finish ------------------------
@@ -189,12 +212,42 @@ export async function generateAlerts(): Promise<number> {
     const stuck = Number(r.stuck); const failed = Number(r.failed);
     if (stuck + failed === 0) continue;
     const t = tpl.rollbackAlert(stuck, failed);
-    const q = await queueEmail({
+    await safeQueue({
       workspaceId: r.workspace_id, category: 'rollback',
       dedupeKey: `rollback:${failed > 0 ? 'failed' : 'stuck'}:${bucket(120)}`,
       subject: t.subject, text: t.text, html: t.html,
     });
-    if (q.queued) queued++;
+  }
+
+  // ---- circuit breakers that are open --------------------------------------
+  //
+  // A tighter window than any other alert. An open breaker means work is being
+  // held or refused right now, and the operator is the only one who can judge
+  // whether that is correct. Containment nobody hears about is half a feature.
+  const { rows: circuits } = await db.query<{
+    workspace_id: string; effect_type: string; action: string;
+    reason: string | null; resets_at: Date | null;
+  }>(
+    `SELECT workspace_id, effect_type, action, reason, resets_at
+       FROM circuit_breakers
+      WHERE state = 'open' AND (resets_at IS NULL OR resets_at > now())
+      ORDER BY workspace_id, effect_type`);
+  const byWorkspace = new Map<string, typeof circuits>();
+  for (const r of circuits) {
+    if (!byWorkspace.has(r.workspace_id)) byWorkspace.set(r.workspace_id, []);
+    byWorkspace.get(r.workspace_id)!.push(r);
+  }
+  for (const [workspaceId, open] of byWorkspace) {
+    const t = tpl.circuitAlert(open.map((c) => ({
+      effectType: c.effect_type, action: c.action, reason: c.reason, resetsAt: c.resets_at,
+    })));
+    await safeQueue({
+      workspaceId, category: 'containment',
+      // Keyed on WHICH breakers are open, so a newly opened one sends a fresh
+      // message instead of being swallowed by the previous digest's window.
+      dedupeKey: `containment:${open.map((c) => c.effect_type).join(',')}:${bucket(15)}`,
+      subject: t.subject, text: t.text, html: t.html,
+    });
   }
 
   // ---- effects waiting on a person ----------------------------------------
@@ -204,13 +257,12 @@ export async function generateAlerts(): Promise<number> {
       GROUP BY workspace_id`);
   for (const r of appr) {
     const t = tpl.approvalAlert(Number(r.n));
-    const q = await queueEmail({
+    await safeQueue({
       workspaceId: r.workspace_id, category: 'approval',
       // Tighter window: an agent is blocked while this waits.
       dedupeKey: `approval:${bucket(30)}`,
       subject: t.subject, text: t.text, html: t.html,
     });
-    if (q.queued) queued++;
   }
 
   // ---- allowance running out ----------------------------------------------
@@ -227,13 +279,12 @@ export async function generateAlerts(): Promise<number> {
     const stage = remaining === 0 ? 'exhausted' : ratio <= 0.1 ? 'low' : null;
     if (!stage) continue;
     const t = tpl.usageAlert(remaining, plan.includedEffects, w.credit_micros);
-    const q = await queueEmail({
+    await safeQueue({
       workspaceId: w.id, category: 'usage',
       // Once per stage per day: a monthly allowance does not need hourly nagging.
       dedupeKey: `usage:${stage}:${bucket(1440)}`,
       subject: t.subject, text: t.text, html: t.html,
     });
-    if (q.queued) queued++;
   }
 
   return queued;
