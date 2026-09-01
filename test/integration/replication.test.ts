@@ -110,6 +110,31 @@ describe('reading replica health', () => {
     assert.deepEqual(r.problems, []);
   });
 
+  /**
+   * The false positive that staging caught before production saw it.
+   *
+   * Postgres shows the ROWS of pg_stat_replication to anyone but blanks the
+   * columns for a role without pg_read_all_stats. The watcher called two
+   * perfectly healthy standbys "not streaming" — and, far worse, could never
+   * have seen real lag, because the position it compares was null too. A
+   * monitor that invents problems gets muted, and a muted monitor is the thing
+   * this file exists to prevent.
+   */
+  test('a role that cannot read the statistics reports blindness, not problems', async () => {
+    const blanked = [
+      { application_name: 'standby_a', state: null, replay_lsn: null, bytes_behind: null },
+      { application_name: 'standby_b', state: null, replay_lsn: null, bytes_behind: null },
+    ];
+    const r = await checkReplication(fakeDb({ rows: blanked }));
+
+    assert.equal(r.observable, false, 'it must not claim to have observed anything');
+    assert.equal(r.blindReason, 'not_permitted');
+    assert.equal(r.problems.length, 1);
+    assert.match(r.problems[0]!, /pg_read_all_stats/, 'and must say how to fix it');
+    assert.equal(r.problems.some((p) => p.includes('not streaming')), false,
+      'healthy replicas must never be described as broken');
+  });
+
   test('a replica that vanishes is noticed when a count is declared', async () => {
     process.env.EXPECTED_REPLICAS = '2';
     try {

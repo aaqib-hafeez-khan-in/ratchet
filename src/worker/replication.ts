@@ -39,8 +39,14 @@ export interface ReplicaState {
 }
 
 export interface ReplicationReport {
-  /** Replication is only observable from the primary; on a standby we abstain. */
+  /**
+   * False when this process cannot see replication at all — it is running on a
+   * standby, or its role may not read the statistics. Abstaining is not the
+   * same as a clean bill of health, and the two must never be conflated.
+   */
   observable: boolean;
+  /** Why nothing was observed, when nothing was. */
+  blindReason?: 'standby' | 'not_permitted';
   replicas: ReplicaState[];
   problems: string[];
 }
@@ -50,7 +56,7 @@ const lastReplay = new Map<string, string>();
 
 interface Row {
   application_name: string;
-  state: string;
+  state: string | null;
   replay_lsn: string | null;
   bytes_behind: string | null;
 }
@@ -62,13 +68,29 @@ export async function checkReplication(db: Db = getPool()): Promise<ReplicationR
   const { rows: [role] } = await db.query<{ in_recovery: boolean }>(
     'SELECT pg_is_in_recovery() AS in_recovery');
   if (role?.in_recovery !== false) {
-    return { observable: false, replicas: [], problems: [] };
+    return { observable: false, blindReason: 'standby', replicas: [], problems: [] };
   }
 
   const { rows } = await db.query<Row>(
     `SELECT application_name, state, replay_lsn::text AS replay_lsn,
             pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn)::text AS bytes_behind
        FROM pg_stat_replication`);
+
+  // Postgres shows the ROWS of pg_stat_replication to anyone but blanks the
+  // columns for a role without pg_read_all_stats. The result is a watcher that
+  // sees replicas whose every field is null: it reported "not streaming" about
+  // two perfectly healthy standbys, and — far worse — could never have seen real
+  // lag, because the position it compares was null too.
+  //
+  // A monitor that invents problems gets muted, and a muted monitor is why this
+  // whole file exists. Say plainly that nothing can be seen.
+  if (rows.length > 0 && rows.every((r) => r.replay_lsn === null && r.state === null)) {
+    return {
+      observable: false, blindReason: 'not_permitted', replicas: [],
+      problems: ['replication cannot be read by this database role — '
+        + 'GRANT pg_read_all_stats TO the application role, or replica health is unknown'],
+    };
+  }
 
   const replicas: ReplicaState[] = [];
   const problems: string[] = [];
@@ -82,9 +104,12 @@ export async function checkReplication(db: Db = getPool()): Promise<ReplicationR
     const frozen = previous !== undefined && previous === r.replay_lsn && behind > 0;
     if (r.replay_lsn) lastReplay.set(name, r.replay_lsn);
 
-    replicas.push({ name, state: r.state, bytesBehind: behind, frozen });
+    replicas.push({ name, state: r.state ?? 'unknown', bytesBehind: behind, frozen });
 
-    if (r.state !== 'streaming') {
+    if (r.state === null) {
+      // Mixed visibility is not a thing worth guessing about.
+      problems.push(`replica ${name} reports no state — this role may not read replication statistics`);
+    } else if (r.state !== 'streaming') {
       problems.push(`replica ${name} is "${r.state}", not streaming`);
     }
     if (frozen) {

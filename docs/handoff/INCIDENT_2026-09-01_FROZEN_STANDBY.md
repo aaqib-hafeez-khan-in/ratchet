@@ -90,6 +90,28 @@ d89359da0e5118  PRIMARY | has column | 116 workspaces
   write, so an alarm would have outlived its cause. Any *change* in the finding now bypasses
   the throttle, in both directions.
 
+## The watcher's own false positive, caught on staging
+
+Its first deploy reported `degraded` against a healthy cluster: *"replica
+7845455b310328 is 'null', not streaming"*, about two standbys that were streaming at 0 and
+72 KB behind.
+
+Postgres shows the **rows** of `pg_stat_replication` to any role but blanks the **columns**
+for one lacking `pg_read_all_stats`. Production's role is superuser and saw everything;
+staging's `ratchet_staging` role was not, so every field came back null.
+
+Worse than the noise: with `replay_lsn` null the comparison was against nothing, so the
+check could never have detected real lag either. It would have been a monitor that cried
+wolf while blind.
+
+Fixed in two places:
+
+- `checkReplication` detects blanked columns and returns `observable: false` with
+  `blindReason: 'not_permitted'` and a message naming the grant, instead of inventing
+  problems about healthy nodes.
+- `GRANT pg_read_all_stats TO ratchet_staging` — **required for any new database role**, or
+  replica health silently becomes unobservable. Note this when rebuilding an environment.
+
 ## Still open
 
 - **Why it wedged is unknown.** The node's volume predates the other two by ~33 hours; it
@@ -98,3 +120,7 @@ d89359da0e5118  PRIMARY | has column | 116 workspaces
 - **`max_slot_wal_keep_size` is 2 GB.** This node used ~590 MB of that reserve. A freeze
   lasting a few hours under real write volume would invalidate the slot, at which point the
   standby can only be rebuilt. The 256 MB alert threshold exists to leave room to act.
+- **The production role is a superuser.** That is why production could read the statistics
+  without a grant, and it is not a good reason to leave it that way. Narrowing it needs care
+  around migrations, which run on boot, so it is recorded rather than changed here.
+
