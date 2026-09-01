@@ -80,11 +80,34 @@ it. It checks, in the order these things have actually broken:
 It is not vacuous: pointed at production it fails on the noindex check, which is
 the assertion most likely to rot.
 
-## Known gaps
+## The order is enforced
 
-- Nothing enforces the order. `npm run deploy` still works without staging
-  having seen the build. Making production deploys require a green smoke run is
-  the obvious next step and is not done.
+`npm run deploy` runs four gates before it will touch production, ordered so a
+failure is discovered as cheaply as possible:
+
+1. **Clean and pushed.** Whatever is live must be something you — or somebody
+   else, in six months — can check out and reproduce.
+2. **CI is green for this exact commit.**
+3. **Staging is running this exact commit.** Not a similar one, not yesterday's.
+4. **The staging smoke test passes right now**, against that build.
+
+Gate 3 needs to know what staging is running, so the image records the commit it
+was built from as `GIT_COMMIT`. That value is deliberately **not served on any
+public endpoint**: the repository is open, and publishing the exact deployed
+commit tells anyone who asks precisely which fixes an instance is missing. The
+script reads it through `flyctl`, which is authenticated. Staging scales to
+zero, so it is woken first — a suspended machine otherwise looks identical to a
+staging app that was never deployed, and the refusal would send you to fix the
+wrong thing.
+
+**The escape hatch is `npm run deploy:force`.** A separate command rather than a
+flag, because refusing to deploy during an incident is its own outage, and
+because a flag can be reached by habit.
+
+Demonstrated end to end: with staging on an older build the deploy refused at
+gate 3; after `npm run deploy:staging` it passed all four and shipped.
+
+## Known gaps
 - Staging has no separate uptime monitoring; it is expected to be down between
   deploys.
 - Resource contention with production, above.
