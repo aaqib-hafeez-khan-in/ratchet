@@ -92,6 +92,21 @@ jobs:
           set -euo pipefail
           npm run backup:verify
 
+      # The database backups are worthless without the code that understands
+      # the schema, and until now the code had exactly one copy that was not a
+      # laptop: GitHub. One account, one vendor. This puts a complete,
+      # verified history beside the data, in a different company.
+      - name: Snapshot the repository beside the data
+        env:
+          TIGRIS_ACCESS_KEY_ID: ${{ secrets.TIGRIS_ACCESS_KEY_ID }}
+          TIGRIS_SECRET_ACCESS_KEY: ${{ secrets.TIGRIS_SECRET_ACCESS_KEY }}
+          TIGRIS_BUCKET: ${{ secrets.TIGRIS_BUCKET }}
+          TIGRIS_ENDPOINT: https://fly.storage.tigris.dev
+        run: |
+          set -euo pipefail
+          git fetch --unshallow 2>/dev/null || true
+          npm run snapshot:code
+
       # Only reached when the restore verified and the upload succeeded, so a
       # green run means a backup that has been proven restorable — not merely
       # a file that was produced.

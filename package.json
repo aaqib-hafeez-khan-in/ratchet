@@ -36,7 +36,8 @@
     "x402:check": "tsx scripts/x402-check.ts",
     "backup:verify": "bash scripts/backup-verify.sh",
     "stress": "tsx scripts/stress.ts",
-    "probe:prod": "tsx scripts/prod-probe.ts"
+    "probe:prod": "tsx scripts/prod-probe.ts",
+    "snapshot:code": "bash scripts/snapshot-code.sh"
   },
   "dependencies": {
     "@fastify/cookie": "11.1.2",
