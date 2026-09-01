@@ -58,8 +58,25 @@ for (const p of ['/healthz', '/readyz']) {
 if (!KEY) {
   fail('gate check', 'RATCHET_UPTIME_KEY is not set');
 } else {
-  const day = new Date().toISOString().slice(0, 10);
-  const body = JSON.stringify({ effect_type: 'uptime.probe', idempotency_key: `uptime-${day}` });
+  /*
+   * A four-hour bucket, not a day.
+   *
+   * With one key per day, exactly one probe in ninety-six exercised the path
+   * that matters — begin, hold a lease, report — and the other ninety-five only
+   * replayed a duplicate. The bug that broke this probe lived in that untested
+   * path. Six buckets a day tests it six times, and still costs 180 gated
+   * effects a month against a free plan of 1,000.
+   *
+   * It also self-heals: if an effect ends in a terminal state that refuses
+   * further begins, monitoring recovers within four hours rather than waiting
+   * for midnight.
+   */
+  const now = new Date();
+  const bucket = `${now.toISOString().slice(0, 10)}T${
+    String(Math.floor(now.getUTCHours() / 4) * 4).padStart(2, '0')}`;
+  const body = JSON.stringify({
+    effect_type: 'uptime.probe', idempotency_key: `uptime-${bucket}`,
+  });
   const headers = { authorization: `Bearer ${KEY}`, 'content-type': 'application/json' };
 
   const first = await get('/v1/effects/begin', { method: 'POST', headers, body });
