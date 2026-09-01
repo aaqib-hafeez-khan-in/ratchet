@@ -61,13 +61,31 @@ if [ -n "${TIGRIS_ACCESS_KEY_ID:-}" ] && [ -n "${TIGRIS_BUCKET:-}" ]; then
   PROBE_FILE=$(mktemp)
   printf 'ratchet backup preflight' > "$PROBE_FILE"
   if ! node scripts/s3-put.mjs "$PROBE_FILE" "$PROBE_KEY" >/dev/null 2>&1; then
-    echo "  cannot write to bucket \"$TIGRIS_BUCKET\"."
-    echo "  Check, in the Tigris console:"
-    echo "    - the bucket exists and is spelled exactly that way"
-    echo "    - the access key has read/write on it (not another bucket)"
-    echo "    - TIGRIS_ACCESS_KEY_ID and TIGRIS_SECRET_ACCESS_KEY are from the SAME key pair"
-    rm -f "$PROBE_FILE"
-    exit 1
+    # A 403 here is ambiguous: the bucket may not exist, or it may exist and
+    # this key may not be allowed near it. Ask the credential what it CAN see —
+    # that distinguishes the two without anyone opening a browser. Bucket names
+    # are not secrets.
+    echo "  first write attempt failed. Buckets this key can see:"
+    node scripts/s3-list.mjs 2>&1 | sed 's/^/    /' || true
+
+    echo "  attempting to create \"$TIGRIS_BUCKET\"…"
+    if node scripts/s3-mkbucket.mjs "$TIGRIS_BUCKET" 2>&1 | sed 's/^/    /'; then
+      if node scripts/s3-put.mjs "$PROBE_FILE" "$PROBE_KEY" >/dev/null 2>&1; then
+        rm -f "$PROBE_FILE"
+        echo "  bucket created and writable."
+        SKIP_PREFLIGHT_OK=1
+      fi
+    fi
+
+    if [ -z "${SKIP_PREFLIGHT_OK:-}" ]; then
+      echo "  cannot write to bucket \"$TIGRIS_BUCKET\"."
+      echo "  Check, in the Tigris console:"
+      echo "    - the bucket exists and is spelled exactly that way"
+      echo "    - the access key has read/write on it (not another bucket)"
+      echo "    - TIGRIS_ACCESS_KEY_ID and TIGRIS_SECRET_ACCESS_KEY are from the SAME key pair"
+      rm -f "$PROBE_FILE"
+      exit 1
+    fi
   fi
   rm -f "$PROBE_FILE"
   echo "  bucket is writable."
