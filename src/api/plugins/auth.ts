@@ -5,6 +5,7 @@ import { authenticate, requireScope, resolveConsoleSession, provisionAnonymousWo
          ANONYMOUS_EFFECT_QUOTA,
          type AuthContext, type Scope } from '../../domain/auth.js';
 import { errors } from '../../lib/errors.js';
+import { claimProvisionSlot } from '../../domain/provisioning.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -23,38 +24,6 @@ function bearer(req: FastifyRequest): string | null {
   return null;
 }
 
-
-/**
- * Per-address ceiling on keyless provisioning.
- *
- * The route limiter caps requests; this caps how many WORKSPACES an address may
- * conjure, which is the thing that actually costs us. Deliberately generous
- * enough that a developer trying the service never notices, and tight enough
- * that filling the table takes real effort. In memory, so it is per instance:
- * that is a weaker bound than a shared counter, and acceptable because an
- * unclaimed workspace is small, capped, and swept by the worker.
- */
-const PROVISION_LIMIT = 20;
-const PROVISION_WINDOW_MS = 60 * 60 * 1000;
-const provisionLog = new Map<string, number[]>();
-
-function allowProvision(ip: string): boolean {
-  const now = Date.now();
-  const seen = (provisionLog.get(ip) ?? []).filter((t) => now - t < PROVISION_WINDOW_MS);
-  if (seen.length >= PROVISION_LIMIT) {
-    provisionLog.set(ip, seen);
-    return false;
-  }
-  seen.push(now);
-  provisionLog.set(ip, seen);
-  // Opportunistic sweep so the map cannot grow without bound.
-  if (provisionLog.size > 10_000) {
-    for (const [k, v] of provisionLog) {
-      if (!v.some((t) => now - t < PROVISION_WINDOW_MS)) provisionLog.delete(k);
-    }
-  }
-  return true;
-}
 
 async function plugin(app: FastifyInstance) {
   /** Guard for agent-facing routes. Requires a scoped API key. */
@@ -90,10 +59,17 @@ async function plugin(app: FastifyInstance) {
         req.auth = ctx;
         return;
       }
-      if (!allowProvision(req.ip)) {
-        throw errors.rateLimited(
-          'Too many workspaces provisioned from this address. Create one at '
-          + '/v1/workspaces, or reuse the key from your first call.');
+      // Counted in Postgres, not in this process. See domain/provisioning.ts
+      // for why the in-memory version was close to fictional.
+      const slot = await claimProvisionSlot(req.ip);
+      if (!slot.allowed) {
+        throw errors.rateLimited(slot.scope === 'source'
+          ? 'Too many workspaces provisioned from this address. Create one at '
+            + '/v1/workspaces, or reuse the key from your first call.'
+          // Deliberately says nothing about who else is calling, and points at
+          // the path that still works. Anyone holding a key is unaffected.
+          : 'Keyless provisioning is paused. Create a workspace at /v1/workspaces '
+            + '— it takes one request and is not rate limited this way.');
       }
       const ws = await provisionAnonymousWorkspace();
       req.auth = await authenticate(ws.key.plaintext);

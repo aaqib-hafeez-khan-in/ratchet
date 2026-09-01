@@ -60,6 +60,34 @@ export const config = {
   rateLimitPerMinute: int('RATE_LIMIT_PER_MINUTE', 600),
 
   /**
+   * Keyless workspace provisioning.
+   *
+   * Per source was 20/hour in memory, which meant 20 per instance per deploy,
+   * and 20 workspaces is 2,000 free gated effects — against a free PLAN of
+   * 1,000 a month. Five is still more than a developer trying the service will
+   * ever need, and it is now counted globally.
+   *
+   * The global ceiling is what survives address rotation. When it is reached,
+   * keyless provisioning stops and everyone holding a key is unaffected.
+   */
+  /*
+   * Getters, not values read at module load.
+   *
+   * `int()` captures the environment the instant config is first imported, and
+   * import order decides when that is. A test file importing app.js on one line
+   * and helpers.js on the next froze the default before helpers could raise it,
+   * so keyless provisioning was capped at five for a suite that needed more —
+   * and the failure looked like a bug in the feature, not in the wiring.
+   * rateLimitOverride is a getter for exactly this reason.
+   */
+  get provisionPerSourcePerHour(): number {
+    return Number.parseInt(process.env.PROVISION_PER_SOURCE_PER_HOUR ?? '5', 10);
+  },
+  get provisionGlobalPerHour(): number {
+    return Number.parseInt(process.env.PROVISION_GLOBAL_PER_HOUR ?? '250', 10);
+  },
+
+  /**
    * Overrides every rate limit, plan limits included. Exists so test suites can
    * exercise volume without tripping the free-plan ceiling. Refused in
    * production by assertProductionSafety — a deployment that silently ignored

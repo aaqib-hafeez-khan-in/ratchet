@@ -9,6 +9,12 @@ process.env.RATE_LIMIT_PER_MINUTE ??= '100000';
 // Most suites exercise behaviour, not throttling. plan-limits.test.ts and
 // limits.test.ts set this to '' first so they measure the real limits.
 process.env.RATE_LIMIT_OVERRIDE ??= '100000';
+// Keyless provisioning is now counted in Postgres rather than in memory, so the
+// ceiling outlives the process: at the real limit of five an hour, any suite
+// that provisions a sixth workspace would fail for the rest of the hour, and so
+// would every later run. provisioning.test.ts sets these small on purpose.
+process.env.PROVISION_PER_SOURCE_PER_HOUR ??= '100000';
+process.env.PROVISION_GLOBAL_PER_HOUR ??= '100000';
 process.env.LOG_LEVEL = 'silent';
 
 // Neutralise payment configuration. dotenv does not override variables that are

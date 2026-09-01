@@ -14,6 +14,7 @@ import { drainExpiredLeases, collectExpiredEffects, collectStaleRecords } from '
 import { chainPendingReceipts, pruneReceipts } from '../domain/receipts.js';
 import { refreshSurgeBaselines } from '../domain/circuit.js';
 import { gcWindows as gcFeedbackWindows } from '../domain/feedback.js';
+import { gcProvisionWindows } from '../domain/provisioning.js';
 import { deliverDue } from './webhooks.js';
 import { watchChainOnce, expireQuotes } from './chain.js';
 import { deliverEmails, generateAlerts } from './email.js';
@@ -146,7 +147,9 @@ async function main() {
     // One row per minute in which anyone submitted feedback. Small, but it
     // grows forever and nothing ever reads a window older than the current one.
     const windows = await gcFeedbackWindows();
-    return effects + stale.sessions + stale.deliveries + stale.anonymous + windows;
+    const provision = await gcProvisionWindows();
+    return effects + stale.sessions + stale.deliveries + stale.anonymous
+         + windows + provision;
   });
 
   // Receipts are signed on the request path and linked here. Runs often,
