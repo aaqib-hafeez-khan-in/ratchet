@@ -61,8 +61,14 @@ describe('site links', () => {
         if (!path || seen.has(path)) continue;
         seen.add(path);
         const r = await app.inject({ method: 'GET', url: path });
-        assert.ok(r.statusCode < 400,
-          `${page} links to ${path}, which returns ${r.statusCode}`);
+        // /workerz reports whether lease expiry is running, and 503 is its
+        // documented answer for "it is not" — exactly the case in a test run,
+        // where no worker has checked in. Without this the test passed only
+        // because another test file happened to write a heartbeat first.
+        const ok = path === '/workerz'
+          ? r.statusCode === 200 || r.statusCode === 503
+          : r.statusCode < 400;
+        assert.ok(ok, `${page} links to ${path}, which returns ${r.statusCode}`);
       }
     }
     assert.ok(seen.size > 5, 'link extraction found almost nothing — the regex is wrong');
@@ -116,5 +122,42 @@ describe('published retention claims match the code', () => {
     }
     assert.match(claim, /inactivity/,
       'the sweep is activity-based, so the page must not imply unused-only deletion');
+  });
+});
+
+describe('no stale hostnames in anything the site renders', () => {
+  /**
+   * works-with.js carried a hardcoded ratchet-gate.fly.dev URL straight through
+   * the domain cutover. Nothing caught it because the snippet is rendered
+   * client-side: it never appears in the served HTML, so grepping pages found
+   * nothing, and the link tests only look at .html files.
+   */
+  const assets = readdirSync(join(WEB, 'assets')).filter((f) => f.endsWith('.js'));
+
+  test('no deployment hostname is hardcoded in a script', () => {
+    for (const f of assets) {
+      const src = readFileSync(join(WEB, 'assets', f), 'utf8');
+      const hits = src.match(/https?:\/\/[a-z0-9.-]*(fly\.dev|herokuapp|onrender|vercel\.app)/gi);
+      assert.equal(hits, null,
+        `${f} hardcodes a deployment host (${hits?.join(', ')}). Use location.origin.`);
+    }
+  });
+
+  test('no localhost URL is shown to a visitor', () => {
+    for (const f of assets) {
+      const src = readFileSync(join(WEB, 'assets', f), 'utf8');
+      // A localhost default for a dev tool is fine; one inside a displayed
+      // snippet is not.
+      const shown = src.match(/snippet:[\s\S]{0,400}?localhost/gi);
+      assert.equal(shown, null, `${f} shows a localhost URL in a snippet`);
+    }
+  });
+
+  test('scripts that display an API URL derive it from the page', () => {
+    for (const f of ['docs.js', 'start.js', 'works-with.js']) {
+      const src = readFileSync(join(WEB, 'assets', f), 'utf8');
+      assert.match(src, /const BASE = location\.origin/,
+        `${f} shows API URLs and must derive the host, not hardcode it`);
+    }
   });
 });

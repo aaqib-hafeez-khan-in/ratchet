@@ -11,6 +11,12 @@ import { reveal } from '/assets/reveal.js';
  */
 
 // path: how you actually connect. That is the only sort order that helps.
+// Derived, not hardcoded. This file shipped a stale ratchet-gate.fly.dev URL
+// through the domain cutover because the snippet is rendered client-side and
+// never appears in the page HTML, so nothing that greps the served pages could
+// see it. docs.js and start.js already do this.
+const BASE = location.origin;
+
 const PLATFORMS = [
   // ── Speaks MCP ────────────────────────────────────────────────────────
   ['Claude Code',        'mcp',  'stdio'],
@@ -99,7 +105,7 @@ const PATHS = {
   http: {
     title: 'Calls HTTP',
     blurb: 'One POST before the action, one after. No SDK required, no library to keep current — if it can reach an HTTPS endpoint, it can use the gate.',
-    snippet: `POST https://ratchet-gate.fly.dev/v1/effects/begin
+    snippet: `POST ${BASE}/v1/effects/begin
 Authorization: Bearer rk_live_…
 
 {
