@@ -218,10 +218,11 @@ dangerous in production.
   most damaging mistake available in this codebase. Multiple replicas are safe.
 - **Database**: Postgres. SQLite is not sufficient — the design depends on `FOR UPDATE`,
   `SKIP LOCKED`, partial indexes, and advisory locks.
-  Two nodes since 1 Sep 2026: a primary and a streaming replica in separate zones. Two nodes
-  cannot reach the majority repmgr requires, so **promotion is manual** — three nodes is what
-  makes failover automatic. `max_slot_wal_keep_size` is 2 GB so a dead replica cannot fill the
-  primary's disk. See `docs/handoff/KNOWN_LIMITATIONS.md` §4.
+  Three nodes since 1 Sep 2026, one per zone in `sjc`, with automatic failover: a standby that
+  loses the primary sees two of three, which meets repmgr's quorum. `max_slot_wal_keep_size` is
+  2 GB so a dead replica cannot fill the primary's disk. **Inspect a node on port 5433** — 5432
+  is PgBouncer and proxies to the primary, so a standby asked through it claims not to be in
+  recovery. See `docs/handoff/KNOWN_LIMITATIONS.md` §4.
 - Migrations run on boot behind an advisory lock, so several instances may start at once. The
   worker sets `MIGRATE_ON_BOOT=false` in compose and defers to the API.
 

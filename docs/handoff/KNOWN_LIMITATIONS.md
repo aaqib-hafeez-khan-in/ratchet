@@ -102,33 +102,50 @@ workspace, pick one by hash, and sum on read. Standard, and does not disturb the
 
 ---
 
-## 4. Two-node database: replicated, but no automatic failover
+## 4. Three-node database with automatic failover — single region
 
-*Updated 1 September 2026.* A streaming replica was added
-(`7845455b310328`, zone `7494`, alongside the primary `857597a4492d58` in zone
-`e4b5` — both in `sjc`). Verified streaming with 0 bytes lag, and identical row
-counts read from each node's local Postgres on port 5433.
+*Updated 1 September 2026.* Three nodes in `sjc`, one per zone, so quorum
+survives losing any single zone:
 
-**What this buys:** a continuously updated second physical copy in a different
-zone. A lost host or volume is now a promotion rather than a restore.
+| machine | role | zone |
+|---|---|---|
+| `857597a4492d58` | primary | `e4b5` |
+| `7845455b310328` | standby | `7494` |
+| `d89359da0e5118` | standby | `22d6` |
 
-**What it does not buy: automatic failover.** `/data/repmgr.internal.conf` sets
-`failover = 'automatic'` with `primary_visibility_consensus = true` and a
-`failover_validation_command` comparing visible nodes to total. With two nodes,
-a standby that loses the primary sees one of two — not a majority — so it
-**refuses to promote**. That is the safe outcome (no split-brain), but it means
-a primary failure still needs a human running `repmgr standby promote`.
+Both standbys stream at 0 bytes lag, and all three report identical row counts
+from their own Postgres on port 5433.
 
-**Three nodes is what buys automatic promotion**, because two visible of three
-is a majority. That is one more `fly machine clone` when it is worth the cost.
+**Automatic failover works, and the quorum arithmetic was verified rather than
+assumed** by running Fly's own validator directly:
 
-**A footgun that was closed on the way in:** `max_slot_wal_keep_size` was `-1`
-(unlimited), so a replica that died and stayed dead would have retained WAL on
-the primary until its disk filled and writes stopped. Now bounded to 2 GB
-(`ALTER SYSTEM`, reload-only). A stale slot gets invalidated and the replica
-needs a rebuild — prefer a broken replica over a dead primary.
+```
+visible=1 total=2  ->  rc=1  quorum can not be met
+visible=1 total=3  ->  rc=1  quorum can not be met
+visible=2 total=3  ->  rc=0  promotion allowed
+```
 
-**Still true:** single region. Cross-region callers pay the round trip, and
+That is why two nodes were not enough: a standby that lost the primary saw one
+of two and refused to promote. With three it sees two of three and promotes.
+
+**Verify on port 5433, not 5432.** Each node runs PgBouncer on 5432 which
+proxies to the primary, so `pg_is_in_recovery()` asked through it reports
+`false` on a standby and looks alarmingly like a second primary. The same
+mechanism is why the application is indifferent to which node it reaches.
+
+**`max_slot_wal_keep_size` is 2 GB.** It was unlimited, which meant a replica
+that died and stayed dead would retain WAL on the primary until the disk filled
+and writes stopped — turning a redundancy feature into an outage. A stale slot
+is now invalidated and that replica needs rebuilding instead: prefer a broken
+replica over a dead primary.
+
+**Not tested: a real failover.** The quorum logic is verified, but no primary
+has actually been killed to watch a standby take over and the old primary
+rejoin. An untested failover is a hypothesis, in exactly the way an untested
+backup is — worth doing deliberately, at a chosen moment, rather than
+discovering it at 3am.
+
+**Still true: single region.** Cross-region callers pay the round trip, and
 multi-region would require rethinking the uniqueness guarantee — not a small
 change.
 
