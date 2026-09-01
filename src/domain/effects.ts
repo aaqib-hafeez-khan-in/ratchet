@@ -6,6 +6,7 @@ import { getPolicy } from './policy.js';
 import { countEffect, openBreakers, trip, applyBreaker, surgeBaseline,
          effectiveCeiling } from './circuit.js';
 import { reserveSpend, adjustSpend, BudgetExceeded } from './budget.js';
+import { reserveRunSpend, RunBudgetExceeded } from './run-budget.js';
 import { vendorIdempotencyKey } from './vendor-keys.js';
 import { writeReceipt, RECEIPT_VERSION } from './receipts.js';
 import { meterEffect, InsufficientCredit, AnonymousQuotaExhausted } from './metering.js';
@@ -69,6 +70,13 @@ async function grantLease(
     typeDailyBudgetMicros: policy.dailyBudgetMicros,
     now,
   });
+
+  // The task's own wallet, after the daily ceilings. A run that has spent its
+  // allowance is refused here even when the day and the key still have headroom,
+  // which is the point: "this job may spend fifty dollars" is a sentence nobody
+  // could previously say.
+  await reserveRunSpend(tx, input.workspaceId, input.runId ?? null,
+    input.estimatedCostMicros);
 
   const { rows } = await tx.query<EffectRow>(
     `UPDATE effects
@@ -477,6 +485,22 @@ async function grantLeaseGuarded(
           // Budgets bucket by UTC day, which is not local midnight for most of
           // the world. Give the caller the instant, not a rule to apply.
           resetsAt: err.check.resetsAt,
+        });
+    }
+    if (err instanceof RunBudgetExceeded) {
+      // A distinct code from the daily budgets, because the remedy is
+      // different: nothing resets at midnight, so the caller either raises this
+      // run's limit or accepts that the task is finished. Telling them how much
+      // is left rather than only that they are over means an agent can decide
+      // what to do instead of only learning it was stopped.
+      throw new ApiError(403, 'run_budget_exceeded',
+        `This run has spent its budget. It may spend no more than `
+        + `${(err.budget.limitMicros / 1e6).toFixed(2)} USD in total.`, {
+          runId: err.budget.runId,
+          limitMicros: err.budget.limitMicros,
+          spentMicros: err.budget.spentMicros,
+          remainingMicros: err.budget.remainingMicros,
+          requestedMicros: err.wouldSpendMicros,
         });
     }
     throw err;

@@ -1,4 +1,5 @@
 import { getPool, type Db } from '../db/pool.js';
+import { getRunBudget, type RunBudget } from './run-budget.js';
 
 /**
  * What has this run already done?
@@ -64,6 +65,13 @@ export interface RunRecall {
   notDone: RecalledStep[];
   /** External spend across the run, in micro-USD. The customer's money. */
   spentMicros: number;
+  /**
+   * The run's wallet, when one was opened. Present here rather than behind a
+   * second call because "what did I do" and "what have I got left" are one
+   * question to an agent deciding what to do next, and two calls is one more
+   * than it will make.
+   */
+  budget: RunBudget | null;
   steps: number;
   /** Plain instruction, derived from the above rather than written by hand. */
   next: string;
@@ -129,15 +137,18 @@ export async function recallRun(
     else notDone.push(s);
   }
 
+  const budget = await getRunBudget(workspaceId, runId, db);
+
   return {
     runId,
+    budget,
     done,
     inFlight,
     unknown,
     notDone,
     spentMicros,
     steps: rows.length,
-    next: guidance({ steps: rows.length, unknown, inFlight }),
+    next: guidance({ steps: rows.length, unknown, inFlight, budget }),
   };
 }
 
@@ -147,7 +158,10 @@ export async function recallRun(
  * cheerful summary that happens to be true.
  */
 function guidance(
-  x: { steps: number; unknown: RecalledStep[]; inFlight: RecalledStep[] },
+  x: {
+    steps: number; unknown: RecalledStep[]; inFlight: RecalledStep[];
+    budget: RunBudget | null;
+  },
 ): string {
   if (x.steps === 0) {
     return 'Nothing has been done under this run id. If you expected work here, '
@@ -163,6 +177,13 @@ function guidance(
     return `${x.inFlight.length} action(s) are still in flight. Another worker may `
       + 'hold the lease. Do not repeat them; report them if they are yours.';
   }
+  if (x.budget?.exhausted) {
+    return 'Everything under this run is settled, but its budget is spent. Nothing '
+      + 'further can be gated under this run id until someone raises the limit.';
+  }
+  const left = x.budget
+    ? ` About ${(x.budget.remainingMicros / 1e6).toFixed(2)} USD of this run's budget remains.`
+    : '';
   return 'Everything under this run is settled. Anything listed under "done" has '
-    + 'already happened — use its recorded result rather than performing it again.';
+    + 'already happened — use its recorded result rather than performing it again.' + left;
 }

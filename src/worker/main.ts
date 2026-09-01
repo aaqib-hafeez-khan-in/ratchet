@@ -15,6 +15,7 @@ import { chainPendingReceipts, pruneReceipts } from '../domain/receipts.js';
 import { refreshSurgeBaselines } from '../domain/circuit.js';
 import { gcWindows as gcFeedbackWindows } from '../domain/feedback.js';
 import { gcProvisionWindows } from '../domain/provisioning.js';
+import { gcRunBudgets } from '../domain/run-budget.js';
 import { deliverDue } from './webhooks.js';
 import { watchChainOnce, expireQuotes } from './chain.js';
 import { deliverEmails, generateAlerts } from './email.js';
@@ -148,8 +149,10 @@ async function main() {
     // grows forever and nothing ever reads a window older than the current one.
     const windows = await gcFeedbackWindows();
     const provision = await gcProvisionWindows();
+    // Wallets for runs nobody will look at again.
+    const wallets = await gcRunBudgets();
     return effects + stale.sessions + stale.deliveries + stale.anonymous
-         + windows + provision;
+         + windows + provision + wallets;
   });
 
   // Receipts are signed on the request path and linked here. Runs often,
