@@ -126,3 +126,41 @@ takes no credential, so which node and how far behind stays in the worker's logs
 Background and the reasoning behind the byte-distance measure:
 [`INCIDENT_2026-09-01_FROZEN_STANDBY.md`](INCIDENT_2026-09-01_FROZEN_STANDBY.md).
 
+---
+
+## Cadence and what it costs (1 Sep 2026)
+
+The repository went private, and private repositories meter GitHub Actions against
+**2,000 free minutes a month**. Public repositories get unlimited minutes, so this cost
+did not exist before and will disappear again if it is ever made public.
+
+Measured, not estimated — median durations over the last 100 runs, billed rounded up to
+the whole minute:
+
+| Workflow | Median | Billed | At current cadence |
+|---|---|---|---|
+| `uptime` | 12s | 1 min | 48/day → **~1,440 min/month** |
+| `backup` | 26s | 1 min | 1/day → ~30 min/month |
+| `ci` | 102s | 2 min | per push → **the swing factor** |
+
+The uptime probe was moved from every 15 minutes to **every 30** because the old cadence
+billed ~2,880 minutes on its own — it would have exhausted the allowance around the third
+week of every month and then stopped, taking CI and the nightly backup down with it.
+Monitoring that silently switches itself off partway through the month is worse than
+monitoring that runs half as often.
+
+**It is still tight.** ~1,470 minutes go to uptime and backup, leaving ~530 for CI, which
+is about 265 pushes a month. A heavy development day can use 50 of those. Watch it, and if
+CI starts getting squeezed the next moves in order of preference are:
+
+1. Move the uptime probe off GitHub to an external monitor — it needs no repository access,
+   only HTTP, and this is the only item here that is not really CI work.
+2. Drop the probe to hourly (~720 min/month), accepting 60-minute worst-case detection.
+3. Pay for Actions minutes, or make the repository public again.
+
+**What the cadence does not affect:** Fly's own health checks still hit `/healthz` every
+15 seconds and restart an unhealthy machine. This workflow is the thing that notices the
+*silent* failures — a worker that has stopped expiring leases, a replica that has stopped
+replaying — which is why 30 minutes is tolerable: that damage accrues slowly, and nothing
+is lost, only delayed.
+
