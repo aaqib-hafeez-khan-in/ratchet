@@ -221,6 +221,18 @@
       <a href="mailto:security@ratchetgate.com">security@ratchetgate.com</a>, the same address
       published in <a href="/.well-known/security.txt">security.txt</a>.
     </p>
+    <h2 style="margin-top:2rem">Nothing terminates TLS in front of the gate</h2>
+    <p class="dim">
+      Your connection to Ratchet ends at Ratchet. There is no reverse proxy, CDN or WAF in
+      the path decrypting your API key and your payload on the way through. That is a
+      deliberate choice with a real cost — we forgo the DDoS absorption and bot filtering a
+      proxy would give us — and we make it because a service that promises to store only a
+      fingerprint should not route the original past somebody else first.
+    </p>
+    <p class="small faint">
+      If that ever changes, this paragraph changes with it, before the architecture does.
+    </p>
+
     <h2 style="margin-top:2rem">What we do not claim</h2>
     <p class="dim">
       No third-party audit has been performed. There is no SOC 2 report, no penetration test, and

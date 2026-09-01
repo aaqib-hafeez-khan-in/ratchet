@@ -381,3 +381,96 @@ recipe can regress into teaching it.
 
 Advertised from `llms.txt` and the agent manifest, so the discovery chain resolves end to end —
 also asserted by test.
+
+---
+
+## D23 — Cloudflare stays DNS-only. Nothing terminates TLS in front of the gate.
+
+**Decided.** `ratchetgate.com` continues to resolve straight to Fly. Cloudflare
+provides DNS and inbound email routing and nothing else. The orange cloud stays
+off, and Bot Fight Mode stays unavailable as a consequence.
+
+**Why.** Proxying means Cloudflare terminates TLS, which means a third party sees
+every `Authorization: Bearer rk_live_…` and every payload in cleartext.
+
+That is not a generic privacy concern here — it contradicts the specific thing
+this product sells. The security page says we store a fingerprint and never the
+payload; the architecture says Ratchet holds no vendor credentials and has no
+outbound access. Putting a proxy in the path would mean a stranger's API keys
+and effect payloads pass through a company we do not control, and we would be
+obliged to say so on the page where we currently say the opposite.
+
+The benefit being traded away is small **today**:
+
+- Fly's anycast edge is already the origin, so there is no single server IP to
+  hide. "Unproxied AAAA", which Cloudflare's scanner flags, describes an
+  architecture rather than a weakness.
+- Rate limiting is per-IP, Postgres-backed and survives restarts (D-see
+  rate-limit.ts), so the abuse cases Bot Fight Mode covers are already bounded.
+- Provisioning — the only thing a stranger can obtain for free — has a global
+  hourly ceiling.
+- There is no traffic worth a volumetric attack yet.
+
+And two costs are permanent: a hop in front of a product that sells a fast gate,
+and a second vendor whose outage becomes ours.
+
+**Rejected:**
+
+- *Proxy everything.* The trust-boundary cost above.
+- *Split now — `api.ratchetgate.com` direct, `ratchetgate.com` proxied.* This is
+  the right end state and the wrong time. It buys nothing until we actually want
+  to proxy something, and it would today mean changing the published npm
+  package's default base URL, the MCP registry entry, the Glama listing,
+  `llms.txt`, the manifest, the OpenAPI servers block, and every example — for a
+  service with a handful of users and no attack to defend against.
+
+**What would change it.**
+
+1. **A volumetric attack.** Turning the proxy on is a single toggle and takes
+   minutes. The right time to pay the TLS-termination cost is when the
+   alternative is being down, not before.
+2. **Traffic worth caching.** If the marketing site becomes a meaningful share
+   of load, split the hostnames *then* and proxy only the static side — the gate
+   stays direct either way.
+3. **A customer requiring it.** Some buyers mandate a WAF. That is a
+   conversation about which hostname, not a reason to move the gate.
+
+**Worth saying out loud.** "No third party terminates TLS in front of the gate"
+is a claim almost no comparable service can make, and it is free to keep while
+it is true. It belongs on the security page, and D23 is what makes it true.
+
+---
+
+## D24 — DMARC moves to quarantine, then reject
+
+**Decided.** Raise the policy from `p=none` to `p=quarantine` now, and to
+`p=reject` after roughly a month of clean aggregate reports.
+
+**Why.** `p=none` publishes a policy and asks receivers to ignore it. Anyone can
+send mail as `ratchetgate.com` and it will land. For a product whose subject is
+"did this action really happen", a spoofable domain is a poor look and a real
+phishing vector — "your Ratchet workspace needs attention" is an easy message to
+fake and an expensive one to be associated with.
+
+**Why it is safe to raise now, rather than a leap.** Both DMARC mechanisms
+already align, which was checked rather than assumed:
+
+- `send.mail.ratchetgate.com` publishes `v=spf1 include:amazonses.com ~all` and
+  a bounce MX — a subdomain of ours, so SPF aligns under relaxed alignment.
+- `resend._domainkey.mail.ratchetgate.com` publishes a DKIM key, so DKIM aligns
+  too.
+
+DMARC passes if *either* aligns. We have both. And nothing else sends as this
+domain: Cloudflare Email Routing forwards inbound mail, it does not originate.
+
+**Rejected:**
+
+- *Straight to `p=reject`.* Cheap to do and expensive to be wrong about. A month
+  at quarantine costs nothing and turns an assumption into evidence.
+- *Staying at `p=none`.* It is monitoring dressed as a policy.
+- *Strict alignment (`adkim=s; aspf=s`).* Would break the subdomain alignment
+  the current setup depends on, for no gain.
+
+**What would change it.** Aggregate reports showing a legitimate sender failing.
+They already arrive at `security@ratchetgate.com` and at Cloudflare; the point of
+the month is to read them.
