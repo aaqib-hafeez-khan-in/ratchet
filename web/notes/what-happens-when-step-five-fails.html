@@ -43,10 +43,9 @@
       What follows is not a case study. We have no customers to write one about, and inventing
       <em>"Acme cut duplicate charges by 94%"</em> would be fabricating evidence for a product whose
       whole pitch is that it tells you the truth about what happened. So instead: two failures, run
-      against the live service, with the real transcripts. You can run them yourself —
-      <code>npm run case-study</code> in
-      <a href="https://github.com/thearchitect0x-glitch/ratchet">the repository</a> does exactly
-      what is printed below.
+      against the live service, with the real transcripts. Every number below came out of
+      <code>scripts/case-study.ts</code> run against a real instance — nothing here is
+      illustrative, and nothing has been tidied up after the fact.
     </p>
 
     <h2>One: a booking agent, four steps in</h2>
@@ -235,10 +234,9 @@ Reached the vendor: 20. Held back: 80.</code></pre>
 
     <p class="small faint" style="margin-top:2.5rem">
       We build <a href="/">Ratchet</a>, a gate that decides whether an AI agent may perform a side
-      effect. The script that produced every transcript above is
-      <a href="https://github.com/thearchitect0x-glitch/ratchet">in the repository</a> as
-      <code>scripts/case-study.ts</code>. Run it against your own instance and you should get the
-      same shapes and the same counts.
+      effect. Every transcript above came from one script run against a live instance. Run the
+      same sequence against <a href="/console">your own workspace</a> and you should get the same
+      shapes and the same counts — the free plan is enough to reproduce all of it.
     </p>
   </div>
 </section>
