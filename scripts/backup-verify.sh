@@ -27,10 +27,27 @@ done
 # The dump format version tracks the SERVER major version, so the restore side
 # must be equal or newer. A Postgres 18 dump cannot be read by 16 tooling —
 # found the hard way.
-MAJOR=$(flyctl ssh console -a "$PG_APP" \
+#
+# Errors are NOT swallowed here. This probe used to redirect stderr to
+# /dev/null, so when flyctl could not reach the app — a bad token, no
+# wireguard, the wrong org — `set -e` killed the script with no output at all
+# and a failed nightly backup looked like a mystery. A backup that fails must
+# say why; that is most of its job.
+PROBE=$(flyctl ssh console -a "$PG_APP" \
   -C "sh -c 'PGPASSWORD=\$OPERATOR_PASSWORD psql -h $PG_APP.internal -U postgres -d $DB -At -c \"SHOW server_version\"'" \
-  2>/dev/null | tr -d '\r' | grep -oE '^[0-9]+' | head -1)
-echo "  production server: ${MAJOR:-unknown}"
+  2>&1) || {
+    echo "  could not reach $PG_APP over flyctl ssh. Raw output:"
+    echo "$PROBE" | sed 's/^/    /'
+    echo "  Most likely: FLY_API_TOKEN is missing, expired, or not scoped to this app."
+    exit 1
+  }
+MAJOR=$(printf '%s' "$PROBE" | tr -d '\r' | grep -oE '^[0-9]+' | head -1)
+if [ -z "$MAJOR" ]; then
+  echo "  could not read the server version. Raw output:"
+  printf '%s' "$PROBE" | sed 's/^/    /'
+  exit 1
+fi
+echo "  production server: $MAJOR"
 
 echo "  dumping…"
 flyctl ssh console -a "$PG_APP" \
