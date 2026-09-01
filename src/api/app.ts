@@ -273,6 +273,24 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
    * clients, which would silently turn a gated `begin` into a page fetch — the
    * caller would read a decision that was never made.
    */
+  /*
+   * Staging must never be indexed.
+   *
+   * It serves a byte-identical copy of the marketing site under a second
+   * hostname, which is a duplicate-content problem and, worse, a way for
+   * someone to find a half-tested build in a search result. robots.txt is a
+   * request; this header is honoured for every response including JSON and
+   * redirects, so it is the one that actually holds.
+   */
+  if (config.isStaging) {
+    app.addHook('onSend', async (_req, reply) => {
+      reply.header('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    });
+    app.get('/robots.txt', { schema: { hide: true } }, async (_req, reply) =>
+      reply.type('text/plain; charset=utf-8')
+        .send('# Staging. Not the real service — https://ratchetgate.com\nUser-agent: *\nDisallow: /\n'));
+  }
+
   const canonicalHost = (() => {
     try { return new URL(config.publicUrl).host; } catch { return null; }
   })();

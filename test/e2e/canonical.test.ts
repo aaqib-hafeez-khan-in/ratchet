@@ -248,3 +248,44 @@ describe('the feedback letterbox', () => {
     assert.ok(!doc.paths['/v1/feedback']?.get, 'there is no read to publish');
   });
 });
+
+/**
+ * Staging runs with NODE_ENV=production so it exercises the same assertions and
+ * the same code paths as the real thing. The cost of that fidelity is that
+ * isProd cannot tell them apart, and a byte-identical copy of the marketing
+ * site under a second hostname is a duplicate-content problem and a way for
+ * someone to find a half-tested build in a search result.
+ */
+describe('staging is not indexable', () => {
+  test('production carries no noindex header and allows crawling', async () => {
+    const r = await app.inject({ method: 'GET', url: '/' });
+    assert.equal(r.headers['x-robots-tag'], undefined,
+      'the real site must never be told not to index itself');
+
+    const robots = await app.inject({ method: 'GET', url: '/robots.txt' });
+    assert.equal(robots.statusCode, 200);
+    assert.doesNotMatch(robots.body, /^Disallow: \/$/m);
+  });
+
+  test('with RATCHET_ENV=staging, every response says noindex', async () => {
+    process.env.RATCHET_ENV = 'staging';
+    const staging = await buildApp({ logger: false });
+    await staging.ready();
+    try {
+      // Not only HTML: a JSON endpoint and a redirect carry it too, which is
+      // the reason for a header rather than a meta tag.
+      for (const url of ['/', '/v1/vendors', '/blog']) {
+        const r = await staging.inject({ method: 'GET', url });
+        assert.match(String(r.headers['x-robots-tag']), /noindex/,
+          `${url} did not carry the noindex header`);
+      }
+
+      const robots = await staging.inject({ method: 'GET', url: '/robots.txt' });
+      assert.match(robots.body, /^Disallow: \/$/m, 'staging robots.txt must disallow everything');
+      assert.match(robots.body, /ratchetgate\.com/, 'and point at the real service');
+    } finally {
+      await staging.close();
+      delete process.env.RATCHET_ENV;
+    }
+  });
+});

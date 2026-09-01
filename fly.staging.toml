@@ -1,0 +1,85 @@
+# Staging.
+#
+# Exists because on 1 September five failing tests reached production: the
+# deploy was chained into the same command as the test run, and nothing stood
+# between them. CI now catches a broken *change*; this catches a broken
+# *deploy* — a bad migration, a missing secret, a config that only fails when
+# the process actually boots.
+#
+#   npm run deploy:staging    # here first
+#   npm run deploy            # then production
+#
+# Three things are deliberately different from production, and each one is a
+# safety property rather than a cost saving:
+#
+#   AUTH_SECRET differs, so a key minted on staging is worthless in production
+#   and vice versa. API keys are HMACs under that secret; sharing it would make
+#   the two environments one trust domain wearing two hostnames.
+#
+#   No payment or chain credentials. Staging cannot move money, because the
+#   safest way to be sure of that is to withhold the ability.
+#
+#   EMAIL_PROVIDER=log, so staging cannot mail a real person. The queue, the
+#   dedupe window and the retry path all still run; only delivery is a no-op.
+#
+# The database is a separate database on the SAME Postgres cluster, not a second
+# cluster. That is a cost decision with a real cost of its own, recorded in
+# docs/handoff/STAGING.md: staging shares the primary's CPU and disk, so a load
+# test here is felt in production. Its role has no rights on ratchet_gate, which
+# removes the far worse failure — writing to production by accident — but not
+# resource contention.
+
+app = "ratchet-gate-staging"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[processes]
+  app    = "node dist/api/server.js"
+  worker = "node dist/worker/main.js"
+
+[env]
+  NODE_ENV = "production"
+  PORT     = "8787"
+  HOST     = "0.0.0.0"
+  # Search engines must never index a staging copy of the marketing site.
+  # Enforced in the app as well; belt and braces because a duplicate of every
+  # page under a second hostname is a real SEO liability.
+  RATCHET_ENV = "staging"
+
+[http_service]
+  internal_port       = 8787
+  force_https         = true
+  auto_stop_machines  = "suspend"
+  auto_start_machines = true
+  # Zero, unlike production. A cold start in front of a real gate is
+  # unacceptable; in front of a smoke test it costs a second and saves the
+  # machine sitting idle all month.
+  min_machines_running = 0
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type       = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+[[http_service.checks]]
+  grace_period  = "10s"
+  interval      = "15s"
+  method        = "GET"
+  timeout       = "4s"
+  path          = "/readyz"
+
+[[vm]]
+  size      = "shared-cpu-1x"
+  memory    = "512mb"
+  processes = ["app"]
+
+# The worker cannot scale to zero anywhere: it expires leases on a timer, and a
+# staging worker that never runs would let a broken reaper reach production
+# looking untested.
+[[vm]]
+  size      = "shared-cpu-1x"
+  memory    = "256mb"
+  processes = ["worker"]

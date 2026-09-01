@@ -34,6 +34,16 @@ export const config = {
   env: process.env.NODE_ENV ?? 'development',
   get isProd() { return this.env === 'production'; },
 
+  /**
+   * A production-shaped deployment that is not the real one.
+   *
+   * Staging runs with NODE_ENV=production on purpose, so it exercises the same
+   * safety assertions and the same code paths. That means isProd cannot tell
+   * the two apart, and everything that should differ — chiefly whether search
+   * engines may index a complete second copy of the site — needs this instead.
+   */
+  get isStaging() { return process.env.RATCHET_ENV === 'staging'; },
+
   port: int('PORT', 8787),
   host: process.env.HOST ?? '0.0.0.0',
   publicUrl: process.env.PUBLIC_URL ?? `http://localhost:${int('PORT', 8787)}`,

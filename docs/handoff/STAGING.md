@@ -1,0 +1,90 @@
+# Staging
+
+`ratchet-gate-staging` — https://ratchet-gate-staging.fly.dev
+
+## Why
+
+On 1 September five failing tests reached production: the deploy was chained
+into the same command as the test run, and nothing stood between them. CI now
+catches a broken **change**. This catches a broken **deploy** — a bad migration,
+a missing secret, a config that only fails when the process actually boots.
+
+```bash
+npm run deploy:staging     # 1. here
+npm run smoke:staging      # 2. prove it works
+npm run deploy             # 3. only then production
+```
+
+## What differs from production, and why each difference is a safety property
+
+**`AUTH_SECRET` is different.** API keys are HMACs under that secret, so a key
+minted on staging is worthless in production and vice versa. Sharing it would
+make two hostnames into one trust domain. Verified by digest: staging
+`be5ca1e4…`, production `153304fa…`.
+
+**No payment or chain credentials.** Staging cannot move money, because the
+reliable way to be certain of that is to withhold the ability. This is visible:
+staging runs **8 worker loops** and production runs **10** — `chain-watch` and
+`quote-expiry` never start without Solana configuration.
+
+**`EMAIL_PROVIDER=log`.** The queue, the dedupe window and the retry path all
+run; only delivery is a no-op. Staging cannot mail a real person.
+
+**Not indexable.** `X-Robots-Tag: noindex, nofollow, noarchive` on every
+response — headers, not a meta tag, so JSON and redirects carry it too — plus a
+`robots.txt` that disallows everything and points at the real service. Staging
+serves a byte-identical copy of the marketing site; a search result pointing at
+a half-tested build is a real cost. `config.isStaging` drives this, because
+staging runs with `NODE_ENV=production` on purpose and `isProd` therefore cannot
+tell them apart.
+
+**Scales to zero.** Production keeps a machine warm because a cold start in
+front of a real gate is unacceptable. In front of a smoke test it costs a second.
+
+## The database, and the compromise in it
+
+Staging uses a separate database (`ratchet_staging`) with its own role, on the
+**same Postgres cluster** as production. That is a cost decision — a second
+cluster would be a second bill — and it has a real cost of its own:
+
+> **Staging shares the production primary's CPU, memory and disk.** A load test
+> here is felt there. Do not run `scripts/stress.ts` against staging while
+> production is serving anyone.
+
+What the separate role *does* remove is the far worse failure. `CONNECT` on
+`ratchet_gate` has been revoked from `PUBLIC` and granted only to the production
+role, so the staging credential cannot open a connection to the production
+database at all. Verified both directions:
+
+```
+staging role -> ratchet_staging  CONNECTED
+staging role -> ratchet_gate     FATAL: permission denied for database
+```
+
+Note the order that made that safe: `GRANT` to the production role first, then
+`REVOKE` from `PUBLIC`. Reversed, there is a window where production cannot
+connect to its own database.
+
+## The smoke test
+
+`scripts/smoke.mjs` deliberately holds no credential. It provisions a workspace
+through the keyless path and drives the real lifecycle with it — begin, replay,
+report, replay again — so a fresh deploy is exercised the way a new user meets
+it. It checks, in the order these things have actually broken:
+
+1. The process boots and reaches **its own** database.
+2. Migrations ran.
+3. The gate decides correctly, and a recorded outcome replays verbatim.
+4. Nothing indexable escaped.
+
+It is not vacuous: pointed at production it fails on the noindex check, which is
+the assertion most likely to rot.
+
+## Known gaps
+
+- Nothing enforces the order. `npm run deploy` still works without staging
+  having seen the build. Making production deploys require a green smoke run is
+  the obvious next step and is not done.
+- Staging has no separate uptime monitoring; it is expected to be down between
+  deploys.
+- Resource contention with production, above.
