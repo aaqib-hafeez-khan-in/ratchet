@@ -35,8 +35,9 @@ export function mountChrome(current) {
   const nav = header?.querySelector('nav.site');
   if (nav) {
     const sync = () => {
-      const atEnd = nav.scrollLeft + nav.clientWidth >= nav.scrollWidth - 2;
-      nav.classList.toggle('at-end', atEnd || nav.scrollWidth <= nav.clientWidth + 2);
+      const fits = nav.scrollWidth <= nav.clientWidth + 2;
+      nav.classList.toggle('at-start', fits || nav.scrollLeft <= 2);
+      nav.classList.toggle('at-end', fits || nav.scrollLeft + nav.clientWidth >= nav.scrollWidth - 2);
     };
     nav.addEventListener('scroll', sync, { passive: true });
     addEventListener('resize', sync, { passive: true });

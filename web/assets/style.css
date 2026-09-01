@@ -119,15 +119,29 @@ nav.site a:hover, nav.site a[aria-current="page"] { color: var(--text); text-dec
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
-    scroll-snap-type: x proximity;
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.25rem), transparent);
-            mask-image: linear-gradient(to right, #000 calc(100% - 2.25rem), transparent);
+    /* No scroll-snap: proximity snapping nudged the strip ~20px off its start
+       on load, which clipped the FIRST link instead of the last — a fix that
+       reintroduced the bug at the other end. */
+
+    /* Fade whichever edge has more content behind it, and only that edge. A
+       fade where nothing is hidden reads as a rendering fault. */
+    --fade: 2.25rem;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--fade),
+                                        #000 calc(100% - var(--fade)), transparent 100%);
+            mask-image: linear-gradient(to right, transparent 0, #000 var(--fade),
+                                        #000 calc(100% - var(--fade)), transparent 100%);
   }
   nav.site::-webkit-scrollbar { display: none; }
-  /* Once you have reached the end there is nothing more to hint at, and a
-     permanent fade over the last link would just look like a rendering fault. */
-  nav.site.at-end { -webkit-mask-image: none; mask-image: none; }
-  nav.site a { white-space: nowrap; scroll-snap-align: start; }
+  nav.site.at-start {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--fade)), transparent 100%);
+            mask-image: linear-gradient(to right, #000 calc(100% - var(--fade)), transparent 100%);
+  }
+  nav.site.at-end {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--fade), #000 100%);
+            mask-image: linear-gradient(to right, transparent 0, #000 var(--fade), #000 100%);
+  }
+  nav.site.at-start.at-end { -webkit-mask-image: none; mask-image: none; }
+  nav.site a { white-space: nowrap; }
 }
 
 main { display: block; }
