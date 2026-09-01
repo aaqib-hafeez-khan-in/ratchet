@@ -144,20 +144,30 @@ $('key-done').addEventListener('click', async () => {
   // subscribe buttons in front of them — deliberately NOT auto-starting
   // checkout, because someone who clicked a price button has expressed intent,
   // not consent to be charged.
-  if (wantedPlan) {
-    const tab = $('panel-tabs')?.querySelector('[data-tab="billing"]');
-    if (tab) {
-      tab.click();
-      setTimeout(() => {
-        const btn = $('panel')?.querySelector(`[data-sub="${wantedPlan}"]`);
-        if (btn) {
-          btn.scrollIntoView({ block: 'center', behavior: 'smooth' });
-          btn.classList.add('primed');
-        }
-      }, 400);
-    }
-  }
+  openChosenPlan();
 });
+
+/**
+ * Take a visitor who picked a plan on the pricing page to the place they can
+ * buy it. Used by BOTH entry paths — the fresh signup and the already-signed-in
+ * visitor, which is the more common one and was missed at first.
+ *
+ * Deliberately does not start checkout: clicking a price button is intent, not
+ * consent to be charged.
+ */
+function openChosenPlan() {
+  if (!wantedPlan) return;
+  const tab = $('panel-tabs')?.querySelector('[data-tab="billing"]');
+  if (!tab) return;
+  tab.click();
+  setTimeout(() => {
+    const btn = $('panel')?.querySelector(`[data-sub="${wantedPlan}"]`);
+    if (btn) {
+      btn.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      btn.classList.add('primed');
+    }
+  }, 400);
+}
 $('sign-out').addEventListener('click', async () => {
   apiKey = null;
   await fetch('/v1/console/signout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
@@ -179,6 +189,10 @@ async function boot() {
   hide('signup-view');
   hide('key-view');
   show('console-view');
+
+  // Someone already signed in who clicked a price button gets the same
+  // treatment as a new arrival.
+  if (wantedPlan) setTimeout(openChosenPlan, 300);
 
   $('ws-title').textContent = workspace.name;
   $('ws-id').textContent = workspace.workspace_id;
