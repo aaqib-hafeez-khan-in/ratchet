@@ -13,12 +13,22 @@ Resist posting everywhere at once. If it lands on Hacker News you will want to
 be present for the comments; if it sinks, you learn something before spending
 the other venues. **Hacker News first.**
 
-**Timing matters more than the copy.** HN is a US-weekday-morning site: aim for
-**Tuesday–Thursday, 08:00–10:00 US Eastern**.
+**Timing matters more than the copy.** HN is a US-weekday-morning site.
 
-*(Written late Monday 31 August 2026 Eastern — so the next good window is the
-following morning, a few hours away, not days. An earlier draft of this file
-said "Sunday night"; that was simply wrong about the day.)*
+The operator is on **US Pacific**, so in local terms:
+
+| Pacific | Eastern | Verdict |
+|---|---|---|
+| 05:00–07:00 | 08:00–10:00 | Prime. Best odds of the front page |
+| 07:00–08:00 | 10:00–11:00 | Still strong |
+| 08:00–09:00 | 11:00–12:00 | Fine. Traffic holds through the US workday |
+| after 12:00 | after 15:00 | Declining — the day's stories are established |
+
+**06:00–07:00 Pacific is the practical pick**: inside the prime window without
+setting a 05:00 alarm. Tuesday to Thursday. Avoid Friday and the weekend.
+
+*(An earlier draft of this file said "Sunday night" and then gave Eastern times
+to a Pacific reader. Both were wrong.)*
 
 ---
 
