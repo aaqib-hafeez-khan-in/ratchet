@@ -106,8 +106,27 @@ const res = await fetch('https://api.resend.com/emails', {
 });
 
 if (!res.ok) {
-  // Say why, without echoing anything that could carry the credential.
-  console.error(`Alert send failed: HTTP ${res.status}`);
+  /*
+   * Say WHY.
+   *
+   * The first version printed only the status. A real 422 then told whoever was
+   * debugging precisely nothing, which is a poor showing for the one script
+   * whose entire job is to explain that something is wrong.
+   *
+   * The provider's validation message describes the request, not the
+   * credential, so it is safe to print. Only that field is taken, never the
+   * whole response, and the key is never echoed.
+   */
+  let why = '';
+  try {
+    const err = await res.json();
+    why = err?.message ?? err?.error?.message ?? err?.name ?? '';
+  } catch { /* not JSON; the status is all there is */ }
+  console.error(`Alert send failed: HTTP ${res.status}${why ? ` — ${why}` : ''}`);
+  if (res.status === 422) {
+    console.error('A 422 here is almost always ALERT_EMAIL: it must be a bare');
+    console.error('address, with no quotes, label or trailing newline.');
+  }
   process.exit(1);
 }
 console.log(`Alert sent: ${subject}`);
