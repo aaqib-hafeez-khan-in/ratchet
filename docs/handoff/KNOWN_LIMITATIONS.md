@@ -361,3 +361,24 @@ percentage is claimed anywhere.** The VALIDATION_REPORT lists what is actually c
 
 No SOC 2, no penetration test, no compliance certification. The security controls are implemented
 and tested; that is a genuine but strictly smaller claim than independent verification.
+
+## A flaky security test — `the plaintext secret is never stored`
+
+`test/integration/isolation.test.ts` fails intermittently in full-suite runs and
+has never failed in isolation (11/11 alone; 512/512 on the very next full run).
+It has now done this at least three times.
+
+Ruled out so far: no test file or script issues a `TRUNCATE`, a `DROP TABLE`, or
+a `DELETE FROM api_keys/workspaces`, and integration files run serially under
+`--test-concurrency=1`, so cross-file interference during execution is not the
+mechanism. An earlier attempt to fix it — minting its own key instead of reusing
+one from `before` — did not.
+
+**This matters more than an ordinary flake**, because it asserts that an API key
+secret is never recoverable from storage. A security test that sometimes fails
+teaches people to re-run instead of look, which is exactly the habit that lets a
+real regression through. It should be diagnosed rather than retried.
+
+Next step when someone picks this up: the assertion messages already name what
+was found, but the failure output does not say *which* assertion fired. Capture
+a failing run's full output before theorising further.
