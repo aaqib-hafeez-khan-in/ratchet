@@ -364,7 +364,9 @@ ul.checks li::before {
 }
 
 /* ---------------------------------------------------------------- the scene */
-.scene { position: relative; margin: 2.1rem auto 0; max-width: 760px; height: 170px; }
+/* 190px, not 170: the retry fan spans ±64px plus half a packet, and the old
+   height clipped the outermost callers against the verdict pill below. */
+.scene { position: relative; margin: 2.1rem auto 0; max-width: 760px; height: 190px; }
 
 .wire {
   position: absolute; top: 50%; left: 0; right: 0; height: 2px;
@@ -432,11 +434,107 @@ ul.checks li::before {
 .packet.ghost { opacity: 0.26; box-shadow: none; }
 .packet.tiny  { width: 26px; height: 26px; font-size: 0.66rem; border-radius: 8px; }
 
-/* the retry swarm — stacked callers all bouncing off the gate */
-.packet.s1 { top: calc(50% - 46px); transition-delay: 0.05s; }
-.packet.s2 { top: calc(50% - 16px); transition-delay: 0.13s; }
-.packet.s3 { top: calc(50% + 16px); transition-delay: 0.21s; }
-.packet.s4 { top: calc(50% + 46px); transition-delay: 0.29s; }
+/* ── The retry swarm ─────────────────────────────────────────────────────────
+   Four callers arrive one after another and bounce off the gate.
+
+   They used to sit in a vertical stack centred on the gate, 30px apart for
+   26px boxes, which put the third one exactly on top of the "ratchet" label
+   (the label sits 26px below the wire; that packet sat at +16px and is 26px
+   tall). Stacked on the gate also read as though they had reached the vendor.
+
+   They now fan out on the APPROACH side, which is what actually happens: they
+   never get past the gate. The fan is an arc to the left, so the gate's dot,
+   its pulse ring, and its label all stay clear at every width.
+
+   Both the travel distance and the fan radius are viewport-relative and
+   clamped. The scene is 760px at most but shrinks to about 340px on a phone,
+   where a fixed offset would either fling a packet off-screen or drop it on
+   top of the agent's own label. */
+.packet.s1, .packet.s2, .packet.s3, .packet.s4 {
+  /* distance back to the agent, where each caller starts */
+  --from-x: clamp(-330px, -40vw, -110px);
+  /* how far the fan stands off the gate */
+  --fan: clamp(-112px, -12vw, -60px);
+  /* Vertical reach. Also viewport-relative, because the scene is 190px tall on
+     a desktop and 150px on a phone: a fixed spread that looked generous on the
+     wide layout pushed the outer two callers straight through the top and
+     bottom edges of the narrow one. */
+  --spread: clamp(44px, 5.2vw, 64px);
+  --rot: 0deg;
+  top: 50%;
+  transform: translate(-50%, -50%) translate(var(--fx), var(--fy)) rotate(var(--rot));
+}
+.packet.s1 { --fx: calc(var(--fan) * 0.78); --fy: calc(var(--spread) * -1);    --rot: -10deg; --delay: 0.12s; }
+.packet.s2 { --fx: var(--fan);              --fy: calc(var(--spread) * -0.33); --rot:  -4deg; --delay: 0.40s; }
+.packet.s3 { --fx: var(--fan);              --fy: calc(var(--spread) *  0.36); --rot:   4deg; --delay: 0.68s; }
+.packet.s4 { --fx: calc(var(--fan) * 0.78); --fy: var(--spread);               --rot:  10deg; --delay: 0.96s; }
+
+/* Each caller runs the wire, strikes the gate, and is thrown back into the fan.
+   The overshoot at 62% is the bounce: without it they glide to a stop and look
+   admitted rather than refused. The stagger is 0.28s, so four refusals read as
+   four events rather than one clump — which is what the copy beside it says. */
+@keyframes retry-arrive {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) translate(var(--from-x), 0) scale(0.4) rotate(0deg);
+  }
+  26% { opacity: 1; }
+  46% {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate(-2px, 0) scale(1.28) rotate(0deg);
+  }
+  62% {
+    transform: translate(-50%, -50%)
+               translate(calc(var(--fx) * 1.26), calc(var(--fy) * 1.26))
+               scale(0.88) rotate(calc(var(--rot) * 1.8));
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate(var(--fx), var(--fy)) scale(1)
+               rotate(var(--rot));
+  }
+}
+
+/* Once they have landed they keep leaning on the gate and being held off.
+   A small, slow drift — the pressure is continuous, the refusal is steady. */
+@keyframes retry-press {
+  0%, 100% {
+    transform: translate(-50%, -50%) translate(var(--fx), var(--fy)) rotate(var(--rot));
+  }
+  50% {
+    transform: translate(-50%, -50%)
+               translate(calc(var(--fx) * 0.86), calc(var(--fy) * 0.96))
+               rotate(calc(var(--rot) * 0.7));
+  }
+}
+
+/* The ring thrown off at the point of impact, on each caller's own clock so
+   four separate refusals are legible as four. */
+.packet.s1::after, .packet.s2::after, .packet.s3::after, .packet.s4::after {
+  content: ""; position: absolute; inset: -4px; border-radius: inherit;
+  border: 2px solid var(--stop); opacity: 0; pointer-events: none;
+}
+
+.beat[data-active="true"] .packet.s1,
+.beat[data-active="true"] .packet.s2,
+.beat[data-active="true"] .packet.s3,
+.beat[data-active="true"] .packet.s4 {
+  animation:
+    retry-arrive 1.15s cubic-bezier(0.2, 0.95, 0.24, 1) var(--delay) both,
+    retry-press 3.2s ease-in-out calc(var(--delay) + 1.15s) infinite;
+}
+.beat[data-active="true"] .packet.s1::after,
+.beat[data-active="true"] .packet.s2::after,
+.beat[data-active="true"] .packet.s3::after,
+.beat[data-active="true"] .packet.s4::after {
+  animation: retry-impact 1.15s ease-out var(--delay) backwards;
+}
+@keyframes retry-impact {
+  0%, 44% { opacity: 0; transform: scale(0.7); }
+  50%     { opacity: 0.95; transform: scale(1); }
+  100%    { opacity: 0; transform: scale(2.8); }
+}
+
 
 /* the counter that never moves — the whole point, made visible */
 /* The running count sits ABOVE the wire, not centred on it.
