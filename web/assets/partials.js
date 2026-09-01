@@ -101,7 +101,7 @@ export function mountChrome(current) {
           and never takes custody of your funds.
         </p>
         <p style="margin:0;white-space:nowrap">
-          Powered by <a href="https://deimos.mx" rel="noopener">Deimos.MX</a>
+          Powered by <a href="https://deimos.mx" target="_blank" rel="noopener noreferrer">Deimos.MX</a>
         </p>
       </div>
     </div>`;
