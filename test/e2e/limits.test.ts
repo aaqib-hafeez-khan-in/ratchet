@@ -77,3 +77,24 @@ describe('request size limits', () => {
     assert.ok(r.statusCode === 413 || r.statusCode === 429, `got ${r.statusCode}`);
   });
 });
+
+/**
+ * A route stricter than the plan must still be a real limit. This exercises the
+ * feedback letterbox with the override cleared, which is the only configuration
+ * where the strictness is live.
+ */
+describe('routes that are deliberately stricter than the plan', () => {
+  test('the feedback letterbox stops at its own ceiling', async () => {
+    const seen: number[] = [];
+    for (let i = 0; i < 14; i++) {
+      const r = await app.inject({
+        method: 'POST', url: '/v1/feedback',
+        payload: { path: '/faq', was_clear: true },
+        headers: { 'x-forwarded-for': '203.0.113.77' },
+      });
+      seen.push(r.statusCode);
+    }
+    assert.ok(seen.includes(429), 'the ceiling must actually be reached');
+    assert.equal(seen[0], 202, 'and the first request must get through');
+  });
+});

@@ -921,3 +921,59 @@ ul.checks li::before {
 @media (prefers-reduced-motion: reduce) {
   .faq summary, .faq summary::after { transition: none; }
 }
+
+/* ── Was this page clear? ────────────────────────────────────────────────────
+   One quiet line at the end of the content. Deliberately not a floating badge:
+   anything that follows the reader down the page reads as a survey, gets
+   ignored, and then the silence looks like approval. */
+.fb {
+  border-top: 1px solid var(--border);
+  margin-top: 3.5rem; padding: 1.4rem 0 0.4rem;
+}
+.fb-ask {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem;
+}
+.fb-q { font-size: 0.86rem; color: var(--text-faint); }
+.fb-done { color: var(--ok); }
+.fb-btns { display: flex; gap: 0.4rem; }
+.fb-btn {
+  padding: 0.42rem 1.05rem; border-radius: 999px; font: inherit; font-size: 0.82rem;
+  border: 1px solid var(--border); background: transparent; color: var(--text-dim);
+  cursor: pointer; transition: color 0.16s ease, border-color 0.16s ease;
+}
+.fb-btn:hover { color: var(--text); border-color: var(--text-faint); }
+.fb-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.fb-form { width: 100%; max-width: 34rem; }
+.fb-form label {
+  display: block; font-size: 0.82rem; color: var(--text-dim); margin-bottom: 0.45rem;
+}
+.fb-form textarea, .fb-form input[type="email"] {
+  width: 100%; font: inherit; font-size: 0.88rem;
+  background: var(--bg-sunk); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.7rem;
+}
+.fb-form textarea { resize: vertical; min-height: 4.5rem; }
+.fb-form textarea:focus, .fb-form input:focus {
+  outline: none; border-color: var(--accent);
+}
+.fb-row { display: flex; gap: 0.5rem; margin-top: 0.55rem; align-items: stretch; }
+.fb-row input[type="email"] { flex: 1 1 auto; min-width: 0; }
+.fb-row .btn { flex: none; }
+.fb-note { margin: 0.6rem 0 0; font-size: 0.74rem; color: var(--text-faint); }
+
+/* The honeypot. Moved off-screen rather than display:none, because some bots
+   skip fields they can tell are hidden — and aria-hidden plus tabindex="-1"
+   keeps it away from anybody using a screen reader or the keyboard. */
+.fb-hp {
+  position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden;
+}
+
+@media (max-width: 480px) {
+  .fb-row { flex-wrap: wrap; }
+  .fb-row .btn { width: 100%; }
+  /* A finger, not a cursor. 44px is the smallest target that is reliably
+     hittable, and these two are the only controls on the whole page. */
+  .fb-btn { min-height: 44px; padding-inline: 1.35rem; }
+}
+@media (prefers-reduced-motion: reduce) { .fb-btn { transition: none; } }

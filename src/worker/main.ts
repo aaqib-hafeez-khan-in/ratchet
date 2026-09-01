@@ -13,6 +13,7 @@ import { closePool, getPool } from '../db/pool.js';
 import { drainExpiredLeases, collectExpiredEffects, collectStaleRecords } from './reaper.js';
 import { chainPendingReceipts, pruneReceipts } from '../domain/receipts.js';
 import { refreshSurgeBaselines } from '../domain/circuit.js';
+import { gcWindows as gcFeedbackWindows } from '../domain/feedback.js';
 import { deliverDue } from './webhooks.js';
 import { watchChainOnce, expireQuotes } from './chain.js';
 import { deliverEmails, generateAlerts } from './email.js';
@@ -142,7 +143,10 @@ async function main() {
   loop('retention-gc', config.worker.gcIntervalMs, async () => {
     const effects = await collectExpiredEffects();
     const stale = await collectStaleRecords();
-    return effects + stale.sessions + stale.deliveries + stale.anonymous;
+    // One row per minute in which anyone submitted feedback. Small, but it
+    // grows forever and nothing ever reads a window older than the current one.
+    const windows = await gcFeedbackWindows();
+    return effects + stale.sessions + stale.deliveries + stale.anonymous + windows;
   });
 
   // Receipts are signed on the request path and linked here. Runs often,

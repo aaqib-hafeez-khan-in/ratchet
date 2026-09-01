@@ -17,6 +17,7 @@ import groupRoutes from './routes/groups.js';
 import workspaceRoutes from './routes/workspace.js';
 import billingRoutes from './routes/billing.js';
 import metaRoutes from './routes/meta.js';
+import { feedbackRoutes } from './routes/feedback.js';
 import oauthRoutes from './routes/oauth.js';
 import receiptRoutes, { receiptWellKnown } from './routes/receipts.js';
 import circuitRoutes from './routes/circuits.js';
@@ -306,6 +307,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
 
   await app.register(receiptWellKnown);
   await app.register(metaRoutes);
+  await app.register(feedbackRoutes);
   await registerMcpHttp(app);
 
   // OpenAPI document, served from the same schemas the routes validate against.

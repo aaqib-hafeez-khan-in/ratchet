@@ -52,3 +52,22 @@ export function rateLimitKey(req: FastifyRequest): string {
 
 /** Route-level config for any metered route that should track the caller's plan. */
 export const planRateLimit = { max: planRateLimitMax, timeWindow: '1 minute' } as const;
+
+/**
+ * A route that is deliberately stricter than the plan — signup, OAuth, feedback.
+ *
+ * Use this rather than a bare `{ max: n }`. A hardcoded number ignores
+ * RATE_LIMIT_OVERRIDE, and because the limiter store is Postgres-backed by
+ * default the bucket then survives the process: a route capped at ten a minute
+ * cannot be exercised more than ten times by any test suite, ever, and the
+ * eleventh run of the file fails for reasons that have nothing to do with the
+ * change being tested. That is how three feedback tests started returning 429
+ * before they had sent a single request.
+ *
+ * The override is refused in production by assertProductionSafety, so this is
+ * strict everywhere it matters.
+ */
+export const stricterThan = (max: number, timeWindow = '1 minute') => ({
+  max: () => config.rateLimitOverride ?? max,
+  timeWindow,
+} as const);

@@ -181,3 +181,62 @@ describe('the things people could not find', () => {
     }
   });
 });
+
+describe('the feedback letterbox', () => {
+  test('takes a vote with no credential at all', async () => {
+    const r = await app.inject({
+      method: 'POST', url: '/v1/feedback',
+      payload: { path: '/pricing', was_clear: true, viewport: 'phone' },
+    });
+    assert.equal(r.statusCode, 202);
+    assert.deepEqual(r.json(), { received: true });
+  });
+
+  test('a typo is rejected rather than silently dropped', async () => {
+    const r = await app.inject({
+      method: 'POST', url: '/v1/feedback',
+      payload: { path: '/pricing', wasClear: true },   // camelCase: not the wire
+    });
+    assert.equal(r.statusCode, 400);
+  });
+
+  test('an unknown field is refused, not ignored', async () => {
+    const r = await app.inject({
+      method: 'POST', url: '/v1/feedback',
+      payload: { path: '/pricing', was_clear: true, admin: true },
+    });
+    assert.equal(r.statusCode, 400);
+  });
+
+  // The filter must not be discoverable. A caller who learns which paths are
+  // dropped learns how to pick one that is not.
+  test('a rejected submission is answered exactly like an accepted one', async () => {
+    const good = await app.inject({
+      method: 'POST', url: '/v1/feedback',
+      payload: { path: '/pricing', was_clear: false },
+    });
+    const bad = await app.inject({
+      method: 'POST', url: '/v1/feedback',
+      payload: { path: '/../etc/passwd', was_clear: false },
+    });
+    assert.equal(good.statusCode, bad.statusCode);
+    assert.deepEqual(good.json(), bad.json());
+  });
+
+  // Site feedback belongs to no workspace, so no workspace credential should
+  // ever read it. There is no HTTP read at all, and that is the point.
+  test('there is no way to read it back over HTTP', async () => {
+    for (const method of ['GET', 'DELETE'] as const) {
+      const r = await app.inject({ method, url: '/v1/feedback' });
+      assert.ok(r.statusCode === 404 || r.statusCode === 405,
+        `${method} /v1/feedback should not exist, got ${r.statusCode}`);
+    }
+  });
+
+  test('it is documented in the OpenAPI the agents read', async () => {
+    const r = await app.inject({ method: 'GET', url: '/openapi.json' });
+    const doc = r.json() as { paths: Record<string, Record<string, unknown>> };
+    assert.ok(doc.paths['/v1/feedback']?.post, 'the write should be published');
+    assert.ok(!doc.paths['/v1/feedback']?.get, 'there is no read to publish');
+  });
+});

@@ -3,6 +3,7 @@
  * markup; the pages themselves stay static HTML with no build step.
  */
 import { enhanceCopy, watchForCode } from '/assets/copy.js';
+import { mountFeedback } from '/assets/feedback.js';
 
 const LOGO = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
   <path d="M10 1.6 17.5 6v8L10 18.4 2.5 14V6L10 1.6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
@@ -24,6 +25,7 @@ export function mountChrome(current) {
   // of them without a per-page edit that someone will forget on the next page.
   enhanceCopy();
   watchForCode();
+  mountFeedback();
 
   const header = document.querySelector('header.site');
   if (header) {

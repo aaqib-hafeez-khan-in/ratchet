@@ -40,7 +40,8 @@
     "snapshot:code": "bash scripts/snapshot-code.sh",
     "uptime": "node scripts/uptime-check.mjs",
     "encrypt:env": "bash scripts/encrypt-env.sh",
-    "case-study": "tsx scripts/case-study.ts"
+    "case-study": "tsx scripts/case-study.ts",
+    "feedback": "tsx scripts/feedback.ts"
   },
   "dependencies": {
     "@fastify/cookie": "11.1.2",
