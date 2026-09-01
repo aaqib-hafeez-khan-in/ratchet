@@ -104,8 +104,14 @@ describe('MCP authentication', () => {
     assert.match(res.headers['www-authenticate'] as string, /Bearer/);
   });
 
+  // Was tools/list, which is public now and deliberately does not inspect the
+  // credential — see "a placeholder credential does not hide public
+  // information" below. The property being pinned is unchanged: a bad key must
+  // not buy access to anything that needs one.
   test('a bad key is refused', async () => {
-    const r = await rpc('tools/list', undefined, 'rk_test_000000000000_' + 'x'.repeat(32));
+    const r = await rpc('tools/call',
+      { name: 'ratchet_begin_effect', arguments: { effect_type: 'x', idempotency_key: 'y' } },
+      'rk_test_000000000000_' + 'x'.repeat(32));
     assert.equal(r.status, 401);
   });
 
@@ -452,6 +458,42 @@ describe('MCP discovery is open, acting is not', () => {
   test('an invalid key is still rejected, not treated as anonymous', async () => {
     const r = await rpc('tools/call', { name: 'ratchet_begin_effect', arguments: {} },
       { authorization: 'Bearer rk_live_totallyinvalid' });
+    assert.equal(r.statusCode, 401);
+  });
+});
+
+/**
+ * Directories and scanners start a server by handing it a dummy credential —
+ * Glama's build form fills one in by default. Refusing discovery in that case
+ * made the whole open-discovery change useless for the situation it was written
+ * for, and protected nothing: these methods return the same bytes for everyone.
+ */
+describe('a placeholder credential does not hide public information', () => {
+  const withKey = (method: string, key: string, params?: unknown) =>
+    app.inject({
+      method: 'POST', url: '/mcp',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      payload: { jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) },
+    });
+
+  for (const bogus of ['rat_live_8f3b2a9c1d7e4f6a8b0c2d3e4f5a6b7c', 'placeholder', 'rk_live_nope']) {
+    test(`tools/list still answers with "${bogus.slice(0, 12)}…"`, async () => {
+      const r = await withKey('tools/list', bogus);
+      assert.equal(r.statusCode, 200);
+      const tools = (r.json() as { result: { tools: unknown[] } }).result.tools;
+      assert.ok(tools.length > 0);
+    });
+  }
+
+  test('initialize too, so a scanner completes the handshake', async () => {
+    const r = await withKey('initialize', 'rat_live_dummy');
+    assert.equal(r.statusCode, 200);
+  });
+
+  // The line that must not move.
+  test('but a placeholder still cannot call a tool', async () => {
+    const r = await withKey('tools/call', 'rat_live_dummy',
+      { name: 'ratchet_begin_effect', arguments: {} });
     assert.equal(r.statusCode, 401);
   });
 });

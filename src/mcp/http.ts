@@ -52,35 +52,54 @@ export async function registerMcpHttp(app: FastifyInstance) {
       .map((m) => (m as JsonRpcRequest | undefined)?.method);
     const allPublic = methods.length > 0 && methods.every(isPublicMethod);
 
-    if (!token && !allPublic) {
-      reply.code(401).header('WWW-Authenticate', challenge);
-      return {
-        jsonrpc: '2.0', id: null,
-        error: {
-          code: -32001,
-          message: 'Authentication required. Present a Ratchet API key, or complete the '
-            + 'OAuth flow described at /.well-known/oauth-protected-resource.',
-        },
-      };
-    }
+    /*
+     * A public method is public regardless of what the caller presents.
+     *
+     * The first version only skipped auth when NO token was sent. Every
+     * directory and scanner passes a placeholder credential to start a server —
+     * Glama's build form fills one in by default — so tools/list was still
+     * answered 401, and the discovery fix did nothing for the case it was
+     * written for.
+     *
+     * Nothing is protected by refusing here: these methods return identical
+     * bytes for every caller. And for a human with a mistyped key the result is
+     * better diagnostics, not worse — the tool list works, and the first
+     * tools/call says plainly that the credential is bad, instead of the client
+     * reporting a connection failure with no cause.
+     */
+    let ctx: Awaited<ReturnType<typeof authenticate>> | null = null;
 
-    // An OAuth access token and an API key are both bearer credentials here.
-    // Whichever it is, it resolves to the same AuthContext, so nothing
-    // downstream can treat one differently from the other by accident.
-    let ctx = token ? await authenticateOAuth(token, `${base}/mcp`) : null;
-    if (token && !ctx) {
-      try {
-        ctx = await authenticate(token);
-      } catch (err) {
-        reply.code(err instanceof ApiError ? err.status : 401);
-        if (!(err instanceof ApiError) || err.status === 401) {
-          reply.header('WWW-Authenticate',
-            challenge.replace('Bearer realm', 'Bearer error="invalid_token", realm'));
-        }
+    if (!allPublic) {
+      if (!token) {
+        reply.code(401).header('WWW-Authenticate', challenge);
         return {
           jsonrpc: '2.0', id: null,
-          error: { code: -32001, message: err instanceof ApiError ? err.message : 'Unauthorized' },
+          error: {
+            code: -32001,
+            message: 'Authentication required. Present a Ratchet API key, or complete the '
+              + 'OAuth flow described at /.well-known/oauth-protected-resource.',
+          },
         };
+      }
+
+      // An OAuth access token and an API key are both bearer credentials here.
+      // Whichever it is, it resolves to the same AuthContext, so nothing
+      // downstream can treat one differently from the other by accident.
+      ctx = await authenticateOAuth(token, `${base}/mcp`);
+      if (!ctx) {
+        try {
+          ctx = await authenticate(token);
+        } catch (err) {
+          reply.code(err instanceof ApiError ? err.status : 401);
+          if (!(err instanceof ApiError) || err.status === 401) {
+            reply.header('WWW-Authenticate',
+              challenge.replace('Bearer realm', 'Bearer error="invalid_token", realm'));
+          }
+          return {
+            jsonrpc: '2.0', id: null,
+            error: { code: -32001, message: err instanceof ApiError ? err.message : 'Unauthorized' },
+          };
+        }
       }
     }
 
