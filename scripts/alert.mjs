@@ -27,9 +27,53 @@ const FROM = process.env.ALERT_EMAIL_FROM ?? 'Ratchet alerts <alerts@mail.ratche
 const RUN = process.env.RUN_URL ?? '';
 const STREAK = Number.parseInt(process.env.FAIL_STREAK ?? '1', 10);
 
-if (!['down', 'recovered', 'test'].includes(kind)) {
-  console.error('usage: alert.mjs <down|recovered|test> "<summary>"');
+if (!['down', 'recovered', 'test', 'check'].includes(kind)) {
+  console.error('usage: alert.mjs <down|recovered|test|check> "<summary>"');
   process.exit(2);
+}
+
+/**
+ * Describe ALERT_EMAIL without revealing it.
+ *
+ * These logs are public, because the repository is. An address is not a
+ * credential but it is not ours to publish either, so this reports length and a
+ * handful of booleans — enough to tell a trailing newline from a display name
+ * from a value that was never set.
+ */
+const shapeOf = (v) => ({
+  length: v.length,
+  hasAt: v.includes('@'),
+  domainHasDot: v.split('@').pop()?.includes('.') ?? false,
+  hasWhitespace: /\s/.test(v),
+  hasQuotes: /["']/.test(v),
+  hasAngleBrackets: /[<>]/.test(v),
+  startsAlphanumeric: /^[A-Za-z0-9]/.test(v),
+  endsAlphanumeric: /[A-Za-z0-9]$/.test(v),
+});
+
+/* Deliberately permissive: this is here to catch a mangled value, not to
+   adjudicate what RFC 5321 permits. Anything this rejects, Resend will too. */
+const LOOKS_LIKE_EMAIL = /^[^\s@<>"',]+@[^\s@<>"',]+\.[^\s@<>"',]+$/;
+
+if (kind === 'check') {
+  if (!TO) {
+    console.error('ALERT_EMAIL is not set at all.');
+    process.exit(1);
+  }
+  console.log(`ALERT_EMAIL shape: ${JSON.stringify(shapeOf(TO), null, 2)}`);
+  console.log(KEY ? 'ALERT_EMAIL_KEY: set' : 'ALERT_EMAIL_KEY: NOT SET');
+  if (!LOOKS_LIKE_EMAIL.test(TO)) {
+    console.error('');
+    console.error('That is not a usable address. Read the shape above:');
+    console.error('  hasWhitespace true      -> a trailing newline or a stray space');
+    console.error('  hasAngleBrackets true   -> a display name like "Ops <a@b.com>"');
+    console.error('  hasAt false             -> not an address at all');
+    console.error('  length 0                -> the secret is empty');
+    process.exit(1);
+  }
+  console.log('');
+  console.log('Looks like a usable address. Run the test alert to confirm delivery.');
+  process.exit(0);
 }
 
 // Absent configuration is not a failure. The workflow still fails and GitHub
@@ -98,6 +142,14 @@ const body = kind === 'test'
     'and recovers on its own is usually a restart, and a restart nobody asked',
     'for is worth understanding.',
   ].join('\n');
+
+if (!LOOKS_LIKE_EMAIL.test(TO)) {
+  console.error('ALERT_EMAIL is not a usable address, so nothing was sent.');
+  console.error(`shape: ${JSON.stringify(shapeOf(TO))}`);
+  console.error('Fix it, then re-run. Setting it in the GitHub web UI avoids');
+  console.error('the shell quoting that usually causes this.');
+  process.exit(1);
+}
 
 const res = await fetch('https://api.resend.com/emails', {
   method: 'POST',

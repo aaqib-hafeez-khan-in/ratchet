@@ -27,6 +27,10 @@ on:
         description: 'Send a test alert to prove the channel works'
         type: boolean
         default: false
+      check_config:
+        description: 'Check ALERT_EMAIL is usable, without sending anything'
+        type: boolean
+        default: false
 
 # A slow check must never pile up behind itself.
 concurrency:
@@ -55,6 +59,13 @@ jobs:
           RATCHET_UPTIME_KEY: ${{ secrets.RATCHET_UPTIME_KEY }}
           BASE: https://ratchetgate.com
         run: node scripts/uptime-check.mjs
+
+      - name: Check the alert configuration
+        if: inputs.check_config
+        env:
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+          ALERT_EMAIL_KEY: ${{ secrets.ALERT_EMAIL_KEY }}
+        run: node scripts/alert.mjs check
 
       - name: Send a test alert
         if: inputs.test_alert
