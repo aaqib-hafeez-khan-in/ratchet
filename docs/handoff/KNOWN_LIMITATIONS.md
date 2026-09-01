@@ -255,24 +255,39 @@ again. Both paths are tested and produce identical results.
 
 ---
 
-## 7. Deployed — but operated by one person, with no alerting
+## 7. Operated by one person
 
-Live at `https://ratchetgate.com` (Fly.io, region `sjc`): one `shared-cpu-1x` control plane,
-one worker, one 1 GB Postgres. `npm run deploy:fly` remains idempotent, and
-`npm run deploy:preflight` still gates it.
+Live at `https://ratchetgate.com` (Fly.io, region `sjc`): two `shared-cpu-1x` control-plane
+machines (Fly auto-stops the idle one), two workers, and a three-node Postgres cluster with
+automatic failover. `scripts/deploy.sh` gates every release on a clean pushed tree, CI green
+for that exact commit, staging running that same commit, and a passing smoke test.
 
-**What is genuinely missing is operational, not architectural:**
+**Corrected 1 Sep 2026.** This section previously described a single control plane, a single
+worker, one 1 GB Postgres, no alerting and no running backup. All five had ceased to be true,
+and the file is public — so it was advertising that nobody was watching a service where
+somebody now is. A stale limitations list is worse than none: it is read as current.
 
-- **No alerting.** Health checks hit `/readyz` every 15s and Fly restarts an unhealthy machine,
-  but nothing pages a human. An outage at 03:00 is discovered whenever someone next looks.
-- **No automated backup running.** The pipeline exists (`.github/workflows/backup.yml`, nightly,
-  dump → restore → re-verify every receipt signature → ship off-machine) and has been executed
-  by hand end-to-end successfully. It cannot run on schedule until four repository secrets are
-  added: `FLY_API_TOKEN`, `TIGRIS_ACCESS_KEY_ID`, `TIGRIS_SECRET_ACCESS_KEY`, `TIGRIS_BUCKET`.
-  Until then the only off-machine copy is the one taken manually on 31 Aug 2026.
+What is actually true now:
+
+- **Alerting exists.** A scheduled GitHub workflow probes production and emails on failure;
+  it covers liveness, the worker loops, whether the gate still gates, and replica health.
+  See [`ALERTING.md`](ALERTING.md).
+- **Backups run nightly and are succeeding** (`.github/workflows/backup.yml`: dump → restore
+  → re-verify every receipt signature → ship off-machine). The four repository secrets it
+  needed are in place.
+
+**What remains genuinely limited, and is the honest content of this section:**
+
+- **One person operates it.** There is no rota and no second pair of eyes. Alerting reaches
+  one inbox. This is the real single point of failure, and no amount of infrastructure
+  changes it.
 - **Fly volume snapshots not enabled.** `flyctl pg backup enable -a ratchet-gate-pg` needs an
   interactive terminal (the non-interactive form advertises a `--yes` flag the command does not
-  accept).
+  accept). The nightly logical backup is the working protection; this would be defence in depth.
+- **Incidents are found by deploying, sometimes.** A standby stopped replaying on 1 Sep and was
+  caught only because a migration exposed it. That specific gap is now monitored — but the
+  lesson generalises, and there is no reason to assume it was the last one of its kind.
+  See [`INCIDENT_2026-09-01_FROZEN_STANDBY.md`](INCIDENT_2026-09-01_FROZEN_STANDBY.md).
 
 ---
 
