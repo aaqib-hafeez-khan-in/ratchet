@@ -42,9 +42,10 @@
     "encrypt:env": "bash scripts/encrypt-env.sh",
     "case-study": "tsx scripts/case-study.ts",
     "feedback": "tsx scripts/feedback.ts",
-    "deploy:staging": "flyctl deploy --config fly.staging.toml --app ratchet-gate-staging --now",
-    "deploy": "flyctl deploy --now",
-    "smoke:staging": "node scripts/smoke.mjs"
+    "deploy:staging": "flyctl deploy --config fly.staging.toml --app ratchet-gate-staging --now --build-arg GIT_COMMIT=$(git rev-parse HEAD)",
+    "deploy": "bash scripts/deploy.sh",
+    "smoke:staging": "node scripts/smoke.mjs",
+    "deploy:force": "flyctl deploy --now --build-arg GIT_COMMIT=$(git rev-parse HEAD)"
   },
   "dependencies": {
     "@fastify/cookie": "11.1.2",

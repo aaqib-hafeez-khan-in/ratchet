@@ -21,6 +21,15 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 FROM node:22-alpine
 WORKDIR /app
+
+# Which commit this image was built from.
+#
+# Deliberately NOT served on any public endpoint. The repository is open, so
+# publishing the exact deployed commit tells anyone who asks precisely which
+# fixes an instance is missing. The deploy script reads it through flyctl, which
+# is authenticated, and that is the only consumer.
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=$GIT_COMMIT
 ENV NODE_ENV=production
 
 RUN apk add --no-cache tini && addgroup -S app && adduser -S app -G app
