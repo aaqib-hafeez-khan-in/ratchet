@@ -41,6 +41,28 @@ tell them apart.
 **Scales to zero.** Production keeps a machine warm because a cold start in
 front of a real gate is unacceptable. In front of a smoke test it costs a second.
 
+## One deliberate divergence: the provisioning ceiling
+
+Staging sets `PROVISION_PER_SOURCE_PER_HOUR=200`. Production leaves it at the
+default of 5.
+
+This is the only place staging is knowingly less strict than production, and it
+is worth explaining because it looks like exactly the sort of shortcut that
+makes a staging environment worthless.
+
+The smoke test provisions a workspace through the keyless path on every run —
+deliberately, so a fresh deploy is exercised the way a new user meets it. At
+5 an hour, the sixth deploy in an hour fails on the ceiling rather than on
+anything about the build. That happened on the first day.
+
+**A gate that fails for reasons unrelated to the thing it is gating gets
+bypassed**, and a bypassed gate protects nothing. The ceiling itself is a
+product behaviour and it is tested where behaviour belongs — in
+`test/integration/provisioning.test.ts`, which runs in CI on every push and
+asserts the real limits, including under a concurrent burst. Letting it also
+throttle the deploy pipeline buys no additional confidence and costs the
+pipeline's credibility.
+
 ## The database, and the compromise in it
 
 Staging uses a separate database (`ratchet_staging`) with its own role, on the
