@@ -10,6 +10,21 @@ const hide = (id) => { $(id).hidden = true; };
 // A key supplied via ?key= is kept in memory only. It is never written to
 // localStorage, so it cannot outlive the tab or leak to another script.
 let apiKey = new URLSearchParams(location.search).get('key');
+
+/**
+ * Which plan the visitor picked on the pricing page.
+ *
+ * All three pricing buttons used to point at a bare /console, so someone who
+ * clicked "Subscribe to Scale" — having decided to spend $249 a month — landed
+ * on a generic signup form with no memory of it, and had to find the Billing
+ * tab and choose again. A real user noticed and asked whether the three buttons
+ * did anything different. They did not.
+ */
+const wantedPlan = ['pro', 'scale'].includes(
+  new URLSearchParams(location.search).get('plan') ?? '')
+  ? new URLSearchParams(location.search).get('plan')
+  : null;
+
 if (apiKey) history.replaceState(null, '', location.pathname);
 
 async function api(path, opts = {}) {
@@ -68,6 +83,14 @@ const table = (headers, rows) => rows.length === 0 ? '' : `
 /* ------------------------------------------------------------------- signup */
 
 show('signup-view');
+if (wantedPlan) {
+  const el = $('signup-error');
+  if (el) {
+    el.innerHTML = `<div class="notice"><strong>Signing up for
+      ${wantedPlan === 'pro' ? 'Pro' : 'Scale'}.</strong> Create the workspace first — you will
+      be taken to payment straight after, and nothing is charged until you confirm.</div>`;
+  }
+}
 
 $('signup-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -114,7 +137,27 @@ $('copy-key').addEventListener('click', async () => {
   }
 });
 
-$('key-done').addEventListener('click', () => { hide('key-view'); void boot(); });
+$('key-done').addEventListener('click', async () => {
+  hide('key-view');
+  await boot();
+  // Honour the plan chosen on the pricing page. Land them on Billing with the
+  // subscribe buttons in front of them — deliberately NOT auto-starting
+  // checkout, because someone who clicked a price button has expressed intent,
+  // not consent to be charged.
+  if (wantedPlan) {
+    const tab = $('panel-tabs')?.querySelector('[data-tab="billing"]');
+    if (tab) {
+      tab.click();
+      setTimeout(() => {
+        const btn = $('panel')?.querySelector(`[data-sub="${wantedPlan}"]`);
+        if (btn) {
+          btn.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          btn.classList.add('primed');
+        }
+      }, 400);
+    }
+  }
+});
 $('sign-out').addEventListener('click', async () => {
   apiKey = null;
   await fetch('/v1/console/signout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});

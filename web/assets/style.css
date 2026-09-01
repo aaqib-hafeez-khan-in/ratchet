@@ -622,3 +622,14 @@ ul.checks li::before {
     will-change: auto;
   }
 }
+
+/* The subscribe button matching the plan a visitor picked on the pricing page.
+   A brief ring, not a permanent style: it answers "where did my choice go?"
+   without pretending the click already happened. */
+.btn.primed {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #1c5cff) 35%, transparent);
+  animation: primed-fade 2.4s ease-out 1 both;
+}
+@keyframes primed-fade { 0%, 60% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #1c5cff) 35%, transparent); }
+                         100% { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .btn.primed { animation: none; } }

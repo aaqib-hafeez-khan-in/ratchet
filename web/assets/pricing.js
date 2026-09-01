@@ -30,7 +30,8 @@ try {
         <dt>Webhooks</dt><dd>${p.max_webhook_endpoints}</dd>
       </dl>
       <div class="actions">
-        <a class="btn ${p.id === 'free' ? 'secondary' : ''}" href="/console">
+        <a class="btn ${p.id === 'free' ? 'secondary' : ''}"
+           href="/console${p.id === 'free' ? '' : `?plan=${encodeURIComponent(p.id)}`}">
           ${p.id === 'free' ? 'Start free' : 'Subscribe to ' + esc(p.name)}</a>
       </div>
       ${p.id === 'free' ? '' :
