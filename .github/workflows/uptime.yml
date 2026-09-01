@@ -22,6 +22,11 @@ on:
     # anyone else does, coarse enough that GitHub does not throttle it.
     - cron: '*/15 * * * *'
   workflow_dispatch:
+    inputs:
+      test_alert:
+        description: 'Send a test alert to prove the channel works'
+        type: boolean
+        default: false
 
 # A slow check must never pile up behind itself.
 concurrency:
@@ -50,6 +55,14 @@ jobs:
           RATCHET_UPTIME_KEY: ${{ secrets.RATCHET_UPTIME_KEY }}
           BASE: https://ratchetgate.com
         run: node scripts/uptime-check.mjs
+
+      - name: Send a test alert
+        if: inputs.test_alert
+        env:
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+          ALERT_EMAIL_KEY: ${{ secrets.ALERT_EMAIL_KEY }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/alert.mjs test "Fired by hand from the Actions tab."
 
       - name: Notify a person
         if: failure()

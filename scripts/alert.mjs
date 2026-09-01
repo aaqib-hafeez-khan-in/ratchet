@@ -27,8 +27,8 @@ const FROM = process.env.ALERT_EMAIL_FROM ?? 'Ratchet alerts <alerts@mail.ratche
 const RUN = process.env.RUN_URL ?? '';
 const STREAK = Number.parseInt(process.env.FAIL_STREAK ?? '1', 10);
 
-if (kind !== 'down' && kind !== 'recovered') {
-  console.error('usage: alert.mjs <down|recovered> "<summary>"');
+if (!['down', 'recovered', 'test'].includes(kind)) {
+  console.error('usage: alert.mjs <down|recovered|test> "<summary>"');
   process.exit(2);
 }
 
@@ -45,13 +45,30 @@ if (!TO || !KEY) {
 
 /* The subject is the whole message on a lock screen, so it carries the state
    and the consequence rather than a service name and a timestamp. */
-const subject = kind === 'down'
+const subject = kind === 'test'
+  ? 'Ratchet alert test — this is not an outage'
+  : kind === 'down'
   ? (STREAK > 1
     ? `RATCHET DOWN — still failing (${STREAK} checks)`
     : 'RATCHET DOWN — production probe failed')
   : 'Ratchet recovered — probe is passing again';
 
-const body = kind === 'down'
+/* An untested alert channel is worse than none: it is a thing everyone
+   believes in and nobody has seen work. This is how you see it work. */
+const body = kind === 'test'
+  ? [
+    'Nothing is wrong. Somebody pressed the test button.',
+    '',
+    'If you are reading this, the alert path works end to end: GitHub Actions',
+    'reached Resend, Resend reached you, and the address in ALERT_EMAIL is the',
+    'right one.',
+    '',
+    'A real alert looks like this, with RATCHET DOWN in the subject and the',
+    'failing check named in the body.',
+    '',
+    RUN ? `Run: ${RUN}` : '',
+  ].join('\n')
+  : kind === 'down'
   ? [
     'The production probe failed.',
     '',
