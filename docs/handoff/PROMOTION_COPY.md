@@ -14,9 +14,11 @@ be present for the comments; if it sinks, you learn something before spending
 the other venues. **Hacker News first.**
 
 **Timing matters more than the copy.** HN is a US-weekday-morning site: aim for
-**Tuesday–Thursday, 08:00–10:00 US Eastern**. Right now is Sunday night, which
-is the worst slot of the week. Waiting two days is worth more than any wording
-change below.
+**Tuesday–Thursday, 08:00–10:00 US Eastern**.
+
+*(Written late Monday 31 August 2026 Eastern — so the next good window is the
+following morning, a few hours away, not days. An earlier draft of this file
+said "Sunday night"; that was simply wrong about the day.)*
 
 ---
 
