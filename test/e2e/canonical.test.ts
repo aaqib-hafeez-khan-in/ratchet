@@ -29,6 +29,14 @@ describe('security.txt', () => {
   // The security page claimed this build shipped no contact address long after
   // security.txt started publishing one, which tells a researcher there is
   // nowhere to report. Drift between the two is the failure worth catching.
+  // Scanners still probe the pre-RFC-9116 root path; Cloudflare's reported
+  // "not configured" for a domain that has always served one.
+  test('the legacy root path finds it too', async () => {
+    const r = await app.inject({ method: 'GET', url: '/security.txt' });
+    assert.equal(r.statusCode, 301);
+    assert.equal(r.headers.location, '/.well-known/security.txt');
+  });
+
   test('the security page offers the contact security.txt promises', async () => {
     const txt = await app.inject({ method: 'GET', url: '/.well-known/security.txt' });
     const mailbox = /^Contact: mailto:([^@\s]+)@/m.exec(txt.body)?.[1];

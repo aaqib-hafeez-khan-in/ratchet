@@ -252,6 +252,16 @@ export default async function metaRoutes(app: FastifyInstance) {
    * a report; the Expires field is generated six months out on every request so
    * the document can never go stale and read as abandoned.
    */
+  /*
+   * RFC 9116 moved this to /.well-known/, and that is the canonical location.
+   * Scanners still check the legacy root path — Cloudflare's does, and reported
+   * "Security.txt not configured" for a domain that has served one all along.
+   * A researcher using the same habit would have drawn the same conclusion, so
+   * the old path redirects rather than 404s.
+   */
+  app.get('/security.txt', { schema: { hide: true } },
+    async (_req, reply) => reply.redirect('/.well-known/security.txt', 301));
+
   app.get('/.well-known/security.txt', { schema: { hide: true } }, async (_req, reply) => {
     const base = config.publicUrl.replace(/\/+$/, '');
     const host = new URL(base).hostname.replace(/^www\./, '');
