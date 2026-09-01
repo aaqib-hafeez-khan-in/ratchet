@@ -73,6 +73,28 @@ correctly answered `denied` and monitoring stayed broken for a different reason.
 When resolving a probe effect, `failed` is the state that is both honest and
 retryable.
 
+## Verified working — 1 September 2026
+
+The chain has been proven end to end: GitHub Actions → Resend → a real inbox.
+`Alert sent: Ratchet alert test — this is not an outage`, and it arrived.
+
+Getting there took three attempts, and the reason is worth keeping. `ALERT_EMAIL`
+held a **40-character alphanumeric string with no `@` in it** — a token or a
+commit SHA, not an address. Nothing revealed that for two rounds, because the
+only signal was a 422 from the mail provider *after* a send was attempted.
+
+GitHub does not expose secret digests, so the value cannot be inspected from
+outside; the workflow has to report on itself. Hence the **check_config** button,
+which runs `alert.mjs check`: it prints the *shape* of the value — length,
+has-at, has-whitespace, has-angle-brackets — and never the value, because these
+logs are public. That turned a guessing game into one click.
+
+> **When a secret is not working, do not iterate on how it is being set. Make
+> the system describe what it actually holds.**
+
+Setting it through the GitHub web UI rather than the shell is what finally
+worked; shell quoting was the likely culprit throughout.
+
 ## What is still missing
 
 - Nothing pages. See above.
