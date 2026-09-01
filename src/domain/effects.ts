@@ -496,11 +496,15 @@ async function grantLeaseGuarded(
       throw new ApiError(403, 'run_budget_exceeded',
         `This run has spent its budget. It may spend no more than `
         + `${(err.budget.limitMicros / 1e6).toFixed(2)} USD in total.`, {
-          runId: err.budget.runId,
-          limitMicros: err.budget.limitMicros,
-          spentMicros: err.budget.spentMicros,
-          remainingMicros: err.budget.remainingMicros,
-          requestedMicros: err.wouldSpendMicros,
+          // snake_case, per the wire contract. The sibling budget_exceeded
+          // error above predates that rule and still emits camelCase; changing
+          // it is a deliberate breaking change, not a drive-by, and is recorded
+          // in KNOWN_LIMITATIONS.md rather than done quietly here.
+          run_id: err.budget.runId,
+          limit_micros: err.budget.limitMicros,
+          spent_micros: err.budget.spentMicros,
+          remaining_micros: err.budget.remainingMicros,
+          requested_micros: err.wouldSpendMicros,
         });
     }
     throw err;

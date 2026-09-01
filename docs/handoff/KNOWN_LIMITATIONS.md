@@ -382,3 +382,18 @@ real regression through. It should be diagnosed rather than retried.
 Next step when someone picks this up: the assertion messages already name what
 was found, but the failure output does not say *which* assertion fired. Capture
 a failing run's full output before theorising further.
+
+## Error details are inconsistently cased
+
+The wire contract is snake_case (CLAUDE.md §6), and error `detail` objects are
+part of the wire. They are not consistent: `budget_exceeded` emits
+`limitMicros`, `known_runtimes` elsewhere is snake_case, and the validation
+errors passed through from Fastify use their own shape.
+
+`run_budget_exceeded`, added 1 September 2026, follows the contract. The older
+ones were left alone deliberately — changing an established error's shape is a
+breaking change for anyone parsing it, and doing that as a drive-by while
+building something else is how consumers get broken quietly.
+
+Worth fixing in one deliberate pass, with a version note, rather than one error
+at a time.

@@ -177,8 +177,8 @@ describe('a run has a wallet', () => {
         assert.equal(e.status, 403);
         // An agent that is told only "no" cannot decide anything. It needs the
         // headroom to choose a cheaper path or stop cleanly.
-        assert.equal(e.detail?.remainingMicros, 40_000);
-        assert.equal(e.detail?.requestedMicros, 60_000);
+        assert.equal(e.detail?.remaining_micros, 40_000);
+        assert.equal(e.detail?.requested_micros, 60_000);
         return true;
       });
   });

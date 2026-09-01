@@ -1,5 +1,5 @@
 import { getPool } from '../db/pool.js';
-import { recallRun } from '../domain/recall.js';
+import { recallRun, recallOnWire } from '../domain/recall.js';
 import { receiptsFor, receiptPublicKey } from '../domain/receipts.js';
 import { normalizeText } from '../lib/ids.js';
 import { unwindGroup, getGroup } from '../domain/groups.js';
@@ -115,19 +115,9 @@ export async function callTool(
       }));
 
     case 'ratchet_recall': {
-      const r = await recallRun(ctx.workspaceId, String(args.run_id));
-      // snake_case on the wire, and the same shape the HTTP route returns, so an
-      // agent that reads the OpenAPI and one that reads the tool see one thing.
-      return {
-        run_id: r.runId,
-        steps: r.steps,
-        spent_micros: r.spentMicros,
-        done: r.done,
-        in_flight: r.inFlight,
-        unknown: r.unknown,
-        not_done: r.notDone,
-        next: r.next,
-      };
+      // The same serializer the HTTP route uses, so an agent reading the
+      // OpenAPI and one reading the tool see one shape.
+      return recallOnWire(await recallRun(ctx.workspaceId, String(args.run_id)));
     }
 
     case 'ratchet_list_effects': {

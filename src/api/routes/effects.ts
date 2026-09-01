@@ -5,8 +5,10 @@ import { getPool } from '../../db/pool.js';
 import { errors, ApiError } from '../../lib/errors.js';
 import { config } from '../../lib/config.js';
 import { planRateLimit } from '../rate-limit.js';
-import { recallRun } from '../../domain/recall.js';
+import { recallRun, recallOnWire } from '../../domain/recall.js';
+import { setRunBudget } from '../../domain/run-budget.js';
 import { wsOf, actorOf } from '../plugins/auth.js';
+import { audit } from '../../domain/audit.js';
 import { beginBody, beginResponse, reportBody, effectView, errorResponses } from '../schemas.js';
 import { beginOut, effectOut, reportOut } from '../serialize.js';
 import { x402Enabled, paymentRequired, encodeHeader, decodePayload,
@@ -270,6 +272,62 @@ export default async function effectRoutes(app: FastifyInstance) {
     return { effect_id: r.effectId, state: r.state };
   });
 
+  // ----------------------------------------------------------------- wallet
+  app.put('/runs/:runId/budget', {
+    /*
+     * policies:write, which DEFAULT_AGENT_SCOPES does not include.
+     *
+     * The asymmetry is the control. An agent may read what it has left — that
+     * is what lets it choose a cheaper path or stop cleanly — but it must not
+     * be able to raise its own ceiling, or the ceiling is decoration. Whoever
+     * dispatches the work sets the wallet; the worker spends against it.
+     *
+     * For the same reason there is deliberately no MCP tool for this. Putting
+     * it in the toolbox would invite exactly the call that must not be made.
+     */
+    preHandler: app.requireKey('policies:write'),
+    config: { rateLimit: planRateLimit },
+    schema: {
+      tags: TAG,
+      operationId: 'setRunBudget',
+      summary: 'Cap what one unit of agent work may spend',
+      description:
+        'Opens or adjusts a wallet for a run id. The gate refuses any effect that would carry '
+        + 'the run past this total — before the money moves, which is the only moment refusing '
+        + 'is still cheap. Unlike the daily budgets this never resets: a task is not a day. '
+        + 'Lowering a limit below what is already spent claws nothing back; it means nothing '
+        + 'further may be spent. Counts what callers declare in estimated_cost_micros, so it '
+        + 'is only ever as good as what they declare.',
+      params: {
+        type: 'object', required: ['runId'],
+        properties: { runId: { type: 'string', maxLength: 128 } },
+      },
+      body: {
+        type: 'object', required: ['limit_micros'], additionalProperties: false,
+        properties: {
+          limit_micros: {
+            type: 'integer', minimum: 0, maximum: 1_000_000_000_000,
+            description: 'Total this run may spend at vendors, in micro-USD. 1000000 = $1.',
+          },
+        },
+      },
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => {
+    const { runId } = req.params as { runId: string };
+    const { limit_micros: limitMicros } = req.body as { limit_micros: number };
+    const b = await setRunBudget(wsOf(req), runId, limitMicros);
+    await audit(getPool(), wsOf(req), 'run.budget_set', actorOf(req), runId,
+      { limitMicros: b.limitMicros, spentMicros: b.spentMicros });
+    return {
+      run_id: b.runId,
+      limit_micros: b.limitMicros,
+      spent_micros: b.spentMicros,
+      remaining_micros: b.remainingMicros,
+      exhausted: b.exhausted,
+    };
+  });
+
   // ----------------------------------------------------------------- recall
   app.get('/runs/:runId', {
     // effects:read, not a console session: this is for the agent that did the
@@ -295,17 +353,7 @@ export default async function effectRoutes(app: FastifyInstance) {
     },
   }, async (req) => {
     const { runId } = req.params as { runId: string };
-    const r = await recallRun(wsOf(req), runId);
-    return {
-      run_id: r.runId,
-      steps: r.steps,
-      spent_micros: r.spentMicros,
-      done: r.done,
-      in_flight: r.inFlight,
-      unknown: r.unknown,
-      not_done: r.notDone,
-      next: r.next,
-    };
+    return recallOnWire(await recallRun(wsOf(req), runId));
   });
 
   // ------------------------------------------------------------------ reads

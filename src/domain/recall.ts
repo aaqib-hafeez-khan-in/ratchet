@@ -187,3 +187,29 @@ function guidance(
   return 'Everything under this run is settled. Anything listed under "done" has '
     + 'already happened — use its recorded result rather than performing it again.' + left;
 }
+
+/**
+ * Wire form. The domain is camelCase and the wire is snake_case, and `budget`
+ * is a nested object — which is exactly where that rule gets forgotten. It was
+ * forgotten here, and a test caught it. Both transports call this, so HTTP and
+ * MCP cannot come to disagree about the shape.
+ */
+export function recallOnWire(r: RunRecall) {
+  return {
+    run_id: r.runId,
+    steps: r.steps,
+    spent_micros: r.spentMicros,
+    budget: r.budget && {
+      run_id: r.budget.runId,
+      limit_micros: r.budget.limitMicros,
+      spent_micros: r.budget.spentMicros,
+      remaining_micros: r.budget.remainingMicros,
+      exhausted: r.budget.exhausted,
+    },
+    done: r.done,
+    in_flight: r.inFlight,
+    unknown: r.unknown,
+    not_done: r.notDone,
+    next: r.next,
+  };
+}

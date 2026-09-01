@@ -497,3 +497,102 @@ describe('a placeholder credential does not hide public information', () => {
     assert.equal(r.statusCode, 401);
   });
 });
+
+/**
+ * Memory and wallet, over the wire.
+ *
+ * The domain is covered in test/integration/recall.test.ts. What is asserted
+ * here is the boundary that makes the wallet mean anything: an agent may read
+ * what it has left, and may not raise it. If those two facts ever swap, the
+ * ceiling becomes decoration and nothing else in the design matters.
+ */
+describe('a run has a memory and a wallet', () => {
+  test('recall is a tool an agent can call, and comes back grouped', async () => {
+    const run = `mcp-run-${Date.now()}`;
+    const begun = await call('ratchet_begin_effect', {
+      effect_type: 'email.send', idempotency_key: `${run}-1`, run_id: run,
+    });
+    assert.equal(begun.isError, false, 'begin should succeed');
+
+    const r = await call('ratchet_recall', { run_id: run });
+    assert.equal(r.isError, false);
+    assert.equal(r.data?.run_id, run);
+    assert.equal(r.data?.steps, 1);
+    // Begun and not reported, so it is in flight rather than done.
+    assert.equal((r.data?.in_flight as unknown[]).length, 1);
+    assert.match(String(r.data?.next), /in flight/);
+  });
+
+  test('an agent cannot raise its own ceiling', async () => {
+    // The default agent scopes are begin, report and read — deliberately not
+    // policies:write. This is the whole control.
+    const agent = (await keyWithScopes(workspaceId,
+      ['effects:begin', 'effects:report', 'effects:read'])).plaintext;
+    const run = `mcp-cap-${Date.now()}`;
+
+    const r = await app.inject({
+      method: 'PUT', url: `/v1/runs/${run}/budget`,
+      headers: { authorization: `Bearer ${agent}`, 'content-type': 'application/json' },
+      payload: { limit_micros: 999_000_000 },
+    });
+    assert.equal(r.statusCode, 403,
+      'an agent that can raise its own budget has no budget');
+  });
+
+  test('but it can read what it has left', async () => {
+    const run = `mcp-read-${Date.now()}`;
+    const set = await app.inject({
+      method: 'PUT', url: `/v1/runs/${run}/budget`,
+      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+      payload: { limit_micros: 250_000 },
+    });
+    assert.equal(set.statusCode, 200);
+    assert.equal(set.json().remaining_micros, 250_000);
+
+    const agent = (await keyWithScopes(workspaceId,
+      ['effects:begin', 'effects:report', 'effects:read'])).plaintext;
+    const r = await rpc('tools/call',
+      { name: 'ratchet_recall', arguments: { run_id: run } }, agent);
+    const data = r.body.result?.structuredContent;
+    assert.equal(data?.budget?.limit_micros, 250_000);
+    assert.equal(data?.budget?.remaining_micros, 250_000);
+    // The wire is snake_case all the way down, nested objects included — this
+    // is where that rule gets forgotten, and it was.
+    assert.equal(JSON.stringify(data).includes('limitMicros'), false,
+      'camelCase must not leak through a nested object');
+  });
+
+  test('the gate refuses the effect that would cross the ceiling', async () => {
+    const run = `mcp-stop-${Date.now()}`;
+    await app.inject({
+      method: 'PUT', url: `/v1/runs/${run}/budget`,
+      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+      payload: { limit_micros: 50_000 },
+    });
+
+    const ok = await call('ratchet_begin_effect', {
+      effect_type: 'payment.charge', idempotency_key: `${run}-a`,
+      run_id: run, estimated_cost_micros: 40_000,
+    });
+    assert.equal(ok.isError, false, 'the first spend is within the ceiling');
+
+    const over = await call('ratchet_begin_effect', {
+      effect_type: 'payment.charge', idempotency_key: `${run}-b`,
+      run_id: run, estimated_cost_micros: 40_000,
+    });
+    assert.equal(over.isError, true, 'the second would cross it and must be refused');
+  });
+
+  test('setting a wallet is written to the audit trail', async () => {
+    const run = `mcp-audit-${Date.now()}`;
+    await app.inject({
+      method: 'PUT', url: `/v1/runs/${run}/budget`,
+      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+      payload: { limit_micros: 10_000 },
+    });
+    const { rows } = await (await import('../helpers.js')).getPool().query(
+      "SELECT action FROM audit_events WHERE subject_id = $1 AND action = 'run.budget_set'",
+      [run]);
+    assert.equal(rows.length, 1, 'raising a spending limit is not a silent act');
+  });
+});
