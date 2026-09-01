@@ -27,6 +27,7 @@ interface WsRow {
   id: string; plan: string; credit_micros: number;
   period_start: Date; period_decisions: number; status: 'active' | 'suspended';
   anonymous: boolean;
+  email_verified_at: Date | null;
 }
 
 /**
@@ -42,7 +43,7 @@ export class AnonymousQuotaExhausted extends Error {
 
 export async function getBilling(db: Db, workspaceId: string): Promise<WorkspaceBilling | null> {
   const { rows } = await db.query<WsRow>(
-    `SELECT id, plan, credit_micros, period_start, period_decisions, status, anonymous
+    `SELECT id, plan, credit_micros, period_start, period_decisions, status, anonymous, email_verified_at
        FROM workspaces WHERE id = $1`, [workspaceId],
   );
   const r = rows[0];
@@ -74,7 +75,7 @@ export async function meterEffect(
   tx: PoolClient, workspaceId: string, effectId: string, now: Date,
 ): Promise<MeterResult> {
   const { rows } = await tx.query<WsRow>(
-    `SELECT id, plan, credit_micros, period_start, period_decisions, status, anonymous
+    `SELECT id, plan, credit_micros, period_start, period_decisions, status, anonymous, email_verified_at
        FROM workspaces WHERE id = $1 FOR UPDATE`, [workspaceId],
   );
   const ws = rows[0];
@@ -94,14 +95,23 @@ export async function meterEffect(
   // An unclaimed workspace is capped far below the free plan. It exists to
   // prove the gate works on the first call without a human; running on one is
   // not the offer. Claiming it with an email lifts the cap to the free plan.
-  const allowance = ws.anonymous
-    ? Math.min(ANONYMOUS_EFFECT_QUOTA, plan.includedEffects)
-    : plan.includedEffects;
+  // The plan's allowance belongs to a workspace whose address has answered.
+  //
+  // Claiming used to be enough, and claiming only wrote an email nobody checked
+  // — so a farm of unreachable addresses collected a free plan each. An
+  // unverified workspace sits at the unclaimed cap: it works, it gates, it is
+  // simply not the free plan yet. Everything that existed before this shipped
+  // was grandfathered in the migration, because a control that silently demotes
+  // current customers is an outage with a rationale.
+  const onPlan = !ws.anonymous && ws.email_verified_at != null;
+  const allowance = onPlan
+    ? plan.includedEffects
+    : Math.min(ANONYMOUS_EFFECT_QUOTA, plan.includedEffects);
   const withinAllowance = used < allowance;
   let charged = 0;
   let balance = ws.credit_micros;
 
-  if (!withinAllowance && ws.anonymous) {
+  if (!withinAllowance && !onPlan) {
     // No overage path for an unclaimed workspace: there is nobody to bill and
     // nobody to warn. Refusing here is the honest end of a free trial.
     throw new AnonymousQuotaExhausted(ANONYMOUS_EFFECT_QUOTA);

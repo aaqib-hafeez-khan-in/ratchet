@@ -6,6 +6,9 @@ import { wsOf, actorOf } from '../plugins/auth.js';
 import { createWorkspace, getWorkspace, createApiKey, listApiKeys, revokeApiKey,
          createConsoleSession, destroyConsoleSession, claimWorkspace, isScope, SCOPES, DEFAULT_AGENT_SCOPES, type Scope } from '../../domain/auth.js';
 import { stricterThan } from '../rate-limit.js';
+import { issueVerification, redeemVerification, TOKEN_TTL_HOURS }
+  from '../../domain/verification.js';
+import { queueEmail } from '../../domain/email.js';
 import { listPolicies, upsertPolicy, deletePolicy, getPolicy } from '../../domain/policy.js';
 import { getSpendSummary } from '../../domain/budget.js';
 import { listLedger } from '../../domain/metering.js';
@@ -19,7 +22,107 @@ import { policyOut } from '../serialize.js';
 import { PLANS } from '../../domain/plans.js';
 import { config } from '../../lib/config.js';
 
+/**
+ * Send the link that turns an unclaimed cap into the free plan.
+ *
+ * Never blocks the response and never fails the request: a signup that works
+ * but cannot email is a working signup, and the workspace still functions at
+ * the unclaimed cap. Losing the mail is a nuisance the operator can fix by
+ * resending; losing the signup is a customer.
+ */
+async function sendVerification(
+  workspaceId: string, email: string, name: string,
+): Promise<void> {
+  try {
+    const token = await issueVerification(workspaceId);
+    const base = config.publicUrl.replace(/\/+$/, '');
+    const link = `${base}/v1/verify/${token}`;
+    await queueEmail({
+      workspaceId,
+      category: 'welcome',
+      dedupeKey: `verify:${workspaceId}`,
+      subject: 'Confirm your email to unlock the free plan',
+      text: [
+        `Your Ratchet workspace "${name}" is live and your key works now.`,
+        '',
+        'Until this address is confirmed it runs at the unclaimed cap of 100 gated',
+        'effects. Confirming lifts it to the free plan: 1,000 a month.',
+        '',
+        link,
+        '',
+        `The link is good for ${TOKEN_TTL_HOURS} hours. If you did not create this`,
+        'workspace, ignore this message — nothing was charged and nothing will be.',
+      ].join('\n'),
+    });
+  } catch {
+    // Deliberately swallowed. See above.
+  }
+}
+
 export default async function workspaceRoutes(app: FastifyInstance) {
+  /*
+   * Clicked from a mail client, so it answers HTML rather than JSON and needs no
+   * credential — the token IS the credential. It is the least powerful thing a
+   * bearer token can be: it lifts one workspace's allowance from the unclaimed
+   * cap to the free plan and grants nothing else, reads nothing, and cannot be
+   * replayed because redeeming clears it.
+   */
+  app.get('/verify/:token', {
+    config: { rateLimit: stricterThan(30, '1 hour') },
+    schema: {
+      tags: ['Workspace'], operationId: 'verifyEmail',
+      summary: 'Confirm an address and lift the workspace to its plan',
+      params: {
+        type: 'object', required: ['token'],
+        properties: { token: { type: 'string', minLength: 20, maxLength: 200 } },
+      },
+      response: { 200: { type: 'string' }, 400: { type: 'string' } },
+    },
+  }, async (req, reply) => {
+    const { token } = req.params as { token: string };
+    const r = await redeemVerification(token);
+
+    const page = (title: string, body: string, ok: boolean) => `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>${title} — Ratchet</title>
+<link rel="stylesheet" href="/assets/style.css"></head>
+<body><header class="site"></header>
+<main id="main"><section><div class="wrap narrow">
+  <p class="eyebrow">${ok ? 'Confirmed' : 'That link did not work'}</p>
+  <h1>${title}</h1>
+  <p class="lede">${body}</p>
+  <p style="margin-top:1.5rem">
+    <a class="btn" href="/console">Open the console</a>
+    <a class="btn secondary" href="/docs">Read the docs</a>
+  </p>
+</div></section></main>
+<footer class="site"></footer>
+<script type="module">
+  import { mountChrome } from '/assets/partials.js';
+  mountChrome('');
+</script>
+</body></html>`;
+
+    reply.type('text/html; charset=utf-8');
+    if (r.ok) {
+      return page(
+        r.alreadyVerified ? 'Already confirmed' : 'You are on the free plan',
+        r.alreadyVerified
+          ? 'This address was confirmed earlier. Nothing changed, and your workspace is on the free plan.'
+          : 'Your address is confirmed and this workspace now has 1,000 gated effects a month. Your existing key is unchanged — nothing to swap.',
+        true);
+    }
+    reply.code(400);
+    return page(
+      r.reason === 'expired' ? 'That link has expired' : 'We do not recognise that link',
+      r.reason === 'expired'
+        ? `Confirmation links are good for ${TOKEN_TTL_HOURS} hours. Ask for a new one from the console and the workspace keeps working meanwhile, at the unclaimed cap.`
+        : 'It may already have been used, in which case the workspace is confirmed and there is nothing to do. Otherwise ask for a new link from the console.',
+      false);
+  });
+
   // ------------------------------------------------------------- onboarding
   /**
    * Attach an owner to a workspace that was provisioned without one.
@@ -57,6 +160,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
       await getPool().query('UPDATE workspaces SET name = $2 WHERE id = $1',
         [workspaceId, b.name]);
     }
+    await sendVerification(workspaceId, b.email, b.name ?? 'your workspace');
     return { claimed: true, workspace_id: workspaceId, owner_email: b.email.toLowerCase(),
              note: 'Quota lifted to the free plan. This workspace will no longer be swept.' };
   });
@@ -101,6 +205,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
   }, async (req, reply) => {
     const b = req.body as { name: string; email: string };
     const ws = await createWorkspace(b.name, b.email);
+    await sendVerification(ws.workspaceId, b.email, b.name);
     /**
      * Two keys, on purpose.
      *

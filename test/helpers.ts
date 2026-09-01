@@ -47,10 +47,21 @@ export async function setupDb(): Promise<void> {
 }
 
 /** Isolated workspace per test, so tests never interfere with one another. */
+/**
+ * A normal customer workspace: claimed, confirmed, on its plan.
+ *
+ * The address is marked confirmed here because that is what a real customer's
+ * workspace looks like a minute after signing up, and almost every suite wants
+ * to exercise something other than the confirmation step. The suites that DO
+ * care — verification.test.ts — clear it explicitly, which is the right way
+ * round: the unusual state is the one that gets set up on purpose.
+ */
 export async function freshWorkspace(seedPolicies = true) {
   await setupDb();
   const ws = await createWorkspace(`test-${randomUUID().slice(0, 8)}`,
     `t-${randomUUID().slice(0, 8)}@example.test`, seedPolicies);
+  await getPool().query(
+    'UPDATE workspaces SET email_verified_at = now() WHERE id = $1', [ws.workspaceId]);
   return ws;
 }
 
