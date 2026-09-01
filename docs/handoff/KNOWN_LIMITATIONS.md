@@ -139,11 +139,33 @@ and writes stopped — turning a redundancy feature into an outage. A stale slot
 is now invalidated and that replica needs rebuilding instead: prefer a broken
 replica over a dead primary.
 
-**Not tested: a real failover.** The quorum logic is verified, but no primary
-has actually been killed to watch a standby take over and the old primary
-rejoin. An untested failover is a hypothesis, in exactly the way an untested
-backup is — worth doing deliberately, at a chosen moment, rather than
-discovering it at 3am.
+**Failover drill performed 1 September 2026.** Timeline:
+
+| | |
+|---|---|
+| `fly machine kill` on the primary | Fly restarted it in ~20s, *faster than repmgr's timers* — it came back as primary and **no promotion occurred** |
+| `fly machine stop` (stays down) | standby `d89359da0e5118` promoted itself at **+55s** |
+| API recovery | `/readyz` 200 **10s after promotion**, ~65s total outage |
+| old primary restarted | rejoined as a **standby** in ~37s — no split-brain |
+| after | all three nodes identical, both standbys streaming at 0 lag |
+| integrity | backup re-verified **450 receipts across 71 chains** from a restored copy, 0 bad |
+
+The kill result is worth remembering: for a *process* crash the platform wins
+the race and failover never runs. Promotion is for a node that stays gone.
+
+**Replication is async**, so a commit that has not shipped when the primary dies
+is lost. Lag runs at 0 bytes, but the exposure is real and is the honest cost of
+this design.
+
+**The drill found two bugs that would have broken the nightly backup**, both
+caused by moving from one node to three:
+
+- `flyctl` picks a machine per invocation, so `pg_dump` wrote `/tmp/b.dump` on
+  one node and `sftp` looked for it on another. Every ssh call is pinned to one
+  machine now.
+- The pinning variable was called `NODE`, which `actions/setup-node` exports as
+  the path to the node binary — so the discovery never ran and
+  `/opt/hostedtoolcache/.../bin/node` was passed to `--machine`.
 
 **Still true: single region.** Cross-region callers pay the round trip, and
 multi-region would require rethinking the uniqueness guarantee — not a small
