@@ -112,11 +112,58 @@ Fixed in two places:
 - `GRANT pg_read_all_stats TO ratchet_staging` — **required for any new database role**, or
   replica health silently becomes unobservable. Note this when rebuilding an environment.
 
+## It recurred the same day — and the cause is the hardware
+
+At 23:36 UTC the alerting added that afternoon fired against production for the first
+time: `replica 857597a4492d58 is 416.0 MB behind (threshold 256.0 MB)`. Ground truth
+agreed — the other standby was 624 bytes behind, this one 436,208,240.
+
+**The monitoring worked.** The morning's occurrence went 34 minutes undetected and was
+found by accident during a migration. This one was caught automatically, by an email,
+within hours of being built.
+
+**The cause is CPU steal.** Comparing `/proc/stat` across the two standbys, which run
+identical machine specs:
+
+| Node | Lifetime CPU steal |
+|---|---|
+| `857597a4492d58` | **23.5%** (476,496 of 2,031,059 ticks) |
+| `7845455b310328` | 0.2% (18,124 of 7,651,711 ticks) |
+
+Steal is CPU time the hypervisor gave to another tenant. WAL replay is single-threaded
+and CPU-bound, so a node losing a quarter of its CPU cannot keep pace with a primary
+losing none. That is also why Fly's health check kept reporting "hit resource limits"
+while `top` showed an idle machine: the VM is not busy, it is *starved*.
+
+**This makes a restart the wrong fix.** `flyctl machines restart` keeps the machine on the
+same physical host, so it inherits the same noisy neighbours — which is exactly why the
+problem returned roughly five hours after the morning's restart. The node needs to be
+destroyed and recreated so it is scheduled somewhere else.
+
+Circumstantial support: this machine's volume was created ~33 hours before the other
+two, which were rebuilt when the cluster was expanded. It is the only original node, and
+the only one with this behaviour.
+
+### Doing the rebuild
+
+Not done at the time of writing, because it is deliberate work rather than an emergency:
+
+- **Headroom.** `max_slot_wal_keep_size` is 2 GB and the slot had 1,632 MB remaining,
+  giving roughly 19 hours at the observed rate before invalidation.
+- **Quorum.** Removing a node drops the cluster to two, and a two-node repmgr cluster
+  cannot form a majority — automatic failover is degraded for the duration of the rebuild.
+  That is an acceptable window to open deliberately, and a bad one to stumble into at
+  midnight on a solo-operated service.
+- **It is now monitored.** Further degradation raises an alert rather than hiding.
+
+The interim mitigation is another restart, which recovers the lag within about twenty
+minutes and buys hours, not days.
+
 ## Still open
 
-- **Why it wedged is unknown.** The node's volume predates the other two by ~33 hours; it
-  was not rebuilt when the cluster was. The logs show TCP proxy errors on that machine
-  around the same period. If it recurs, rebuild the node rather than restarting it.
+- **Why it wedged is now known: CPU steal, 23.5% against a twin's 0.2%.** See the section
+  above. The remaining action is to destroy and recreate the machine so it is scheduled on
+  a different host; restarting is a treadmill.
 - **`max_slot_wal_keep_size` is 2 GB.** This node used ~590 MB of that reserve. A freeze
   lasting a few hours under real write volume would invalidate the slot, at which point the
   standby can only be rebuilt. The 256 MB alert threshold exists to leave room to act.
