@@ -30,6 +30,10 @@ concurrency:
 
 permissions:
   contents: read
+  # Reading previous runs is how a first failure is told apart from the
+  # fortieth. An alert that cannot say "still down" is an alert people learn
+  # to ignore.
+  actions: read
 
 jobs:
   probe:
@@ -46,6 +50,41 @@ jobs:
           RATCHET_UPTIME_KEY: ${{ secrets.RATCHET_UPTIME_KEY }}
           BASE: https://ratchetgate.com
         run: node scripts/uptime-check.mjs
+
+      - name: Notify a person
+        if: failure()
+        env:
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+          ALERT_EMAIL_KEY: ${{ secrets.ALERT_EMAIL_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # How many checks in a row have failed, so the subject can say
+          # "still failing" rather than crying wolf every fifteen minutes.
+          STREAK=$(gh run list --workflow=uptime.yml --limit 20 \
+            --json conclusion --jq '[.[] | .conclusion] | map(select(. != null))
+              | (index("success") // length)' 2>/dev/null || echo 1)
+          [ -z "$STREAK" ] && STREAK=1
+          FAIL_STREAK="$((STREAK + 1))" node scripts/alert.mjs down \
+            "The probe failed. See the run for which check." || true
+
+      - name: Say when it comes back
+        if: success()
+        env:
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+          ALERT_EMAIL_KEY: ${{ secrets.ALERT_EMAIL_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Only when the previous run failed. An all-clear after every single
+          # successful check would be four irrelevant emails an hour.
+          PREV=$(gh run list --workflow=uptime.yml --limit 2 \
+            --json conclusion --jq '.[1].conclusion' 2>/dev/null || echo "")
+          if [ "$PREV" = "failure" ]; then
+            node scripts/alert.mjs recovered "Previous check had failed." || true
+          else
+            echo "Previous check passed too — nothing to announce."
+          fi
 
       - name: Explain the failure in the run summary
         if: failure()

@@ -87,6 +87,32 @@ if (!KEY) {
       } else {
         ok('gate replay', `decision=${d2}, same effect id`);
       }
+
+      /*
+       * Close the lease.
+       *
+       * This probe used to begin and walk away, which is the one thing a caller
+       * must not do. The lease expired unreported, the worker correctly recorded
+       * `indeterminate`, and the default policy for that state is `block` — so
+       * every later probe of the same day was refused. The monitoring broke
+       * itself by using the product exactly as designed, and nobody noticed for
+       * five hours, because nothing yet told a person when a check failed.
+       *
+       * A probe that drives the real product has to drive all of it.
+       */
+      const lease = first.json?.lease_token;
+      if (d1 === 'execute' && lease) {
+        const rep = await get(`/v1/effects/${first.json.effect_id}/report`, {
+          method: 'POST', headers,
+          body: JSON.stringify({
+            lease_token: lease, outcome: 'succeeded', result: { probe: true },
+          }),
+        });
+        if (rep.status !== 200) fail('gate report', `HTTP ${rep.status}`);
+        else ok('gate report', 'lease closed, effect settled');
+      } else {
+        ok('gate report', `nothing to close (decision=${d1})`);
+      }
     }
   }
 }
