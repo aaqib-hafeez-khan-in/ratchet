@@ -52,7 +52,12 @@
         <label for="ws-email">Email</label>
         <input id="ws-email" name="email" type="email" required maxlength="254"
                autocomplete="email" placeholder="ops@acme.example">
-        <p class="hint">Identifies the workspace owner. No mail is sent by this build.</p>
+        <!-- Said "no mail is sent by this build" until transactional email
+             shipped. Leaving that would have told people the alerts they most
+             need are not coming. -->
+        <p class="hint">Where alerts go: an outcome that came back unknown, an approval
+          waiting on you, a breaker that opened. Digested, never one mail per event,
+          and every category can be switched off.</p>
       </div>
       <button class="btn" type="submit" id="signup-btn">Create workspace</button>
     </form>

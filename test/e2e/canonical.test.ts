@@ -24,6 +24,26 @@ describe('security.txt', () => {
     assert.ok(days < 366, 'RFC 9116 discourages an Expires more than a year out');
     assert.match(r.body, /^Contact: mailto:security@/m);
   });
+
+  // The security page claimed this build shipped no contact address long after
+  // security.txt started publishing one, which tells a researcher there is
+  // nowhere to report. Drift between the two is the failure worth catching.
+  test('the security page offers the contact security.txt promises', async () => {
+    const txt = await app.inject({ method: 'GET', url: '/.well-known/security.txt' });
+    const mailbox = /^Contact: mailto:([^@\s]+)@/m.exec(txt.body)?.[1];
+    assert.ok(mailbox, 'security.txt must publish a contact');
+
+    // Only the mailbox is compared. security.txt takes its host from config, so
+    // it is security@localhost in test, while the page is a static marketing
+    // asset that names the real domain. The drift that matters is a page that
+    // sends a researcher nowhere, not a hostname that differs by environment.
+    const page = await app.inject({ method: 'GET', url: '/security' });
+    assert.equal(page.statusCode, 200);
+    assert.ok(page.body.includes(`mailto:${mailbox}@`),
+      `the security page offers no mailto:${mailbox}@ address`);
+    assert.doesNotMatch(page.body, /ships no contact address/,
+      'the security page still denies having a contact address');
+  });
 });
 
 describe('canonical host redirect', () => {
