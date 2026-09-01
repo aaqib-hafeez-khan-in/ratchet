@@ -50,12 +50,17 @@ for (const path of ['/healthz', '/readyz', '/workerz']) {
 }
 
 /* ---- it is not the real site ------------------------------------------- */
-const home = await req('/');
-const tag = home.headers.get('x-robots-tag') ?? '';
-if (!/noindex/.test(tag)) {
-  fail('noindex', `staging must not be indexable; X-Robots-Tag was "${tag || '(absent)'}"`);
-} else {
-  ok('noindex', tag);
+// Only meaningful against staging: production is supposed to be indexable, and
+// asserting this everywhere made a healthy production run report a failure —
+// which is a good way to teach yourself to ignore your own smoke test.
+if (/staging/.test(BASE)) {
+  const home = await req('/');
+  const tag = home.headers.get('x-robots-tag') ?? '';
+  if (!/noindex/.test(tag)) {
+    fail('noindex', `staging must not be indexable; X-Robots-Tag was "${tag || '(absent)'}"`);
+  } else {
+    ok('noindex', tag);
+  }
 }
 
 /* ---- the gate actually gates ------------------------------------------- */
