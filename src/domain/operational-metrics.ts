@@ -28,8 +28,12 @@ export interface OperationalMetrics {
   effectsByState: Record<string, number>;
   /** Effects created in the last hour and the last day, for a rate. */
   effectsCreated: { lastHour: number; lastDay: number };
-  /** Became indeterminate — the lease expired unreported. */
-  indeterminate: { total: number; lastHour: number; lastDay: number };
+  /**
+   * Became indeterminate — the lease expired unreported. Windows only: a
+   * lifetime total is published as effectsByState and is the wrong thing to
+   * alert on, because it never comes back down.
+   */
+  indeterminate: { lastHour: number; lastDay: number };
   /** Holding a live lease right now: work an agent has permission to do. */
   leasesOutstanding: number;
   /** Waiting on a human. A rising number here is a queue nobody is serving. */
@@ -107,7 +111,6 @@ export async function collect(db: Db = getPool()): Promise<OperationalMetrics> {
     effectsByState: byState,
     effectsCreated: { lastHour: createdHour, lastDay: createdDay },
     indeterminate: {
-      total: byState.indeterminate ?? 0,
       lastHour: Number(ind[0]?.last_hour ?? 0),
       lastDay: Number(ind[0]?.last_day ?? 0),
     },
@@ -156,12 +159,18 @@ export function render(m: OperationalMetrics): string {
     [['{window="1h"}', m.effectsCreated.lastHour],
      ['{window="24h"}', m.effectsCreated.lastDay]]);
 
+  // Rate windows only. There WAS a {window="all"} series here, and it was a
+  // trap: a lifetime total only ever climbs, so an alert on it fires once and
+  // then stays lit for ever, and it reads high on any instance that has ever
+  // been load-tested. The current standing count is already published as
+  // ratchet_effects_total{state="indeterminate"}, which is the gauge to graph;
+  // these two are what to alert on.
   metric('ratchet_effects_indeterminate',
-    'Effects whose lease expired with no report — the leading indicator of agents '
-    + 'crashing mid-action, and the number worth alerting on.', 'gauge',
+    'Effects whose lease expired with no report, within a window — the leading '
+    + 'indicator of agents crashing mid-action, and the number worth alerting on. '
+    + 'Alert on a sustained non-zero 24h value.', 'gauge',
     [['{window="1h"}', m.indeterminate.lastHour],
-     ['{window="24h"}', m.indeterminate.lastDay],
-     ['{window="all"}', m.indeterminate.total]]);
+     ['{window="24h"}', m.indeterminate.lastDay]]);
 
   metric('ratchet_leases_outstanding',
     'Effects holding a live lease: work an agent currently has permission to do.',

@@ -89,7 +89,7 @@ describe('the shape of the output', () => {
     const body = render({
       effectsByState: { succeeded: 3 },
       effectsCreated: { lastHour: 0, lastDay: 3 },
-      indeterminate: { total: 0, lastHour: 0, lastDay: 0 },
+      indeterminate: { lastHour: 0, lastDay: 0 },
       leasesOutstanding: 0, awaitingApproval: 0,
       webhooks: { pending: 0, failed: 0, deliveredLastDay: 0 },
       circuitsOpen: 0, workers: { loops: 4, stale: 0 }, replicas: null,
@@ -109,7 +109,7 @@ describe('the shape of the output', () => {
   test('replication series are omitted rather than reported as zero when unobservable', () => {
     const base = {
       effectsByState: {}, effectsCreated: { lastHour: 0, lastDay: 0 },
-      indeterminate: { total: 0, lastHour: 0, lastDay: 0 },
+      indeterminate: { lastHour: 0, lastDay: 0 },
       leasesOutstanding: 0, awaitingApproval: 0,
       webhooks: { pending: 0, failed: 0, deliveredLastDay: 0 },
       circuitsOpen: 0, workers: { loops: 1, stale: 0 },
@@ -124,5 +124,11 @@ describe('the shape of the output', () => {
     assert.match(body, /ratchet_effects_indeterminate\{window="1h"\}/);
     assert.match(body, /ratchet_effects_indeterminate\{window="24h"\}/);
     assert.match(body, /leading indicator/, 'the HELP text should say why it matters');
+
+    // A lifetime total only climbs. An alert on it fires once and stays lit,
+    // and it reads high on any instance that has ever been load-tested — which
+    // is exactly what happened here.
+    assert.equal(/ratchet_effects_indeterminate\{window="all"\}/.test(body), false,
+      'a cumulative series invites alerting on a number that never recovers');
   });
 });

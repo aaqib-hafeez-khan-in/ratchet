@@ -167,3 +167,31 @@ options in order of preference are:
 replaying — which is why 30 minutes is tolerable: that damage accrues slowly, and nothing
 is lost, only delayed.
 
+---
+
+## The alert to set first (2 Sep 2026)
+
+`GET /metrics` publishes the operating numbers. One of them is worth waking someone for:
+
+```
+increase(ratchet_effects_indeterminate{window="24h"}[1h]) > 0
+```
+
+An effect becomes indeterminate when a lease expires with no report — an agent took permission
+to do something and never came back to say whether it worked. It is invisible from every other
+signal: the API is healthy, the worker is healthy, the database is fine, and a customer's
+refunds are sitting in a state nobody has resolved.
+
+**Alert on the window, never on a lifetime total.** There used to be a
+`ratchet_effects_indeterminate{window="all"}` series and it was a trap: a cumulative count only
+climbs, so an alert on it fires once and stays lit for ever, and it reads high on any instance
+that has ever been load-tested. It was removed and a test keeps it gone. The standing count is
+still visible as `ratchet_effects_total{state="indeterminate"}` — graph that, alert on the
+windows.
+
+**Production was carrying 474 indeterminate effects on 2 Sep**, every one of them left behind by
+benchmarks and probes rather than by any real agent. An alert set that day would have fired on
+debris and taught its reader to ignore it. The test workspaces were deleted — 134 of them,
+after a verified backup, keeping only the uptime monitor and the workspace holding the real card
+payment — and the count is now 0, so the signal means something.
+
