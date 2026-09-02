@@ -54,10 +54,16 @@ export async function closePool(): Promise<void> {
 export async function withTx<T>(fn: (tx: pg.PoolClient) => Promise<T>): Promise<T> {
   const client = await getPool().connect();
   try {
-    await client.query('BEGIN');
+    // One message, not two. These were separate query() calls and therefore two
+    // full round trips before a transaction had done anything at all — paid by
+    // every transactional endpoint, on every request. Postgres's simple-query
+    // protocol runs the whole string in order, the SET LOCALs land inside the
+    // block the leading BEGIN opened, and the block stays open afterwards, so
+    // the semantics are identical.
     await client.query(
-      `SET LOCAL statement_timeout = ${config.statementTimeoutMs}; ` +
-      `SET LOCAL idle_in_transaction_session_timeout = ${config.idleInTxTimeoutMs}`);
+      'BEGIN; '
+      + `SET LOCAL statement_timeout = ${config.statementTimeoutMs}; `
+      + `SET LOCAL idle_in_transaction_session_timeout = ${config.idleInTxTimeoutMs}`);
     const out = await fn(client);
     await client.query('COMMIT');
     return out;

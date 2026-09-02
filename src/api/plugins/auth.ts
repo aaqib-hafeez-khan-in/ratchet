@@ -11,6 +11,12 @@ import { claimProvisionSlot } from '../../domain/provisioning.js';
 declare module 'fastify' {
   interface FastifyRequest {
     auth?: AuthContext;
+    /**
+     * The exact bearer token that produced `auth`, so a guard can tell
+     * "already authenticated" from "authenticated something else". Compared for
+     * equality only; never used as a credential in its own right.
+     */
+    authToken?: string;
     console?: { workspaceId: string; email: string };
     /** Set when this request provisioned its own workspace; returned once. */
     provisionedKey?: { api_key: string; workspace_id: string; quota: number };
@@ -35,11 +41,29 @@ const CAPABILITY_LABEL: Record<keyof PlanCapabilities, string> = {
 
 async function plugin(app: FastifyInstance) {
   /** Guard for agent-facing routes. Requires a scoped API key. */
+  /**
+   * Reuse the context the v1 onRequest hook already built — and only when it
+   * came from the identical token.
+   *
+   * The hook authenticates so the per-plan rate limiter knows the caller's
+   * plan. Each guard then authenticated the same string a second time: one
+   * extra api_keys query, HMAC and last_used_at write on every request, on the
+   * duplicate path as much as the new one.
+   *
+   * The equality check is the safety property, not decoration. The hook reads
+   * only `Authorization: Bearer rk_…` while `bearer()` also accepts
+   * `x-api-key`, so the two can legitimately be looking at different
+   * credentials. Requiring the exact token means a context is never reused for
+   * a key that did not present it.
+   */
+  const contextFor = async (req: FastifyRequest, token: string) =>
+    (req.auth && req.authToken === token) ? req.auth : authenticate(token);
+
   app.decorate('requireKey', (...scopes: Scope[]) => {
     return async (req: FastifyRequest) => {
       const token = bearer(req);
       if (!token) throw errors.unauthorized();
-      const ctx = await authenticate(token);
+      const ctx = await contextFor(req, token);
       for (const s of scopes) requireScope(ctx, s);
       req.auth = ctx;
     };
@@ -92,7 +116,7 @@ async function plugin(app: FastifyInstance) {
     return async (req: FastifyRequest) => {
       const token = bearer(req);
       if (token) {
-        const ctx = await authenticate(token);
+        const ctx = await contextFor(req, token);
         for (const s of scopes) requireScope(ctx, s);
         req.auth = ctx;
         return;

@@ -262,14 +262,24 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
        */
       const total = await countEffect(tx, input.workspaceId, input.effectType, now);
       let breakers = await openBreakers(tx, input.workspaceId, input.effectType, now);
-      // Measured from the last time this breaker was cleared, so a cooldown
-      // grants a genuine fresh allowance instead of expiring straight back into
-      // a re-trip on the hour's existing total.
-      const observed = total - await surgeBaseline(tx, input.workspaceId, input.effectType, now);
 
       // Either an explicit ceiling, or one derived from this effect type's own
       // history. Reads a number already on the policy row — no extra query.
+      //
+      // Read BEFORE the baseline, because when there is no ceiling the baseline
+      // is dead work: `observed` is used only inside the `ceiling !== null`
+      // branch below. No ceiling is the default — surgePerHour and
+      // surgeMultiplier are both null unless an operator sets one — so this was
+      // a database round trip on the creation of most effects, to compute a
+      // number nothing then read.
       const { ceiling, source, baseline } = effectiveCeiling(policy);
+
+      // Measured from the last time this breaker was cleared, so a cooldown
+      // grants a genuine fresh allowance instead of expiring straight back into
+      // a re-trip on the hour's existing total.
+      const observed = ceiling === null
+        ? total
+        : total - await surgeBaseline(tx, input.workspaceId, input.effectType, now);
 
       if (ceiling !== null && observed > ceiling
           && !breakers.some((b) => b.effectType === input.effectType)) {

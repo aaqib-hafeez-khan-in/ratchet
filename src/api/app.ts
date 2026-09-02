@@ -227,7 +227,18 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     v1.addHook('onRequest', async (req) => {
       const h = req.headers.authorization;
       if (typeof h === 'string' && h.startsWith('Bearer rk_')) {
-        try { req.auth = await authenticate(h.slice(7)); } catch { /* handled by route guard */ }
+        const token = h.slice(7);
+        try {
+          req.auth = await authenticate(token);
+          // Record WHICH token produced this context. The route guard runs
+          // moments later and used to authenticate the same string all over
+          // again — a second identical api_keys query, HMAC and last_used_at
+          // write on every request, on the duplicate path as much as the new
+          // one. It can reuse this, but only on an exact token match: anything
+          // looser would be a way for one credential to be admitted on the
+          // strength of another.
+          req.authToken = token;
+        } catch { /* handled by route guard */ }
       }
     });
     await v1.register(effectRoutes);
