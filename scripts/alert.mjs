@@ -82,9 +82,10 @@ if (kind === 'check') {
  * The probe runs every fifteen minutes and this used to mail on every failing
  * run, so a day-long outage cost 96 emails. That is the whole free sending
  * quota, shared with the product's own transactional mail — and on 2 Sep 2026
- * it spent it: two customers' welcome mail, carrying their verification links,
- * was refused for quota and then thrown away. An alert channel that destroys
- * signups while telling you about an outage is worse than a quiet one.
+ * it spent it: welcome mail carrying verification links was refused for quota
+ * and then thrown away — probe signups, as it turned out, not customers. An
+ * alert channel that destroys signups while telling you about an outage is
+ * worse than a quiet one.
  *
  * So the notices thin out as the outage lengthens. The first three checks
  * (45 minutes) each send, then hourly for six hours, then every four hours.

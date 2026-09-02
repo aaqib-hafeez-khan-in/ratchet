@@ -2,8 +2,8 @@
  * A spent sending quota must not destroy mail.
  *
  * On 2 Sep 2026 it did: the uptime probe mailed on every failing check, spent
- * the day's quota, and two customers' welcome mail — carrying the links that
- * verify their accounts — was refused and then thrown away inside the hour. The
+ * the day's quota, and welcome mail — carrying the link that verifies an
+ * account — was refused and then thrown away inside the hour. The
  * retry ladder tops out at thirty minutes and gives up after five attempts; a
  * daily quota does not reset for up to a day.
  */

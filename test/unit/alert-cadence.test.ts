@@ -3,7 +3,7 @@
  *
  * On 2 Sep 2026 the probe mailed on every failing check, fifteen minutes apart.
  * A sustained outage is 96 emails a day, which is the entire free sending quota
- * — and the mail it crowded out was two customers' verification links.
+ * — and the mail it crowded out was signup verification links.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
