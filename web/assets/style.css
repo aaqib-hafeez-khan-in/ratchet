@@ -1107,3 +1107,28 @@ ul.checks li::before {
 }
 .statusdl dt { font-weight: 600; margin-top: 1.1rem; }
 .statusdl dd { margin: 0.3rem 0 0; color: var(--text-faint); }
+
+/* The bottom bar carries three things now — the disclaimer, the accounts, and
+   who built it. Left as three flex children they wrapped into a ragged stack at
+   most widths, so the two identity items are grouped and the bar stays two
+   columns until there is genuinely no room. */
+.footer-id {
+  display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+  justify-content: flex-end;
+}
+@media (max-width: 620px) { .footer-id { justify-content: flex-start; } }
+
+/* Brand accounts, beside the attribution rather than in their own column: two
+   links do not justify a heading, and a lone "Follow us" block on a young
+   account reads as louder than the following it has. rel="me" is the same
+   claim the Organization schema's sameAs makes, in the form a crawler reading
+   only the markup will see. */
+.social { display: inline-flex; align-items: center; gap: 1.1rem; }
+.social a {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  color: var(--text-faint); text-decoration: none;
+  transition: color 0.15s ease;
+}
+.social a:hover { color: var(--text); }
+.social svg { flex: none; }
+.social a:focus-visible { outline: 2px solid var(--accent, #1c5cff); outline-offset: 3px; border-radius: 4px; }

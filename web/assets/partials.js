@@ -119,10 +119,22 @@ export function mountChrome(current) {
           Ratchet gates side effects. It does not execute them, holds no vendor credentials,
           and never takes custody of your funds.
         </p>
+        <div class="footer-id">
+        <p class="social" style="margin:0">
+          <a href="https://x.com/ratchetgate" target="_blank" rel="noopener me" aria-label="Ratchet on X">
+            <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            <span>X</span>
+          </a>
+          <a href="https://www.instagram.com/ratchetgate" target="_blank" rel="noopener me" aria-label="Ratchet on Instagram">
+            <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5.5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.6" cy="6.4" r="1.2" fill="currentColor" stroke="none"/></svg>
+            <span>Instagram</span>
+          </a>
+        </p>
         <a class="by-deimos" href="https://deimos.mx" target="_blank" rel="noopener noreferrer">
           <svg viewBox="0 0 100 66" role="img" aria-label="Deimos"> <defs>  <linearGradient id="deimosTri" x1="0.15" y1="0" x2="0.5" y2="1">   <stop offset="0" stop-color="currentColor" stop-opacity="0.55"/>   <stop offset="1" stop-color="currentColor" stop-opacity="0.18"/>  </linearGradient> </defs> <g fill="none" stroke="currentColor" stroke-width="2.2">  <ellipse cx="50" cy="33" rx="45" ry="15" transform="rotate(26 50 33)"/>  <ellipse cx="50" cy="33" rx="45" ry="15" transform="rotate(-26 50 33)"/> </g> <path d="M50 9 L76 55 H24 Z" fill="url(#deimosTri)" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>
           <span>Powered by <b>Deimos.MX</b></span>
         </a>
+        </div>
       </div>
     </div>`;
   }

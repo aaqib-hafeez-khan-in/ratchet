@@ -69,3 +69,28 @@ describe('structured data', () => {
     assert.equal((org.parentOrganization as { name: string }).name, 'Deimos.MX');
   });
 });
+
+describe('the brand accounts', () => {
+  const handles = ['https://x.com/ratchetgate', 'https://www.instagram.com/ratchetgate'];
+
+  /**
+   * Two claims about the same accounts, made in two places for two readers.
+   * `sameAs` is for a crawler that parses JSON-LD; `rel="me"` on a real link is
+   * for one that only reads markup. They have to agree, or the entity claim is
+   * weaker than either would be alone.
+   */
+  test('the footer links match what the schema claims', () => {
+    const partials = readFileSync(
+      new URL('../../web/assets/partials.js', import.meta.url), 'utf8');
+    const org = blocks(read('index.html')).find((b) => b['@type'] === 'Organization');
+    const sameAs = org!.sameAs as string[];
+
+    for (const url of handles) {
+      assert.ok(sameAs.includes(url), `${url} is not claimed in the Organization schema`);
+      assert.ok(partials.includes(url), `${url} is claimed in schema but not linked in the footer`);
+    }
+    assert.match(partials, /rel="noopener me"/,
+      'the profile links must carry rel="me" — it is the same claim in the form a '
+      + 'markup-only crawler can see');
+  });
+});
