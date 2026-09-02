@@ -5,6 +5,7 @@ import { wsOf, actorOf } from '../plugins/auth.js';
 import { audit } from '../../domain/audit.js';
 import { configure as configureAutoRecharge, readSettings,
          history as rechargeHistory, MAX_RECHARGES_PER_DAY } from '../../domain/auto-recharge.js';
+import { rememberCustomer } from '../../domain/billing.js';
 import { CREDIT_PACKS, packById, startCheckout, settleTestCheckout,
          verifyStripeSignature, applyPaymentEvent, stripeConfigured,
          stripeIsTestKey, stripeSetupGap, reverseCredit, startSubscription,
@@ -234,17 +235,28 @@ export default async function billingRoutes(app: FastifyInstance) {
     schema: {
       tags: ['Billing'], operationId: 'startCheckout',
       summary: 'Begin a prepaid credit purchase',
+      description:
+        'Buys prepaid credit. Set save_card to keep the payment method on file so '
+        + 'automatic top-up can use it later — it defaults to false, and the consent '
+        + 'wording for a future charge is shown on Stripe\'s own page.',
       body: {
         type: 'object', required: ['pack_id'], additionalProperties: false,
-        properties: { pack_id: { type: 'string', enum: CREDIT_PACKS.map((p) => p.id) } },
+        properties: {
+          pack_id: { type: 'string', enum: CREDIT_PACKS.map((p) => p.id) },
+          // Default false, and deliberately not inferred from anything. Keeping
+          // somebody's card because it would be convenient for us later is how
+          // a customer finds out from a statement.
+          save_card: { type: 'boolean', default: false },
+        },
       },
       response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
     },
   }, async (req) => {
-    const pack = packById((req.body as { pack_id: string }).pack_id);
+    const body = req.body as { pack_id: string; save_card?: boolean };
+    const pack = packById(body.pack_id);
     if (!pack) throw errors.invalid('Unknown credit pack.');
     try {
-      const s = await startCheckout(wsOf(req), pack);
+      const s = await startCheckout(wsOf(req), pack, { saveCard: body.save_card === true });
       return {
         provider: s.provider, session_id: s.sessionId, url: s.url,
         test_mode: s.testMode, pack_id: pack.id, credit_micros: pack.creditMicros,
@@ -486,6 +498,14 @@ export default async function billingRoutes(app: FastifyInstance) {
       // The payment intent is the durable link a later refund uses to find
       // this credit, so it is recorded now rather than reconstructed later.
       const paymentRef = typeof obj.payment_intent === 'string' ? obj.payment_intent : null;
+
+      // If the buyer asked us to keep the card, this is where we learn where
+      // Stripe put it. Recorded from the signed event rather than the browser
+      // redirect, because this value decides whose card an unattended charge
+      // later lands on.
+      if (typeof obj.customer === 'string' && obj.customer) {
+        await rememberCustomer(workspaceId, obj.customer);
+      }
       const r = await applyPaymentEvent(event.id, 'stripe', workspaceId, pack.creditMicros,
         { pack: pack.id, provider: 'stripe' }, paymentRef);
       return { received: true, applied: r.applied };

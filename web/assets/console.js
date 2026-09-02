@@ -757,6 +757,18 @@ const PANELS = {
           ${plans.credit_packs.map((p) =>
             `<button class="btn secondary" data-pack="${esc(p.id)}">${esc(p.label)}</button>`).join('')}
         </div>
+        <!-- Unticked, and it stays unticked unless somebody ticks it. Keeping a
+             card because it would be convenient for us later is how a customer
+             finds out from a statement. -->
+        <label class="savecard">
+          <input type="checkbox" id="save-card">
+          <span>
+            <strong>Keep this card for automatic top-ups</strong>
+            <span class="small dim">Lets you turn on automatic top-up so the balance never
+              reaches zero mid-run. You choose the amount and when it triggers, and it is
+              capped at three charges a day. Stripe stores the card; we never see it.</span>
+          </span>
+        </label>
       </div>`
       + (ledger.data.length ? `<div style="padding:0 1.25rem"><h3>Ledger</h3></div>`
           + table(['Kind', 'Amount', 'Balance after', 'Effect', 'When'], ledger.data.map((l) => `<tr>
@@ -840,7 +852,11 @@ const PANELS = {
           btn.disabled = true;
           try {
             const co = await api('/billing/checkout', {
-              method: 'POST', body: { pack_id: btn.dataset.pack },
+              method: 'POST',
+              body: {
+                pack_id: btn.dataset.pack,
+                save_card: $('save-card')?.checked === true,
+              },
             });
             if (co.url) { location.href = co.url; return; }
             // Test mode: settle locally, exactly as a provider webhook would.

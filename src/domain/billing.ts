@@ -136,6 +136,7 @@ async function stripePost(
  */
 export function buildCheckoutParams(
   workspaceId: string, pack: CreditPack,
+  opts: { saveCard?: boolean; existingCustomerId?: string | null } = {},
 ): Record<string, string> {
   // Stripe works in the currency's smallest unit; our micros are 1e-6 USD.
   const amountCents = Math.round(pack.priceMicros / 10_000);
@@ -170,7 +171,57 @@ export function buildCheckoutParams(
     'metadata[pack_id]': pack.id,
     'payment_intent_data[metadata][workspace_id]': workspaceId,
     'payment_intent_data[metadata][pack_id]': pack.id,
+    ...savedCard(opts),
   };
+}
+
+/**
+ * Keep the card for later, but only when the buyer said so.
+ *
+ * `setup_future_usage: 'off_session'` is what makes automatic top-up possible
+ * for somebody who never subscribed: it stores the payment method against a
+ * Stripe Customer so it can be charged later with nobody present. Stripe also
+ * surfaces the mandate wording on its own page, which is where consent for a
+ * future charge belongs.
+ *
+ * It is NOT set by default, and that is the whole design. Silently keeping a
+ * card because it was convenient for us is the kind of thing a customer finds
+ * out about from a statement. The caller has to ask.
+ *
+ * A workspace that already has a Stripe Customer — a subscriber, or anyone who
+ * saved a card before — is passed that customer instead of creating another.
+ * Two customers for one workspace would split the payment methods between them,
+ * and auto-recharge would then charge whichever one it happened to find.
+ */
+function savedCard(opts: { saveCard?: boolean; existingCustomerId?: string | null }) {
+  if (!opts.saveCard) return {};
+  return {
+    'payment_intent_data[setup_future_usage]': 'off_session',
+    ...(opts.existingCustomerId
+      ? { customer: opts.existingCustomerId }
+      : { customer_creation: 'always' }),
+  };
+}
+
+/**
+ * Remember which Stripe Customer holds this workspace's saved cards.
+ *
+ * Written from the signed webhook, never from the browser's return: a customer
+ * id arriving on a redirect is a claim by whoever opened the URL, and this one
+ * decides whose card an unattended charge later lands on.
+ *
+ * COALESCE keeps the first customer a workspace ever had. A workspace that
+ * subscribes and later saves a card during a credit purchase must end up with
+ * one customer holding both payment methods, not two holding one each — with
+ * two, automatic top-up would charge whichever it happened to find.
+ */
+export async function rememberCustomer(
+  workspaceId: string, customerId: string,
+): Promise<void> {
+  await getPool().query(
+    `UPDATE workspaces
+        SET stripe_customer_id = COALESCE(stripe_customer_id, $2)
+      WHERE id = $1`, [workspaceId, customerId]);
 }
 
 /**
@@ -340,6 +391,7 @@ export async function applySubscriptionEvent(args: {
  */
 export async function startCheckout(
   workspaceId: string, pack: CreditPack,
+  opts: { saveCard?: boolean } = {},
 ): Promise<CheckoutSession> {
   const gap = stripeSetupGap();
   if (gap) {
@@ -356,12 +408,23 @@ export async function startCheckout(
     };
   }
 
+  // Reuse the workspace's Stripe Customer if it has one, so saving a card does
+  // not create a second customer holding a second set of payment methods.
+  const { rows } = await getPool().query<{ stripe_customer_id: string | null }>(
+    'SELECT stripe_customer_id FROM workspaces WHERE id = $1', [workspaceId]);
+
   const session = await stripePost(
     '/checkout/sessions',
-    buildCheckoutParams(workspaceId, pack),
+    buildCheckoutParams(workspaceId, pack, {
+      saveCard: opts.saveCard,
+      existingCustomerId: rows[0]?.stripe_customer_id ?? null,
+    }),
     // One session per workspace+pack per minute; a double-clicked button
-    // reuses the same session rather than creating a second one.
-    `checkout:${workspaceId}:${pack.id}:${Math.floor(Date.now() / 60_000)}`,
+    // reuses the same session rather than creating a second one. The save-card
+    // choice is part of the key: asking for the same pack with and without it
+    // are different requests and must not collapse into one session.
+    `checkout:${workspaceId}:${pack.id}:${opts.saveCard ? 'save' : 'nosave'}:`
+      + `${Math.floor(Date.now() / 60_000)}`,
   );
 
   return {
