@@ -118,7 +118,28 @@ describe('API key authentication', () => {
     assert.equal(stored.length, 32,
       `expected a 32-byte digest, got ${stored.length} bytes`);
 
-    const secret = ws.key.plaintext.split('_').pop()!;
+    // Key format is rk_<env>_<prefix>_<secret>, and the secret is base64url —
+    // an alphabet that INCLUDES the underscore. `split('_').pop()` therefore does
+    // not recover the secret; it returns whatever follows the last underscore
+    // *inside* the secret. That was this test's long-standing flake, and it was
+    // two bugs rather than one:
+    //
+    //   - 40% of runs silently asserted against a truncated fragment instead of
+    //     the whole secret, so the test was weaker than it claimed on two runs
+    //     in five;
+    //   - 0.41% of runs the fragment was short and hex-shaped enough to appear
+    //     inside the 64-character digest by chance, failing an assertion about a
+    //     property that had never been violated. Three red CI runs were blamed
+    //     on the product.
+    //
+    // Split off the three known leading fields and rejoin the rest, which is how
+    // the product's own KEY_RE reads it.
+    const secret = ws.key.plaintext.split('_').slice(3).join('_');
+    // If extraction ever breaks again it must break loudly. A silently shortened
+    // secret makes every assertion below weaker without failing any of them.
+    assert.ok(secret.length >= 32,
+      `secret extraction produced ${secret.length} chars from "${ws.key.plaintext}" — `
+      + 'the test is broken, not the product');
     assert.equal(stored.toString('hex').includes(secret), false,
       'the raw secret appears inside the stored digest');
     assert.equal(stored.toString('utf8').includes(secret), false,
