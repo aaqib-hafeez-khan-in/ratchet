@@ -3,6 +3,8 @@ import { getPool } from '../../db/pool.js';
 import { errors, ApiError } from '../../lib/errors.js';
 import { wsOf, actorOf } from '../plugins/auth.js';
 import { audit } from '../../domain/audit.js';
+import { configure as configureAutoRecharge, readSettings,
+         history as rechargeHistory, MAX_RECHARGES_PER_DAY } from '../../domain/auto-recharge.js';
 import { CREDIT_PACKS, packById, startCheckout, settleTestCheckout,
          verifyStripeSignature, applyPaymentEvent, stripeConfigured,
          stripeIsTestKey, stripeSetupGap, reverseCredit, startSubscription,
@@ -340,6 +342,80 @@ export default async function billingRoutes(app: FastifyInstance) {
 
   // Signature-verified provider callback. Unauthenticated by design — the HMAC
   // over the raw body IS the authentication.
+  /**
+   * Automatic top-up settings.
+   *
+   * Guarded like every other billing write: a console session or an admin key,
+   * never an agent's key. An agent that could switch on automatic charging of
+   * its owner's card would be able to fund its own overspending, which is the
+   * same failure as an agent raising its own budget ceiling and is refused for
+   * the same reason.
+   */
+  app.get('/billing/auto-recharge', {
+    preHandler: app.requireConsole('workspace:read'),
+    schema: {
+      tags: ['Billing'], operationId: 'getAutoRecharge',
+      summary: 'Automatic top-up settings and recent attempts',
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => {
+    const { rows } = await getPool().query(
+      `SELECT auto_recharge_enabled, auto_recharge_threshold_micros,
+              auto_recharge_pack_id, auto_recharge_disabled_reason,
+              stripe_customer_id
+         FROM workspaces WHERE id = $1`, [req.auth!.workspaceId]);
+    const row = rows[0];
+    if (!row) throw errors.notFound('workspace');
+    const settings = readSettings(row as never);
+    return {
+      enabled: settings.enabled,
+      threshold_micros: settings.thresholdMicros,
+      pack_id: settings.packId,
+      disabled_reason: settings.disabledReason,
+      // Stated plainly, because "enable" will otherwise fail for a reason the
+      // operator cannot see from this screen.
+      card_on_file: row.stripe_customer_id !== null,
+      max_per_day: MAX_RECHARGES_PER_DAY,
+      recent: (await rechargeHistory(req.auth!.workspaceId)).map((r) => ({
+        id: r.id, pack_id: r.packId, amount_micros: r.amountMicros,
+        state: r.state, failure_reason: r.failureReason, created_at: r.createdAt,
+      })),
+    };
+  });
+
+  app.put('/billing/auto-recharge', {
+    preHandler: app.requireConsole('workspace:read'),
+    schema: {
+      tags: ['Billing'], operationId: 'setAutoRecharge',
+      summary: 'Turn automatic top-up on or off',
+      description:
+        'When enabled, credit is bought automatically once the balance falls below '
+        + 'threshold_micros. Requires a card already on file — this endpoint never '
+        + 'collects card details. Capped at a small number of charges a day whatever '
+        + 'the settings say, so a runaway loop drains an allowance rather than a card.',
+      body: {
+        type: 'object', required: ['enabled'], additionalProperties: false,
+        properties: {
+          enabled: { type: 'boolean' },
+          threshold_micros: { type: 'integer', minimum: 1 },
+          pack_id: { type: 'string', enum: CREDIT_PACKS.map((p) => p.id) },
+        },
+      },
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => {
+    const b = req.body as { enabled: boolean; threshold_micros?: number; pack_id?: string };
+    const s = await configureAutoRecharge(req.auth!.workspaceId, {
+      enabled: b.enabled,
+      thresholdMicros: b.threshold_micros,
+      packId: b.pack_id,
+    });
+    return {
+      enabled: s.enabled, threshold_micros: s.thresholdMicros,
+      pack_id: s.packId, disabled_reason: s.disabledReason,
+    };
+  });
+
   app.post('/billing/webhook/stripe', {
     config: { rawBody: true },
     schema: {
@@ -413,6 +489,24 @@ export default async function billingRoutes(app: FastifyInstance) {
       const r = await applyPaymentEvent(event.id, 'stripe', workspaceId, pack.creditMicros,
         { pack: pack.id, provider: 'stripe' }, paymentRef);
       return { received: true, applied: r.applied };
+    }
+
+    // An automatic top-up. Credit is granted here rather than by the worker
+    // that made the charge, so there is exactly one path that creates money
+    // and it is the signed, idempotent one a human checkout already uses.
+    if (event.type === 'payment_intent.succeeded' && obj.metadata?.auto_recharge === 'true') {
+      const workspaceId = obj.metadata?.workspace_id;
+      const packId = obj.metadata?.pack_id;
+      const pack = packId ? packById(packId) : undefined;
+      if (!workspaceId || !pack) {
+        reply.code(400);
+        return { error: { code: 'invalid_request',
+                          message: 'Auto-recharge event is missing workspace_id or pack_id metadata.' } };
+      }
+      const r = await applyPaymentEvent(event.id, 'stripe', workspaceId, pack.creditMicros,
+        { pack: pack.id, provider: 'stripe', auto_recharge: true },
+        typeof obj.id === 'string' ? obj.id : null);
+      return { received: true, applied: r.applied, auto_recharge: true };
     }
 
     // ---- money back out --------------------------------------------------

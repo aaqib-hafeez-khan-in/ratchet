@@ -20,6 +20,7 @@ import { deliverDue } from './webhooks.js';
 import { watchChainOnce, expireQuotes } from './chain.js';
 import { deliverEmails, generateAlerts } from './email.js';
 import { checkReplication } from './replication.js';
+import { runRecharges } from './recharge.js';
 import { startActivityFlusher, stopActivityFlusher } from '../domain/activity.js';
 import { recordOk, recordFailure, staleAfterMs } from './heartbeat.js';
 import { randomUUID } from 'node:crypto';
@@ -147,6 +148,12 @@ async function main() {
   // the request path: a median over a growing history is exactly the kind of
   // aggregate that must never sit in front of a decision.
   loop('surge-baseline', 15 * 60_000, () => refreshSurgeBaselines());
+
+  // Money, so: infrequent, and the only loop here that spends any. Five
+  // minutes is deliberate — a balance that just crossed a threshold is not an
+  // emergency, and a tight loop around a payment API is how a bug becomes a
+  // bank statement.
+  loop('credit-recharge', 5 * 60_000, () => runRecharges());
 
   // Watching the database that is watching everything else. A standby froze for
   // over half an hour with every surface reporting health, and only a migration

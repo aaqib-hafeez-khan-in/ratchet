@@ -143,12 +143,36 @@ route guards enforce, and the pricing page renders that rather than a typed-out 
 test asserts the published set equals the enforced set for all three plans. A tier table
 that disagrees with the code is the one kind of marketing copy that is also a broken promise.
 
-### Still open: overage is refused, never billed
+### Overage: refused by default, topped up on request (2 Sep 2026)
 
-Worth stating because it is the obvious next question. Beyond the included allowance,
-spending draws on **prepaid credit** — and when the balance is zero the effect is
-**refused**, on every plan including Scale. Nothing is ever billed by surprise, which is the
-right default, but it also means a heavy customer hits a wall instead of paying more.
-Capturing that revenue needs auto-recharge or invoiced overage, and both are product
-decisions rather than missing code.
+Beyond the included allowance, spending draws on **prepaid credit**, and at a zero balance
+the effect is **refused** — on every plan including Scale. That stays the default: nothing
+is ever billed by surprise.
+
+**Automatic top-up is the opt-in for customers who would rather not hit the wall at 3am.**
+Below a threshold they choose, a credit pack they choose is bought from a card already on
+file.
+
+This is the only code in the repository that moves money with no human present, so the
+guards are worth listing:
+
+| Guard | Why |
+|---|---|
+| Off unless explicitly enabled | There is no default that charges anybody |
+| A card must already be on file | We never collect card details for this |
+| Unique index on `(workspace_id, trigger_key)` | At-most-once, enforced by the database — the same way the product enforces its own guarantee |
+| Stripe idempotency key = the row id | A retried HTTP request cannot become a second charge |
+| Hard cap of **3 charges a day** | A runaway loop drains an allowance, not a bank account |
+| A decline **disables** and explains | Retrying a decline is how a card gets locked and the customer gets a fraud alert with our name on it |
+| Threshold must be below the pack size | Otherwise every top-up immediately leaves the balance under the threshold again |
+| Runs in the worker, never in `begin` | A network call inside the gate transaction would slow every request, and a rollback after a successful charge would take money for credit never granted |
+| Credit granted by the **signed webhook** | One path creates money, and it is the idempotent one a human checkout already uses |
+| Only a console session or admin key may enable it | An agent that could switch this on could fund its own overspending — the same refusal as an agent raising its own budget ceiling |
+
+Tested at the level that matters: **eight concurrent claims produce exactly one charge**, and
+a workspace with no card, a disabled setting, or a spent daily cap claims nothing at all.
+
+**Not yet exercised against a live card**, which is stated here rather than assumed. The
+charge path is `payment_intents` with `off_session` and `confirm`, and it has never taken
+real money. Enabling it on a production workspace is deliberately a human action.
 

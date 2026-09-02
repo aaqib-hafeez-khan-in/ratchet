@@ -174,6 +174,55 @@ export function buildCheckoutParams(
 }
 
 /**
+ * Charge a card that is already on file, with nobody present.
+ *
+ * The only place in this codebase that moves money without a human in the loop,
+ * so the parameters are deliberate:
+ *
+ *   `off_session: true` tells Stripe there is no one to answer a 3-D Secure
+ *   prompt. Without it a card needing authentication silently succeeds in a way
+ *   that later reverses; with it Stripe fails immediately and says so, which is
+ *   the outcome we can actually act on.
+ *
+ *   `confirm: true` charges in one call rather than creating an intent that
+ *   something else must remember to confirm. One call is one thing to make
+ *   idempotent.
+ *
+ *   `idempotencyKey` is the recharge row id, which exists in our database
+ *   before this is called and is unique by index. A retried request — a
+ *   timeout, a worker restart mid-flight — reaches Stripe with the same key and
+ *   returns the original charge instead of making a second one.
+ *
+ * The metadata is not optional. Credit is granted by the signed webhook using
+ * exactly these fields, the same path a human checkout takes; without them a
+ * successful charge could not be attributed and the customer would be billed
+ * for credit they never received.
+ */
+export async function chargeSavedCard(args: {
+  workspaceId: string;
+  customerId: string;
+  pack: CreditPack;
+  idempotencyKey: string;
+}): Promise<{ paymentIntentId: string; status: string }> {
+  const gap = stripeSetupGap();
+  if (gap) throw new StripeError(400, 'stripe_not_configured', gap);
+
+  const intent = await stripePost('/payment_intents', {
+    amount: String(Math.round(args.pack.priceMicros / 10_000)),
+    currency: 'usd',
+    customer: args.customerId,
+    off_session: 'true',
+    confirm: 'true',
+    description: `Ratchet automatic top-up — ${args.pack.label}`,
+    'metadata[workspace_id]': args.workspaceId,
+    'metadata[pack_id]': args.pack.id,
+    'metadata[auto_recharge]': 'true',
+  }, args.idempotencyKey);
+
+  return { paymentIntentId: String(intent.id), status: String(intent.status) };
+}
+
+/**
  * Start a subscription to a paid plan.
  *
  * Separate from credit purchases because the two are genuinely different
