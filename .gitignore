@@ -19,3 +19,4 @@ backups/
 *.enc
 *.age
 env.enc
+.claude/launch.json

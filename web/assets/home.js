@@ -221,3 +221,35 @@ tabs(document.getElementById('int-tabs'), (name) => {
 // moved, which read as two different sites stitched together. The stage is
 // skipped: it already drives its own scroll animation and would fight this one.
 revealSections({ skip: ['.stage'] });
+
+/* ── the counterfactual, scrubbed by scroll ───────────────────────────────
+   The landing page's short version of /benchmark. Both read the same seeded
+   run from the same module, so the number quoted here cannot drift from the
+   number the benchmark page proves. */
+(async () => {
+  const stage = document.getElementById('counterfactual');
+  const canvas = document.getElementById('cfLanes');
+  if (!stage || !canvas) return;
+
+  const cf = await import('/assets/counterfactual.js');
+  const draw = cf.fitted(canvas);
+  const dup = document.getElementById('cfDup');
+  const money = document.getElementById('cfMoney');
+  const gated = document.getElementById('cfGated');
+  const hint = document.getElementById('cfHint');
+
+  cf.onScroll(() => {
+    const p = cf.scrollProgress(stage);
+    draw((ctx, w, h) => cf.drawLanes(ctx, w, h, p, {
+      quiet: cf.token('--text-faint', '#868d99'),
+      leak: cf.token('--stop', '#b0341f'),
+      gate: cf.token('--accent', '#1c5cff'),
+    }));
+    const t = cf.tally(p);
+    dup.textContent = String(t.duplicates);
+    money.textContent = cf.money(t.overpaid);
+    gated.textContent = '$0';
+    hint.textContent = t.done >= cf.JOBS
+      ? `${cf.JOBS} of ${cf.JOBS} · complete` : `${t.done} of ${cf.JOBS}`;
+  });
+})();

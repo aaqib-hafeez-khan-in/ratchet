@@ -564,6 +564,43 @@ Reached the vendor: 20. Held back: 80.</code></pre>
   </div>
 </section>
 
+<!-- The counterfactual, measured.
+     Placed immediately after the receipts argument on purpose: that section ends
+     by admitting "trust us, we stopped it" is unfalsifiable, and this is the
+     falsifiable version. Same seeded run as /benchmark, same module, so the two
+     pages cannot drift apart. -->
+<section class="stage" id="counterfactual" aria-label="The same job, with and without the gate">
+  <div class="stage-pin">
+    <div class="wrap cf-wrap">
+      <div class="cf-head">
+        <div>
+          <p class="eyebrow">Measured, not asserted</p>
+          <h2>Forty refunds. One run gated, one not.</h2>
+        </div>
+        <span class="run-hint" id="cfHint">scroll to run</span>
+      </div>
+      <p class="dim" style="max-width:58ch">
+        The vendor performs every request it receives; a quarter of the responses are lost
+        coming back. The agent retries, because retrying is correct. Each mark is a refund the
+        vendor really made.
+      </p>
+      <div class="lanes-key">
+        <span><i class="sw leak"></i> without the gate</span>
+        <span><i class="sw gate"></i> with the gate</span>
+      </div>
+      <canvas id="cfLanes" class="cf-lanes" role="img"
+        aria-label="Forty lanes per run. Without the gate, thirteen extra refunds are performed across eleven customers. With the gate, every lane holds exactly one."></canvas>
+      <div class="cf-read">
+        <div><span class="k">Duplicate refunds</span><span class="v bad" id="cfDup">0</span></div>
+        <div><span class="k">Paid out twice</span><span class="v bad" id="cfMoney">$0</span></div>
+        <div><span class="k">With the gate</span><span class="v good" id="cfGated">$0</span></div>
+        <div class="cf-cta"><a class="btn secondary" href="/benchmark">See the whole benchmark</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
 <!-- A reader asked whether the page runs highest value to lowest. It did not —
      it ran as an argument, which convinces a sceptic and disorients somebody who
      arrived thirty seconds ago. Rather than reorder the sections and lose the

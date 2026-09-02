@@ -1266,3 +1266,184 @@ ul.checks li::before {
 .savecard input { margin-top: 0.2rem; width: 1rem; height: 1rem; cursor: pointer; }
 .savecard strong { display: block; font-weight: 600; margin-bottom: 0.2rem; }
 .savecard .small { display: block; line-height: 1.5; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Benchmark page, and the counterfactual block on the landing page.
+
+   Everything here is measurement made visible, so the colour rule is strict:
+   --accent is the gated run, --stop is money that moved twice, and nothing
+   else earns either. The pinned sections reuse .stage / .stage-pin so a reader
+   who has already scrolled the explainer recognises the gesture.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.figs {
+  display: grid; gap: 1px; margin-top: 2.5rem;
+  grid-template-columns: 1fr;
+  background: var(--border); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+@media (min-width: 54rem) { .figs { grid-template-columns: repeat(3, 1fr); } }
+.fig { background: var(--bg-raised); padding: 1.5rem 1.35rem 1.35rem; }
+.fig .k {
+  display: block; font: 500 0.6875rem/1 var(--mono);
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint);
+  margin-bottom: 0.75rem;
+}
+.fig .v {
+  display: block; font-size: clamp(2.4rem, 5.5vw, 3.25rem); font-weight: 700;
+  line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums;
+}
+.fig .n { display: block; margin-top: 0.6rem; font-size: 0.875rem; color: var(--text-dim); line-height: 1.4; }
+.fig.bad .v { color: var(--stop); }
+.fig.good .v { color: var(--accent); }
+
+.params { display: grid; gap: 1.25rem 2rem; margin: 2rem 0 0;
+  grid-template-columns: repeat(2, 1fr); }
+@media (min-width: 60rem) { .params { grid-template-columns: repeat(4, 1fr); } }
+.params > div { border-top: 2px solid var(--text); padding-top: 0.75rem; }
+.params dt { font: 500 1.4rem/1 var(--mono); font-variant-numeric: tabular-nums; }
+.params dd { margin: 0.4rem 0 0; font-size: 0.9375rem; color: var(--text-dim); line-height: 1.45; }
+
+/* -- the run ------------------------------------------------------------- */
+.run-wrap, .stack-wrap, .race-wrap { width: 100%; }
+.run-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.6rem 1.25rem; }
+.run-head h2 { margin: 0; }
+.run-hint, .stack-total .n {
+  font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.lanes-key { display: flex; gap: 1.5rem; margin: 1rem 0 0.6rem; flex-wrap: wrap; }
+.lanes-key span {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.sw { width: 0.5rem; height: 0.5rem; border-radius: 1px; flex: none; }
+.sw.leak { background: var(--stop); }
+.sw.gate { background: var(--accent); }
+.lanes { display: block; width: 100%; height: clamp(8rem, 30vh, 19rem); }
+
+.tallies {
+  display: grid; gap: 1px; margin-top: 1.25rem;
+  grid-template-columns: repeat(2, 1fr);
+  background: var(--border); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+.tallies > div { background: var(--bg-raised); padding: 0.75rem 0.9rem; }
+.tallies .k {
+  display: block; font: 500 0.5625rem/1 var(--mono); letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--text-faint); margin-bottom: 0.4rem;
+}
+.tallies .v {
+  font: 500 clamp(1.1rem, 2.6vw, 1.5rem)/1 var(--mono);
+  font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+}
+.tallies .v.bad { color: var(--stop); }
+.tallies .v.good { color: var(--accent); }
+@media (min-width: 50rem) { .tallies { grid-template-columns: repeat(4, 1fr); } }
+
+/* -- the money, stacked -------------------------------------------------- */
+.stack-figure { display: flex; align-items: flex-end; gap: clamp(1rem, 4vw, 3rem); margin-top: 2rem; flex-wrap: wrap; }
+.stack-bars { display: flex; align-items: flex-end; gap: 0.4rem; height: clamp(7rem, 22vh, 12rem); flex: 1 1 18rem; }
+.stack-bars .blk {
+  position: relative; flex: 1 1 0; min-width: 0; height: 18%;
+  background: var(--border); border-radius: 2px;
+  transition: height 0.45s cubic-bezier(0.16, 0.84, 0.3, 1), background 0.3s;
+}
+.stack-bars .blk.on { background: var(--stop); height: 100%; }
+.stack-bars .blk b {
+  position: absolute; inset-inline: 0; bottom: calc(100% + 0.35rem);
+  font: 500 0.5rem/1 var(--mono); letter-spacing: 0.04em; text-align: center;
+  color: var(--text-faint); opacity: 0; transition: opacity 0.3s;
+  white-space: nowrap; transform: rotate(-90deg) translateX(0.4rem); transform-origin: bottom center;
+}
+.stack-bars .blk.on b { opacity: 0.75; }
+.stack-total { flex: 0 0 auto; }
+.stack-total .k {
+  display: block; font: 500 0.625rem/1 var(--mono); letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--text-faint); margin-bottom: 0.5rem;
+}
+.stack-total strong {
+  display: block; font-size: clamp(2.2rem, 6vw, 3.25rem); line-height: 1;
+  letter-spacing: -0.03em; color: var(--stop); font-variant-numeric: tabular-nums;
+}
+.stack-total .n { display: block; margin-top: 0.6rem; text-transform: none; letter-spacing: 0.02em; }
+
+/* -- the race ------------------------------------------------------------ */
+.race { display: grid; gap: 1.1rem; margin-top: 2rem; }
+.race-lane { display: grid; grid-template-columns: 4.5rem 1fr 5.5rem; gap: 0.85rem; align-items: center; }
+.race-label { font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); }
+.race-track { height: 1.75rem; background: var(--bg-sunk); border: 1px solid var(--border); border-radius: 3px; overflow: hidden; }
+.race-fill { height: 100%; width: 0; border-radius: 2px; }
+.race-fill.leak { background: var(--stop); }
+.race-fill.gate { background: var(--accent); }
+.race-fill.gate.done { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 55%, #fff); }
+.race-ms { font: 500 0.8125rem/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--text-dim); text-align: right; }
+.race-verdict { margin-top: 1.25rem; min-height: 1.5em; font-size: 0.9375rem; color: var(--text-dim); }
+
+/* -- round trips --------------------------------------------------------- */
+.trips { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 2rem; }
+.trips .trip {
+  width: 1.6rem; height: 1.6rem; border-radius: 3px; background: var(--accent);
+  transition: opacity 0.4s, transform 0.4s cubic-bezier(0.16, 0.84, 0.3, 1);
+}
+.trips .trip.cut { background: var(--stop); }
+.trips .trip.cut.gone { opacity: 0.12; transform: scale(0.55); }
+.trips-caption { margin-top: 1rem; font: 500 0.875rem/1.5 var(--mono); color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.trips-caption strong { color: var(--accent); }
+
+/* -- horizontal bars ----------------------------------------------------- */
+.bars { display: grid; gap: 1.1rem; margin-top: 2rem; }
+.bar-row { display: grid; grid-template-columns: minmax(6.5rem, 10rem) 1fr; gap: 1rem; align-items: center; }
+.bar-label { font-size: 0.875rem; color: var(--text-dim); }
+.bar-track { height: 2rem; background: var(--bg-sunk); border: 1px solid var(--border); border-radius: 3px; overflow: hidden; }
+.bar-fill { height: 100%; width: 0; display: flex; align-items: center; border-radius: 2px; transition: width 1s cubic-bezier(0.16, 0.84, 0.3, 1); }
+.bar-fill.gate { background: var(--accent); }
+.bar-fill.quiet { background: var(--border-strong); }
+.bar-fill span { padding-left: 0.7rem; font: 500 0.8125rem/1 var(--mono); font-variant-numeric: tabular-nums; color: #fff; white-space: nowrap; }
+.bar-fill.quiet span { color: var(--text); }
+
+/* -- caveats ------------------------------------------------------------- */
+.caveats {
+  display: grid; gap: 1px; margin-top: 2rem; grid-template-columns: 1fr;
+  background: var(--border); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+.caveat { background: var(--bg-raised); padding: 1.35rem clamp(1.1rem, 3vw, 1.75rem); }
+.caveat h3 { margin: 0 0 0.4rem; font-size: 1rem; }
+.caveat p { margin: 0; font-size: 0.9375rem; color: var(--text-dim); }
+@media (min-width: 54rem) { .caveats { grid-template-columns: repeat(2, 1fr); } }
+
+.tscroll { overflow-x: auto; margin-top: 2rem; }
+table.grid { border-collapse: collapse; width: 100%; min-width: 30rem; }
+table.grid th, table.grid td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.9375rem; }
+table.grid thead th { font: 500 0.625rem/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-faint); }
+table.grid tbody th { font-weight: 400; color: var(--text-dim); }
+table.grid td { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+table.grid td.bad { color: var(--stop); }
+table.grid td.good { color: var(--accent); }
+
+/* -- the landing-page block ---------------------------------------------- */
+.cf-wrap { width: 100%; }
+.cf-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.75rem 1.5rem; }
+.cf-lanes { display: block; width: 100%; height: clamp(6.5rem, 24vh, 14rem); margin-top: 1.25rem; }
+.cf-read { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1.25rem 2.5rem; margin-top: 1.5rem; }
+.cf-read div { display: flex; flex-direction: column; gap: 0.4rem; }
+.cf-read .k { font: 500 0.625rem/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint); }
+.cf-read .v { font: 500 clamp(1.6rem, 4.5vw, 2.5rem)/1 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+.cf-read .v.bad { color: var(--stop); }
+.cf-read .v.good { color: var(--accent); }
+.cf-read .cf-cta { margin-left: auto; }
+
+@media (max-width: 40rem) {
+  .race-lane { grid-template-columns: 3.5rem 1fr 4.25rem; gap: 0.6rem; }
+  .stack-bars .blk b { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stack-bars .blk, .race-fill, .bar-fill, .trips .trip { transition: none; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .bar-fill.quiet span { color: var(--bg); }
+}

@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The same job, twice — Ratchet benchmark</title>
+<meta name="description" content="Forty refunds, run with the gate and without it, against the same seeded failure sequence. 13 duplicate refunds prevented, $3,120 not paid out twice — and the gate costs about as much as an empty HTTP request.">
+<link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/mark.svg">
+<link rel="canonical" href="https://ratchetgate.com/benchmark">
+<meta name="theme-color" content="#1c5cff">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Ratchet">
+<meta property="og:title" content="The same job, twice — Ratchet benchmark">
+<meta property="og:description" content="Forty refunds, run with the gate and without it, against the same seeded failure sequence. 13 duplicate refunds prevented, $3,120 not paid out twice.">
+<meta property="og:url" content="https://ratchetgate.com/benchmark">
+<meta property="og:image" content="https://ratchetgate.com/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="The same job, twice — Ratchet benchmark">
+<meta name="twitter:description" content="Forty refunds, run with the gate and without it, against the same seeded failure sequence. 13 duplicate refunds prevented, $3,120 not paid out twice.">
+<meta name="twitter:image" content="https://ratchetgate.com/assets/og.png">
+<link rel="alternate" type="text/plain" href="/llms.txt" title="Ratchet for LLMs — the whole service in one file">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Benchmark &middot; 2 September 2026</p>
+    <h1>The same job, run twice.</h1>
+    <p class="lede" style="max-width:56ch">
+      Everything about an effect gate is a counterfactual — <em>the charge that did not
+      happen</em>. You cannot see it, so the only honest way to make the claim is to run the
+      identical job with the gate and without it, and count what a third party actually
+      received.
+    </p>
+
+    <div class="figs" id="headline">
+      <div class="fig bad">
+        <span class="k">Without the gate</span>
+        <strong class="v" data-count="53">53</strong>
+        <span class="n">refunds the vendor performed, for 40 customers</span>
+      </div>
+      <div class="fig good">
+        <span class="k">With the gate</span>
+        <strong class="v" data-count="40">40</strong>
+        <span class="n">refunds the vendor performed, for 40 customers</span>
+      </div>
+      <div class="fig bad">
+        <span class="k">Paid out twice</span>
+        <strong class="v" data-count="3120" data-prefix="$">$3,120</strong>
+        <span class="n">32.5% of a job worth $9,600</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sunk">
+  <div class="wrap reading">
+    <p class="eyebrow">The setup</p>
+    <h2>A vendor that always does the work, and sometimes fails to say so.</h2>
+    <p>
+      A local server stands in for a payments API. It records every refund it
+      <strong>actually performs</strong>, and that record is the ground truth — not what the
+      agent believes, and not what Ratchet reports.
+    </p>
+    <p>
+      The failure simulated is the one people under-model: the request arrives, the vendor
+      executes it, and <strong>the response is lost on the way back</strong>. The caller sees a
+      timeout and cannot tell it apart from a request that never landed. Retrying is correct
+      behaviour. Retrying is also what charges the customer twice.
+    </p>
+  </div>
+  <div class="wrap">
+    <dl class="params">
+      <div><dt>40</dt><dd>refunds of $240.00, one per customer</dd></div>
+      <div><dt>25%</dt><dd>of responses lost in flight</dd></div>
+      <div><dt>3</dt><dd>retries, which is what a well-built agent does</dd></div>
+      <div><dt>1</dt><dd>seeded failure sequence, identical in both runs</dd></div>
+    </dl>
+    <p class="dim" style="max-width:60ch;margin-top:1.25rem">
+      Request #3 fails identically in both runs. Without that, the comparison measures luck.
+    </p>
+  </div>
+</section>
+
+<!-- ── the run, scrubbed by scroll ─────────────────────────────────────── -->
+<section class="stage" id="run" aria-label="The run, job by job">
+  <div class="stage-pin">
+    <div class="wrap run-wrap">
+      <div class="run-head">
+        <h2>Forty jobs, both ways.</h2>
+        <span class="run-hint" id="runHint">scroll to run</span>
+      </div>
+      <div class="lanes-key">
+        <span><i class="sw leak"></i> without the gate</span>
+        <span><i class="sw gate"></i> with the gate</span>
+      </div>
+      <canvas id="lanes" class="lanes" role="img"
+        aria-label="Forty lanes per run. Without the gate eleven customers receive more than one refund and one receives four, totalling 53 vendor executions. With the gate every lane holds exactly one."></canvas>
+      <div class="tallies">
+        <div><span class="k">Vendor calls &middot; ungated</span><span class="v bad" id="tUn">0</span></div>
+        <div><span class="k">Vendor calls &middot; gated</span><span class="v good" id="tGa">0</span></div>
+        <div><span class="k">Duplicates</span><span class="v bad" id="tDup">0</span></div>
+        <div><span class="k">Overpaid</span><span class="v bad" id="tMoney">$0</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── the money, stacked ──────────────────────────────────────────────── -->
+<section class="stage" id="stack" aria-label="The money that moved twice">
+  <div class="stage-pin">
+    <div class="wrap stack-wrap">
+      <p class="eyebrow">What it cost</p>
+      <h2>Thirteen refunds that should not exist.</h2>
+      <p class="dim" style="max-width:52ch">
+        Eleven customers were refunded more than once. One was refunded
+        <strong>four times</strong>. Every block is $240 of somebody's money, moved again for
+        work the vendor had already done.
+      </p>
+      <div class="stack-figure">
+        <div class="stack-bars" id="stackBars" aria-hidden="true"></div>
+        <div class="stack-total">
+          <span class="k">Overpaid</span>
+          <strong id="stackTotal">$0</strong>
+          <span class="n" id="stackNote">&nbsp;</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reading">
+    <p class="eyebrow">The result</p>
+    <h2>What the vendor received</h2>
+  </div>
+  <div class="wrap">
+    <div class="tscroll">
+      <table class="grid">
+        <thead>
+          <tr><th scope="col">Measure</th><th scope="col">Without the gate</th><th scope="col">With the gate</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Refunds the vendor performed</th><td class="bad">53</td><td class="good">40</td></tr>
+          <tr><th scope="row">Distinct customers refunded</th><td>40</td><td>40</td></tr>
+          <tr><th scope="row">Duplicate refunds</th><td class="bad">13</td><td class="good">0</td></tr>
+          <tr><th scope="row">Money moved</th><td class="bad">$12,720.00</td><td class="good">$9,600.00</td></tr>
+          <tr><th scope="row">Money that should have moved</th><td>$9,600.00</td><td>$9,600.00</td></tr>
+          <tr><th scope="row">Overpaid</th><td class="bad">$3,120.00</td><td class="good">$0.00</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="dim" style="max-width:60ch;margin-top:1.25rem">
+      Identical across consecutive runs, because the failure sequence is seeded. The
+      correctness result is not a sample — it is deterministic.
+    </p>
+  </div>
+</section>
+
+<!-- ── the race ────────────────────────────────────────────────────────── -->
+<section class="stage sunk" id="race" aria-label="Latency before and after">
+  <div class="stage-pin">
+    <div class="wrap race-wrap">
+      <p class="eyebrow">Getting there</p>
+      <h2>The p95, before and after.</h2>
+      <p class="dim" style="max-width:52ch">
+        Both bars run in real time. The slow one is a request waiting on database round trips
+        that could not overlap; the fast one is the same request after five of them were
+        removed.
+      </p>
+      <div class="race" id="raceTrack">
+        <div class="race-lane">
+          <span class="race-label">before</span>
+          <div class="race-track"><div class="race-fill leak" id="raceBefore"></div></div>
+          <span class="race-ms" id="msBefore">0 ms</span>
+        </div>
+        <div class="race-lane">
+          <span class="race-label">after</span>
+          <div class="race-track"><div class="race-fill gate" id="raceAfter"></div></div>
+          <span class="race-ms" id="msAfter">0 ms</span>
+        </div>
+      </div>
+      <p class="race-verdict" id="raceVerdict">&nbsp;</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reading">
+    <p class="eyebrow">What was actually slow</p>
+    <h2>The gate was never CPU-bound. It was waiting on the database, in series.</h2>
+    <p>
+      Signing, canonicalisation and hashing total about <strong>0.2&nbsp;ms</strong>. Everything
+      else was sequential awaited round trips that cannot overlap. Counting them beat guessing
+      at them.
+    </p>
+  </div>
+  <div class="wrap">
+    <div class="trips" id="trips" aria-hidden="true"></div>
+    <p class="trips-caption"><span id="tripsLabel">16</span> queries per replay &rarr; <strong>9</strong></p>
+    <div class="tscroll" style="margin-top:2rem">
+      <table class="grid">
+        <thead><tr><th scope="col">What was happening</th><th scope="col">Saved</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Authentication ran <strong>twice per request</strong> — the rate limiter needed the caller's plan, then each route guard authenticated the identical string again</th><td>1 query + HMAC</td></tr>
+          <tr><th scope="row">A duplicate asked about the same row three times: a pre-check, an INSERT guaranteed to conflict, and a re-SELECT to learn what the row said</th><td>2 queries</td></tr>
+          <tr><th scope="row">Opening a transaction took two round trips before doing anything — <code>BEGIN</code> and <code>SET LOCAL</code> now travel together</th><td>1 round trip</td></tr>
+          <tr><th scope="row">The surge baseline was read for most new effects to compute a number nothing read</th><td>1 query</td></tr>
+          <tr><th scope="row">Reserving spend issued nine sequential statements — now one <code>INSERT … unnest … ON CONFLICT DO UPDATE … RETURNING</code></th><td>8 statements</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="sunk">
+  <div class="wrap reading">
+    <p class="eyebrow">What it costs</p>
+    <h2>Asking permission is indistinguishable from an empty HTTP request.</h2>
+    <p>
+      Measured warm, inside the datacentre, with <code>performance.now()</code>. The comparison
+      that matters is the last row: a request that does nothing at all.
+    </p>
+  </div>
+  <div class="wrap">
+    <div class="bars" id="latency">
+      <div class="bar-row"><span class="bar-label">begin &middot; new effect</span>
+        <div class="bar-track"><div class="bar-fill gate" data-pct="94"><span>2.25 ms</span></div></div></div>
+      <div class="bar-row"><span class="bar-label">begin &middot; replay</span>
+        <div class="bar-track"><div class="bar-fill gate" data-pct="97"><span>2.31 ms</span></div></div></div>
+      <div class="bar-row"><span class="bar-label">GET /healthz</span>
+        <div class="bar-track"><div class="bar-fill quiet" data-pct="100"><span>2.38 ms</span></div></div></div>
+    </div>
+    <p class="dim" style="max-width:60ch;margin-top:1.5rem">
+      The gate does less work than the network it arrives over.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reading">
+    <p class="eyebrow">An unexpected result</p>
+    <h2>The gated job finished faster than the ungated one.</h2>
+    <p>
+      By <strong>64–269&nbsp;ms per job</strong>, across three runs. That is not the gate being
+      free — it is a prevented duplicate being worth more than the gate costs. Every duplicate
+      refused is a vendor call that never happens, and in this workload a failing vendor call
+      costs a four-second timeout against roughly 60&nbsp;ms to ask permission.
+    </p>
+    <p>
+      <strong>This depends on the vendor being slow.</strong> Against a fast vendor the gate
+      would add net time. It is stated because an earlier run showed the same effect, it was
+      nearly reported, and the next run reversed the sign. It was variance then. It became a
+      finding only when it held across three runs with a mechanism that explains it.
+    </p>
+  </div>
+</section>
+
+<section class="sunk">
+  <div class="wrap reading">
+    <p class="eyebrow">What this does not show</p>
+    <h2>The parts a benchmark page usually leaves out.</h2>
+  </div>
+  <div class="wrap">
+    <div class="caveats">
+      <div class="caveat">
+        <h3>A 25% loss rate is severe</h3>
+        <p>It was chosen to produce a legible result in 40 jobs, not because it is typical. At
+          1% the duplicate count falls roughly proportionally. The mechanism is identical; only
+          the frequency changes.</p>
+      </div>
+      <div class="caveat">
+        <h3>This vendor has no idempotency of its own</h3>
+        <p>Against a vendor that supports idempotency keys and is used correctly, the duplicate
+          would be refused at the far end instead. Ratchet issues that key too — but the point
+          of the gate is the vendors that do not offer one, which is most of them.</p>
+      </div>
+      <div class="caveat">
+        <h3>Some of the p95 gain is a warm machine</h3>
+        <p>The first version of this benchmark reported the gate costing 25&nbsp;ms. It was
+          measuring a suspended machine waking up. That confound is named here rather than
+          claimed as credit.</p>
+      </div>
+      <div class="caveat">
+        <h3>Exactly-once is not claimed, here or anywhere</h3>
+        <p>It is not achievable. Ratchet guarantees <strong>at-most-once initiation</strong>,
+          enforced by a database unique index rather than by application logic — and when a
+          lease expires unreported, the outcome stays <code>indeterminate</code> rather than
+          being guessed.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reading">
+    <p class="eyebrow">Reproduce it</p>
+    <h2>The harness is in the repository.</h2>
+    <p>
+      Same seed, same sequence, same result. The vendor's own execution log is the ground
+      truth, and it is printed at the end of every run.
+    </p>
+    <pre><code># against a local stack, or set RATCHET_URL for production
+npm run bench:ab</code></pre>
+    <div class="actions">
+      <a class="btn" href="/console">Start free</a>
+      <a class="btn secondary" href="/docs">Read the documentation</a>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer class="site"></footer>
+
+<script type="module" src="/assets/benchmark.js"></script>
+</body>
+</html>
