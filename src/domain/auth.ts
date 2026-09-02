@@ -91,6 +91,14 @@ export interface AuthContext {
   keyDailyBudgetMicros: number | null;
   plan: ReturnType<typeof planFor>;
   workspaceStatus: 'active' | 'suspended';
+  /**
+   * True for every workspace that existed before capability gating (migration
+   * 029). Such a workspace keeps what it could already do, whatever its plan
+   * says, because taking a working feature away from somebody already using it
+   * is a demotion — the mistake email verification came within one backfill of
+   * making. Never set on a new workspace.
+   */
+  legacyCapabilities: boolean;
 }
 
 export async function authenticate(token: string): Promise<AuthContext> {
@@ -101,10 +109,10 @@ export async function authenticate(token: string): Promise<AuthContext> {
   const { rows } = await getPool().query<{
     id: string; workspace_id: string; secret_hash: Buffer; scopes: string[];
     daily_budget_micros: number | null; revoked_at: Date | null;
-    plan: string; status: 'active' | 'suspended';
+    plan: string; status: 'active' | 'suspended'; legacy_capabilities: boolean;
   }>(
     `SELECT k.id, k.workspace_id, k.secret_hash, k.scopes, k.daily_budget_micros,
-            k.revoked_at, w.plan, w.status
+            k.revoked_at, w.plan, w.status, w.legacy_capabilities
        FROM api_keys k JOIN workspaces w ON w.id = k.workspace_id
       WHERE k.prefix = $1`,
     [prefix],
@@ -142,6 +150,7 @@ export async function authenticate(token: string): Promise<AuthContext> {
     keyDailyBudgetMicros: row.daily_budget_micros,
     plan: planFor(row.plan),
     workspaceStatus: row.status,
+    legacyCapabilities: row.legacy_capabilities,
   };
 }
 

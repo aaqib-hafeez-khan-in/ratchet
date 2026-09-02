@@ -257,7 +257,7 @@ interface TokenRow {
   scopes: string[]; resource: string | null; code_id: string | null;
   api_key_id: string | null; key_prefix: string | null;
   key_budget_micros: number | null; key_revoked: boolean;
-  expired: boolean; revoked: boolean; plan: string; status: 'active' | 'suspended';
+  expired: boolean; revoked: boolean; plan: string; status: 'active' | 'suspended'; legacy_capabilities: boolean;
 }
 
 async function lookupToken(token: string, kind: 'access' | 'refresh'): Promise<TokenRow | null> {
@@ -272,7 +272,7 @@ async function lookupToken(token: string, kind: 'access' | 'refresh'): Promise<T
             t.expires_at <= now() AS expired, t.revoked_at IS NOT NULL AS revoked,
             k.prefix AS key_prefix, k.daily_budget_micros AS key_budget_micros,
             k.revoked_at IS NOT NULL AS key_revoked,
-            w.plan, w.status
+            w.plan, w.status, w.legacy_capabilities
        FROM oauth_tokens t
        JOIN workspaces w ON w.id = t.workspace_id
        LEFT JOIN api_keys k ON k.id = t.api_key_id
@@ -313,6 +313,11 @@ export async function authenticateOAuth(
     keyDailyBudgetMicros: row.key_budget_micros,
     plan: planFor(row.plan),
     workspaceStatus: row.status,
+    // An OAuth-authenticated agent is the same workspace as a key-authenticated
+    // one. Reading this from a different place would let the two disagree about
+    // what the workspace may do, which is the kind of split nobody finds until
+    // a customer reports that one client works and the other does not.
+    legacyCapabilities: row.legacy_capabilities,
   };
 }
 

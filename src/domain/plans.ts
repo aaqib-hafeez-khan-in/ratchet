@@ -37,6 +37,47 @@ export interface Plan {
   maxRetentionDays: number;
   maxApiKeys: number;
   maxWebhookEndpoints: number;
+  /**
+   * What this plan can do, as distinct from how much of it.
+   *
+   * Every other field here is a quantity. These are the first capability gates,
+   * and the line they are drawn along matters: **nothing that keeps an agent
+   * from doing damage is behind one of them.** At-most-once, every policy mode,
+   * indeterminate handling, surge containment, run budgets, recall, approvals,
+   * webhooks and the audit trail are on the free plan and stay there. Selling
+   * safety by the tier would make the product worse for the people least able
+   * to pay, while its whole argument is that the safe thing should be the easy
+   * thing.
+   *
+   * What is gated is evidence, recovery and scale — the things a team needs to
+   * run this in production and prove it to somebody else, rather than the
+   * things that stop the bad outcome.
+   */
+  capabilities: PlanCapabilities;
+}
+
+export interface PlanCapabilities {
+  /**
+   * Reversible effect groups: unwinding a partially-completed unit of work.
+   * A free workspace still gets at-most-once on every individual step; what it
+   * does not get is the machinery for undoing four steps when the fifth failed.
+   */
+  reversibleGroups: boolean;
+  /**
+   * Reading and verifying the signed receipt chain.
+   *
+   * Receipts are WRITTEN for every workspace on every plan — they are part of
+   * the audit chain and skipping them for some workspaces would break it. This
+   * gates reading them back and verifying the chain, which is what an auditor
+   * wants and what a hobby project does not.
+   */
+  signedReceipts: boolean;
+  /**
+   * Reconciliation: finding real-world actions that bypassed the gate entirely.
+   * Expensive to run and only meaningful once there is a system of record to
+   * compare against, which is a scale problem by definition.
+   */
+  reconciliation: boolean;
 }
 
 export const PLANS: Record<PlanId, Plan> = {
@@ -64,6 +105,12 @@ export const PLANS: Record<PlanId, Plan> = {
     // same two user-created keys the free plan has always allowed.
     maxApiKeys: 4,
     maxWebhookEndpoints: 1,
+    // Everything that prevents damage. Nothing that proves it to a third party.
+    capabilities: {
+      reversibleGroups: false,
+      signedReceipts: false,
+      reconciliation: false,
+    },
   },
   pro: {
     id: 'pro',
@@ -78,6 +125,14 @@ export const PLANS: Record<PlanId, Plan> = {
     maxRetentionDays: 30,
     maxApiKeys: 20,
     maxWebhookEndpoints: 5,
+    // The two things a team running this in production needs and a hobby
+    // project does not: a way to undo a half-finished unit of work, and
+    // evidence of each decision that can be checked without trusting us.
+    capabilities: {
+      reversibleGroups: true,
+      signedReceipts: true,
+      reconciliation: false,
+    },
   },
   scale: {
     id: 'scale',
@@ -91,6 +146,11 @@ export const PLANS: Record<PlanId, Plan> = {
     maxRetentionDays: 90,
     maxApiKeys: 100,
     maxWebhookEndpoints: 25,
+    capabilities: {
+      reversibleGroups: true,
+      signedReceipts: true,
+      reconciliation: true,
+    },
   },
 };
 

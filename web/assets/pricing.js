@@ -9,6 +9,34 @@ const usd = (micros) => {
 };
 const per1k = (micros) => `$${((micros * 1000) / 1_000_000).toFixed(2)} per 1,000`;
 
+/**
+ * The capability rows, rendered from what the API publishes rather than typed
+ * here. The server reads them off the same PLANS object the guards enforce, so
+ * this table cannot promise something the code refuses — which is the one kind
+ * of marketing copy that is also a broken promise.
+ *
+ * Every tier shows every row, present or not. A reader comparing plans wants to
+ * see what they are not getting; a card that lists only its own features makes
+ * them open three tabs.
+ */
+const CAPABILITIES = [
+  ['reversible_groups', 'Reversible effect groups', 'Undo a half-finished unit of work'],
+  ['signed_receipts', 'Signed receipts', 'Verify each decision without trusting us'],
+  ['reconciliation', 'Reconciliation', 'Find actions that bypassed the gate'],
+];
+
+const capabilityList = (p) => `
+  <ul class="caps">
+    ${CAPABILITIES.map(([key, label, why]) => {
+      const on = Boolean(p.capabilities?.[key]);
+      return `<li class="${on ? 'on' : 'off'}">
+        <span class="capmark" aria-hidden="true">${on ? '&#10003;' : '&#8211;'}</span>
+        <span><strong>${esc(label)}</strong><span class="capwhy">${esc(why)}</span></span>
+        <span class="visually-hidden">${on ? 'included' : 'not included'}</span>
+      </li>`;
+    }).join('')}
+  </ul>
+
 try {
   const res = await fetch('/v1/billing/plans');
   const data = await res.json();
@@ -29,6 +57,7 @@ try {
         <dt>API keys</dt><dd>${p.max_api_keys}</dd>
         <dt>Webhooks</dt><dd>${p.max_webhook_endpoints}</dd>
       </dl>
+      ${capabilityList(p)}
       <div class="actions">
         <a class="btn ${p.id === 'free' ? 'secondary' : ''}"
            href="/console${p.id === 'free' ? '' : `?plan=${encodeURIComponent(p.id)}`}">

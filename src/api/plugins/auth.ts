@@ -4,6 +4,7 @@ import type {} from '@fastify/cookie';
 import { authenticate, requireScope, resolveConsoleSession, provisionAnonymousWorkspace,
          ANONYMOUS_EFFECT_QUOTA,
          type AuthContext, type Scope } from '../../domain/auth.js';
+import { PLANS, type PlanCapabilities } from '../../domain/plans.js';
 import { errors } from '../../lib/errors.js';
 import { claimProvisionSlot } from '../../domain/provisioning.js';
 
@@ -25,6 +26,13 @@ function bearer(req: FastifyRequest): string | null {
 }
 
 
+/** Said to a caller who cannot use something, so it names the thing not the flag. */
+const CAPABILITY_LABEL: Record<keyof PlanCapabilities, string> = {
+  reversibleGroups: 'reversible effect groups',
+  signedReceipts: 'signed receipts',
+  reconciliation: 'reconciliation',
+};
+
 async function plugin(app: FastifyInstance) {
   /** Guard for agent-facing routes. Requires a scoped API key. */
   app.decorate('requireKey', (...scopes: Scope[]) => {
@@ -34,6 +42,36 @@ async function plugin(app: FastifyInstance) {
       const ctx = await authenticate(token);
       for (const s of scopes) requireScope(ctx, s);
       req.auth = ctx;
+    };
+  });
+
+  /**
+   * Gate a route on a plan capability, after some other guard has authenticated.
+   *
+   * Runs as a second preHandler rather than folding into requireKey/requireConsole,
+   * because the two questions are genuinely separate — *who are you* and *may your
+   * plan do this* — and a route that forgets the capability check should fail
+   * closed at review rather than quietly serve a paid feature.
+   *
+   * A workspace that predates capability gating keeps everything, whatever its
+   * plan says. See migration 029: taking a working feature away from somebody
+   * already using it is a demotion, and this codebase has been one backfill away
+   * from that once already.
+   */
+  app.decorate('requireCapability', (cap: keyof PlanCapabilities) => {
+    return async (req: FastifyRequest) => {
+      const ctx = req.auth;
+      // Ordering bug rather than an auth failure: say so plainly instead of
+      // returning a 401 that sends somebody looking at their credentials.
+      if (!ctx) throw new Error(`requireCapability('${cap}') ran before authentication`);
+      if (ctx.legacyCapabilities || ctx.plan.capabilities[cap]) return;
+
+      const needed = (Object.keys(PLANS) as (keyof typeof PLANS)[])
+        .find((id) => PLANS[id].capabilities[cap]);
+      throw errors.forbidden(
+        `The ${ctx.plan.name} plan does not include ${CAPABILITY_LABEL[cap]}.`
+        + (needed ? ` It is available on ${PLANS[needed].name}.` : ''),
+      );
     };
   });
 
@@ -109,6 +147,7 @@ declare module 'fastify' {
   interface FastifyInstance {
     requireKey: (...scopes: Scope[]) => (req: FastifyRequest) => Promise<void>;
     requireConsole: (...scopes: Scope[]) => (req: FastifyRequest) => Promise<void>;
+    requireCapability: (cap: keyof PlanCapabilities) => (req: FastifyRequest) => Promise<void>;
     requireKeyOrProvision: (...scopes: Scope[]) => (req: FastifyRequest) => Promise<void>;
   }
 }

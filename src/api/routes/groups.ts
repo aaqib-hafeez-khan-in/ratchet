@@ -36,7 +36,7 @@ const planSchema = {
 
 export default async function groupRoutes(app: FastifyInstance) {
   app.post('/groups/:groupKey/unwind', {
-    preHandler: app.requireConsole('effects:admin'),
+    preHandler: [app.requireConsole('effects:admin'), app.requireCapability('reversibleGroups')],
     schema: {
       tags: TAG,
       operationId: 'unwindGroup',
@@ -63,7 +63,7 @@ export default async function groupRoutes(app: FastifyInstance) {
   });
 
   app.post('/groups/:groupKey/commit', {
-    preHandler: app.requireKey('effects:report'),
+    preHandler: [app.requireKey('effects:report'), app.requireCapability('reversibleGroups')],
     schema: {
       tags: TAG, operationId: 'commitGroup',
       summary: 'Mark a unit of work complete',
@@ -81,7 +81,7 @@ export default async function groupRoutes(app: FastifyInstance) {
   });
 
   app.get('/groups/:groupKey', {
-    preHandler: app.requireConsole('effects:read'),
+    preHandler: [app.requireConsole('effects:read'), app.requireCapability('reversibleGroups')],
     schema: {
       tags: TAG, operationId: 'getGroup',
       summary: 'Inspect a unit of work and what remains to undo',
@@ -95,7 +95,7 @@ export default async function groupRoutes(app: FastifyInstance) {
   });
 
   app.get('/groups', {
-    preHandler: app.requireConsole('effects:read'),
+    preHandler: [app.requireConsole('effects:read'), app.requireCapability('reversibleGroups')],
     schema: {
       tags: TAG, operationId: 'listGroups', summary: 'List recent units of work',
       querystring: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 200 } } },

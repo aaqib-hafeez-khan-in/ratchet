@@ -48,7 +48,7 @@ export async function receiptWellKnown(app: FastifyInstance) {
 
 export default async function receiptRoutes(app: FastifyInstance) {
   app.get('/effects/:effectId/receipts', {
-    preHandler: app.requireConsole('effects:read'),
+    preHandler: [app.requireConsole('effects:read'), app.requireCapability('signedReceipts')],
     schema: {
       tags: ['Receipts'], operationId: 'effectReceipts',
       summary: 'Signed receipts for every decision on one effect',
@@ -81,7 +81,7 @@ export default async function receiptRoutes(app: FastifyInstance) {
    * against us, so it has to be able to fail.
    */
   app.get('/receipts/audit', {
-    preHandler: app.requireConsole('effects:read'),
+    preHandler: [app.requireConsole('effects:read'), app.requireCapability('signedReceipts')],
     schema: {
       tags: ['Receipts'], operationId: 'auditReceipts',
       summary: 'Verify the receipt chain end to end',
@@ -162,7 +162,7 @@ export default async function receiptRoutes(app: FastifyInstance) {
    * does not change that.
    */
   app.post('/reconcile', {
-    preHandler: app.requireConsole('effects:read'),
+    preHandler: [app.requireConsole('effects:read'), app.requireCapability('reconciliation')],
     config: { rateLimit: stricterThan(60, '1 hour') },
     schema: {
       tags: ['Receipts'], operationId: 'reconcile',

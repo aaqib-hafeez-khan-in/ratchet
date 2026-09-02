@@ -81,6 +81,14 @@ export default async function billingRoutes(app: FastifyInstance) {
       max_retention_days: p.maxRetentionDays,
       max_api_keys: p.maxApiKeys,
       max_webhook_endpoints: p.maxWebhookEndpoints,
+      // Published so the pricing page is generated from what is enforced rather
+      // than written beside it. A tier table that drifts from the code is the
+      // one kind of marketing copy that is also a broken promise.
+      capabilities: {
+        reversible_groups: p.capabilities.reversibleGroups,
+        signed_receipts: p.capabilities.signedReceipts,
+        reconciliation: p.capabilities.reconciliation,
+      },
     })),
     credit_packs: CREDIT_PACKS.map((c) => ({
       id: c.id, label: c.label,

@@ -1232,3 +1232,23 @@ ul.checks li::before {
 .eli5-honest h3 { margin: 0 0 .6rem; font-size: 1rem; }
 .eli5-honest p  { margin: 0 0 .7rem; color: var(--text-faint); }
 .eli5-honest p:last-child { margin-bottom: 0; }
+
+/* ---- pricing: capability rows --------------------------------------------
+   Every tier shows every row, included or not. A card that lists only its own
+   features forces a reader comparing plans to open three tabs; showing the
+   gaps is what makes it a table rather than three adverts. */
+.caps { list-style: none; margin: 1.1rem 0 0; padding: 1rem 0 0; border-top: 1px solid var(--border); }
+.caps li {
+  display: grid; grid-template-columns: 1.3rem 1fr; gap: .55rem;
+  align-items: start; margin-bottom: .7rem; font-size: .88rem;
+}
+.caps li:last-child { margin-bottom: 0; }
+.caps .capmark { font-weight: 700; line-height: 1.4; }
+.caps li.on  .capmark { color: #12a150; }
+.caps li.off .capmark { color: var(--text-faint); }
+.caps li.off strong { color: var(--text-faint); font-weight: 500; }
+.caps .capwhy { display: block; color: var(--text-faint); font-size: .8rem; margin-top: .1rem; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}

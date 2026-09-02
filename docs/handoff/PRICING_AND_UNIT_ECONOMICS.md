@@ -86,3 +86,69 @@ claw back credit until `charge.refunded` is implemented. Both are recorded in KN
 
 Without Stripe credentials, the built-in test adapter runs instead: the same ledger, entitlement,
 and idempotency logic, with no network call and no charge.
+
+---
+
+## Capability gating (2 Sep 2026)
+
+Until now every plan limit was a **number** — effects, keys, webhooks, retention days,
+requests per minute — and all of them were enforced. There was nothing a paid plan could
+*do* that a free one could not, which is a reasonable thing for a paid plan to offer.
+
+### The line, and why it is drawn there
+
+**Nothing that prevents damage is behind a gate.** At-most-once, every policy mode,
+indeterminate handling, surge containment, run budgets, recall, approvals, webhooks and the
+audit trail are on the free plan and stay there.
+
+Selling safety by the tier would make the product worse for the people least able to pay,
+while the whole argument of the product is that the safe thing should be the easy thing. It
+is also commercially self-defeating: free users are the ones who tell other people about a
+gate that saved them.
+
+What is gated is **evidence, recovery and scale** — what a team needs to run this in
+production and prove it to somebody else, rather than what stops the bad outcome.
+
+| Capability | Free | Pro | Scale | What it is |
+|---|:--:|:--:|:--:|---|
+| Reversible effect groups | – | ✓ | ✓ | Undo a half-finished unit of work |
+| Signed receipts | – | ✓ | ✓ | Verify each decision without trusting us |
+| Reconciliation | – | – | ✓ | Find real-world actions that bypassed the gate |
+
+**Two things deliberately left open to everyone:**
+
+- **`/usage/prevented`** — the report showing duplicates refused and what they would have
+  cost. This is the product proving its own value, and it is the reason somebody upgrades.
+  Putting it behind the upgrade is backwards.
+- **`/.well-known/ratchet-receipt-key`** — the public key. Receipts are only worth anything
+  if the person holding one can verify it, and they may not be a customer at all.
+
+Receipts are still **written** for every workspace on every plan; they are part of the audit
+chain and skipping them for some workspaces would break it. Pro gates *reading them back*.
+
+### Nobody is demoted
+
+Migration 029 adds `workspaces.legacy_capabilities` and sets it true for every row that
+existed. Those workspaces keep everything they could already do, whatever their plan says,
+for as long as they exist. The gate applies only to workspaces created after it.
+
+This is the same failure email verification came one backfill away from making, when it
+nearly dropped every existing customer from 1,000 effects to 100. A cutoff date would have
+worked too; a flag is easier to reason about and impossible to get wrong by an hour.
+
+### It cannot drift
+
+`/v1/billing/plans` publishes the capability set, read from the same `PLANS` object the
+route guards enforce, and the pricing page renders that rather than a typed-out table. A
+test asserts the published set equals the enforced set for all three plans. A tier table
+that disagrees with the code is the one kind of marketing copy that is also a broken promise.
+
+### Still open: overage is refused, never billed
+
+Worth stating because it is the obvious next question. Beyond the included allowance,
+spending draws on **prepaid credit** — and when the balance is zero the effect is
+**refused**, on every plan including Scale. Nothing is ever billed by surprise, which is the
+right default, but it also means a heavy customer hits a wall instead of paying more.
+Capturing that revenue needs auto-recharge or invoiced overage, and both are product
+decisions rather than missing code.
+
