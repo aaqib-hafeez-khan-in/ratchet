@@ -27,6 +27,63 @@ const wantedPlan = ['pro', 'scale'].includes(
 
 if (apiKey) history.replaceState(null, '', location.pathname);
 
+/**
+ * Say something when Stripe sends the visitor back.
+ *
+ * It said nothing at all. `success_url` returns to `/console?checkout=success`,
+ * the parameter was never read, and the API key is deliberately held in memory
+ * only — so it does not survive the round trip to Stripe. The result: someone
+ * who had just paid $25 landed on a page headed "Create a workspace", with no
+ * acknowledgement of any kind.
+ *
+ * The obvious repair is to put the key in `success_url`. That is worse than the
+ * bug: a live key would then sit in browser history, in the Referer header of
+ * every subsequent request, and in any log that records query strings. The
+ * memory-only rule stays; the page explains itself instead.
+ *
+ * This matters more here than it would elsewhere. A customer who believes a
+ * payment failed retries it — and a product whose own checkout invites a
+ * duplicate charge is arguing against itself.
+ */
+function announceCheckoutReturn() {
+  const q = new URLSearchParams(location.search);
+  const state = q.get('checkout') ?? (q.get('subscribed') ? 'subscribed' : q.get('subscribe'));
+  if (!state) return;
+
+  const el = $('checkout-return');
+  const paid = state === 'success' || state === 'subscribed';
+  const noun = state === 'subscribed' ? 'Subscription active' : 'Payment received';
+
+  el.className = `wrap narrow checkout-return ${paid ? 'is-good' : 'is-neutral'}`;
+  el.innerHTML = paid
+    ? `<h2>${noun}</h2>
+       <p>Your card was charged and the credit has been added to your workspace. Stripe has
+          emailed you a receipt.</p>
+       <p class="small">You are seeing a signed-out page because your API key is held only in
+          this tab's memory and never written to storage or a URL — so it does not survive the
+          trip to Stripe and back. That is deliberate. Paste your key below to open the console
+          again; the credit is already on the workspace either way.</p>
+       <p class="small"><label for="return-key">API key</label>
+          <input id="return-key" type="password" autocomplete="off" spellcheck="false"
+                 placeholder="rk_live_…" style="max-width:340px">
+          <button class="btn small" id="return-open">Open console</button></p>`
+    : `<h2>No payment was taken</h2>
+       <p>You closed the checkout before it completed. Nothing was charged and nothing has
+          changed on your workspace.</p>`;
+  el.hidden = false;
+
+  // Clear the parameter so a refresh does not re-announce a payment.
+  history.replaceState(null, '', location.pathname);
+
+  const open = $('return-open');
+  if (open) {
+    open.addEventListener('click', () => {
+      const v = /** @type {HTMLInputElement} */ ($('return-key')).value.trim();
+      if (v) location.search = `?key=${encodeURIComponent(v)}`;
+    });
+  }
+}
+
 async function api(path, opts = {}) {
   const headers = { ...(opts.headers ?? {}) };
   if (opts.body) headers['content-type'] = 'application/json';
@@ -904,4 +961,5 @@ POST ${origin}/v1/effects/{effect_id}/report
   },
 };
 
+announceCheckoutReturn();
 void boot();

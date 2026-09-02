@@ -25,19 +25,28 @@ API, and `charge.refunded` reversed it to zero. The refund was $30 against a $25
 "never reverse more than was credited" guard was exercised by a real payload rather than a fixture.
 All deliveries reported `pending_webhooks=0` — none failed or retried.
 
-**The live key is now deployed — and has never taken a payment.** Corrected 2 Sep 2026:
-production runs an `sk_live_` key. This section previously said switching to live mode was still
-ahead of us, which stopped being true without the paragraph being updated.
+**Live mode is now exercised. Done 2 Sep 2026, with a real card.**
 
-**That makes the first real customer the test**, which is the wrong way round. Nothing in the code
-path differs between test and live keys — Stripe's API is identical and the key is passed through
-unchanged — but that is reasoning, not evidence, and reasoning is what this file exists to
-distinguish from the real thing. The remaining step is one low-value purchase with a real card,
-end to end, confirming the ledger. It needs a human with a card, so it cannot be automated or
-done by an agent.
+A $25 credit pack was bought through the hosted Checkout page on production, paid with a real
+card. Verified afterwards by `scripts/verify-live-payment.mjs` against a baseline taken before
+the purchase:
 
-Until then the honest statement is: **we can take money, and we have never watched ourselves do
-it.**
+- **one** new `topup` ledger entry, $25.00, `provider=stripe`, on the buying workspace — not two,
+  which is the failure that would matter;
+- **zero** balance mismatches across every workspace in the database, where a mismatch is any
+  `credit_micros` that disagrees with the sum of that workspace's ledger deltas. That is the
+  check that catches a payment which credited a balance without a row, or a row without a
+  balance.
+
+That is the whole of what Stripe's dashboard cannot tell you: whether the money became credit
+*here*, exactly once.
+
+**It also found a real defect, which is the argument for doing it at all.** Stripe returns the
+buyer to `/console?checkout=success`; the parameter was never read, and the API key is held in
+memory only, so it does not survive the round trip. The customer landed on a page headed "Create
+a workspace" with no acknowledgement — the reading of which is that the payment failed, and the
+response to which is to pay again. Fixed, and pinned by `test/e2e/checkout-return.test.ts`,
+including the rule that the redirect must never carry a credential to make the session survive.
 
 **Also not exercised:** the hosted Checkout page itself was not driven through a browser, because
 that means typing card details into a form. The session URL is produced and valid; completing it

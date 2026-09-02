@@ -1132,3 +1132,22 @@ ul.checks li::before {
 .social a:hover { color: var(--text); }
 .social svg { flex: none; }
 .social a:focus-visible { outline: 2px solid var(--accent, #1c5cff); outline-offset: 3px; border-radius: 4px; }
+
+/* ---- returning from Stripe ------------------------------------------------
+   Sits above whatever view the console lands on, because the return can land on
+   any of them — including the signup form, when the key did not survive the
+   round trip. Green for a completed payment, neutral for an abandoned one: a
+   cancelled checkout is not an error and should not be dressed as one. */
+.checkout-return {
+  margin: 2rem auto 0;
+  padding: 1.25rem 1.4rem;
+  border: 1px solid var(--border); border-left-width: 4px;
+  border-radius: 10px;
+}
+.checkout-return.is-good    { border-left-color: #12a150; background: #12a15010; }
+.checkout-return.is-neutral { border-left-color: var(--text-faint); }
+.checkout-return h2 { margin: 0 0 0.5rem; font-size: 1.15rem; }
+.checkout-return p  { margin: 0 0 0.6rem; }
+.checkout-return p:last-child { margin-bottom: 0; }
+.checkout-return label { display: block; margin-bottom: 0.3rem; font-weight: 600; }
+.checkout-return input { margin-right: 0.5rem; }

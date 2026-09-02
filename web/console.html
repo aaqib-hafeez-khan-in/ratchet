@@ -34,6 +34,11 @@
 
 <main id="main">
 
+<!-- Rendered by console.js when Stripe returns the visitor here. It sits above
+     every view because the return can land on any of them — including the
+     signup form, when the key did not survive the round trip. -->
+<div id="checkout-return" hidden></div>
+
 <!-- Shown when there is no session. -->
 <section id="signup-view" hidden>
   <div class="wrap narrow">
