@@ -446,9 +446,17 @@ replication in one word.
 
 **Added 2 Sep 2026, after it bit:** `ratchet_email_queue`. Outbound mail was the one moving
 part with no signal at all, and on 2 Sep the sending quota was spent by the uptime probe's own
-alert storm — 96 emails in a day on a 100/day allowance — after which two customers' welcome
-mail, carrying their verification links, was refused and discarded inside the hour. Every other
-probe read healthy throughout. `state="deferred"` is the series to alert on; `/workerz` reports
+alert storm — 96 emails in a day on a 100/day allowance — after which welcome mail carrying
+verification links was refused and discarded inside the hour. Every other probe read healthy
+throughout.
+
+**Whose mail it was.** The commit that fixed this (40e0f67) says the discarded mail belonged to
+customers. It did not. Checking the sending domains afterwards showed all three dead messages
+belonged to a probe workspace on `example.test` — my own. There are no third-party customers on
+the service yet, so nobody's verification link was actually lost. The defect was real and would
+have taken the first real signups behind an outage; it had not yet. Recorded here because the
+commit message is wrong and cannot be un-pushed, and because a service that sells auditability
+does not get to round its own incidents up. `state="deferred"` is the series to alert on; `/workerz` reports
 the same thing as one word for monitors that only read a status page.
 
 **Still missing:** tracing, dashboards, and decision counts broken down by effect type.
