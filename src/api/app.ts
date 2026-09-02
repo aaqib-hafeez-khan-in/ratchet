@@ -21,6 +21,7 @@ import { feedbackRoutes } from './routes/feedback.js';
 import oauthRoutes from './routes/oauth.js';
 import receiptRoutes, { receiptWellKnown } from './routes/receipts.js';
 import circuitRoutes from './routes/circuits.js';
+import agentRoutes from './routes/agents.js';
 import { x402Enabled, paymentRequired, encodeHeader } from '../domain/x402.js';
 import { registerMcpHttp } from '../mcp/http.js';
 
@@ -247,6 +248,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     await v1.register(billingRoutes);
     await v1.register(receiptRoutes);
       await v1.register(circuitRoutes);
+      await v1.register(agentRoutes);
   }, { prefix: '/v1' });
 
   /**

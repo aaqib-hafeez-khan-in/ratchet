@@ -109,6 +109,54 @@ the effect permanently.
 | `GET /v1/effects/lookup?effect_type=&idempotency_key=` | Free, never metered, never grants a lease |
 | `GET /v1/effects?state=&effect_type=&run_id=&limit=` | Recent effects, newest first |
 
+### Agent reliability
+
+`GET /v1/agents?days=30` — agents seen in the window, busiest first.
+`GET /v1/agents/{agentId}/reliability?days=30` — one agent's profile, `404` if this workspace
+has never seen it.
+
+**Console session or admin key only.** Deliberately not reachable with the narrow agent key:
+every metric here is one an agent could flatter by doing less, and an agent that can read its own
+grade can work out which signal to stop emitting. A test asserts the agent key is refused.
+
+`agent_id` is caller-supplied and used for grouping and nothing else — it selects no policy,
+grants no permission, changes no decision. A caller that lies about it mislabels only its own
+statistics.
+
+| Group | What it answers |
+|---|---|
+| `reporting` | Of the effects that concluded, how many were reported vs left `indeterminate`. The headline: what the outside world cannot tell you |
+| `decisions` | What `begin` answered, counted from **receipts** — `duplicate`, `in_flight` and `blocked` create no effect row, so retry behaviour is invisible in `effects` |
+| `keys` | Identical work (same `effect_type` + payload fingerprint) arriving under several idempotency keys — the tell of an agent minting a key per attempt |
+| `cost` | Declared estimate against actual spend |
+| `lease` | Median and p95 seconds between taking permission and reporting |
+| `concerns` | Plain sentences, worst first, only where a threshold is crossed with volume behind it |
+
+**There is no composite score, on purpose.** A blended number hides the mechanism — an operator
+learns their agent is "72", not that it stopped reporting outcomes last Tuesday — and the
+cheapest way to raise one is usually to stop emitting whatever drags it down.
+
+**Rates below a volume floor return `null`,** not a confident-looking number computed from four
+samples (`FLOOR = 20` for rates, `SAMPLE_FLOOR = 5` for cost and lease medians, both in
+`src/domain/agent-quality.ts`).
+
+**Key churn is a hint, not a verdict.** A deliberate repeat looks identical from here: the same
+reminder sent again next week is the same payload under a new key, and that is correct usage.
+Which is why it is reported as a rate over enough work to mean something, and never fires on a
+single instance.
+
+Two columns exist for this, both written by the UPDATE that grants a lease, so neither costs a
+round trip (migration 032):
+
+- `effects.lease_granted_at` — `created_at` is when the effect was first asked about, which for a
+  retried effect can be hours before permission was taken.
+- `effects.declared_micros` — `reserved_micros` is zeroed on report, correctly, since it is a live
+  reservation. That erased the only record of the estimate, so "does this agent know what its
+  actions cost" was unanswerable after the fact.
+
+Both are `NULL`/`0` for effects begun before the migration. The endpoint reports how many effects
+it could actually measure rather than averaging over rows that never carried the field.
+
 ### Policies
 
 `GET /v1/policies` · `GET|PUT|DELETE /v1/policies/{effect_type}`

@@ -78,11 +78,16 @@ async function grantLease(
   await reserveRunSpend(tx, input.workspaceId, input.runId ?? null,
     input.estimatedCostMicros);
 
+  // lease_granted_at and declared_micros ride this UPDATE rather than a second
+  // write. Neither is read on any hot path; both exist because the information
+  // is destroyed otherwise -- created_at is not when permission was taken, and
+  // reserved_micros is zeroed the moment the effect settles.
   const { rows } = await tx.query<EffectRow>(
     `UPDATE effects
         SET state = 'pending', attempt = attempt + 1, lease_token = $2,
             lease_expires_at = $3, leased_by_key_id = $4,
-            reserved_micros = $5, actual_micros = 0,
+            reserved_micros = $5, actual_micros = 0, declared_micros = $5,
+            lease_granted_at = now(),
             failure_reason = NULL, denial_reason = NULL, updated_at = now()
       WHERE id = $1
       RETURNING id, workspace_id, effect_type, idempotency_key, fingerprint, state,

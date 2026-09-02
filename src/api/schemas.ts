@@ -182,6 +182,73 @@ export const beginResponse = {
   },
 } as const;
 
+export const agentListSchema = {
+  type: 'object',
+  properties: {
+    data: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          agent_id: { type: 'string' },
+          effects: { type: 'integer' },
+          report_rate: {
+            type: ['number', 'null'],
+            description: 'Share of concluded effects this agent reported an outcome for. '
+              + 'null below the volume floor, where the figure would be noise.',
+          },
+          last_seen: { type: 'string' },
+        },
+      },
+    },
+    window: { type: 'object', properties: { days: { type: 'integer' } } },
+  },
+} as const;
+
+export const agentReliabilitySchema = {
+  type: 'object',
+  additionalProperties: true,
+  properties: {
+    agent_id: { type: 'string' },
+    window: { type: 'object', additionalProperties: true },
+    volume: { type: 'object', additionalProperties: true },
+    reporting: {
+      type: 'object', additionalProperties: true,
+      description: 'An effect whose lease ended with no report is indeterminate: the agent took '
+        + 'permission to act and never said what happened. report_rate is the headline.',
+    },
+    decisions: {
+      type: 'object', additionalProperties: true,
+      description: 'What begin answered, counted from the receipt of every call - including '
+        + 'calls that created no effect, which is where retry behaviour shows up.',
+    },
+    keys: {
+      type: 'object', additionalProperties: true,
+      description: 'Identical work arriving under several idempotency keys means the agent mints '
+        + 'a key per attempt, so the gate cannot recognise a retry and permits it.',
+    },
+    cost: {
+      type: 'object', additionalProperties: true,
+      description: 'Declared estimate against what was actually spent. A ceiling with nothing '
+        + 'counted against it can never fire.',
+    },
+    lease: { type: 'object', additionalProperties: true },
+    concerns: {
+      type: 'array',
+      description: 'Plain sentences, worst first. Empty when nothing crosses a threshold. '
+        + 'There is deliberately no composite score.',
+      items: {
+        type: 'object',
+        properties: {
+          code: { type: 'string' },
+          severity: { type: 'string', enum: ['high', 'medium', 'low'] },
+          detail: { type: 'string' },
+        },
+      },
+    },
+  },
+} as const;
+
 export const reportBody = {
   type: 'object',
   required: ['lease_token', 'outcome'],
