@@ -1,8 +1,9 @@
 # Ratchet
 
-**An effect gate for AI agents.** Ask before you act; Ratchet answers durably, so the same
-real-world side effect is attempted at most once, stays inside a declared budget, and leaves an
-auditable record.
+**An effect gate for AI agents.** Your agent asks before it does anything it cannot take back —
+charge a card, ship a deploy, publish a package, send the email — and gets a durable decision, so
+the same real-world action is attempted at most once across crashes and retries. Agents can also
+read back what a run already did, and spend against a limit they cannot raise.
 
 Agents retry. LLM control flow is non-deterministic, network calls fail ambiguously, and processes
 die mid-action. The result is duplicate emails, double charges, and repeated writes — and nothing
