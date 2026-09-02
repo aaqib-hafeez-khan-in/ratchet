@@ -43,3 +43,23 @@ describe('version consistency', () => {
       'serverInfo.version must not be typed by hand — it is read from package.json');
   });
 });
+
+/**
+ * The MCP registry rejects a description over 100 characters at submission.
+ * That is a bad time to find out: the manifest is edited by hand, the limit is
+ * in a schema nobody opens, and the natural instinct when improving copy is to
+ * add words. It is cheaper to fail here.
+ */
+describe('listing copy', () => {
+  test('the registry description is within the schema limit', () => {
+    const d = json('server.json').description as string;
+    assert.ok(d.length > 0, 'server.json needs a description');
+    assert.ok(d.length <= 100,
+      `server.json description is ${d.length} chars — the MCP registry schema caps it at 100`);
+  });
+
+  test('every declared description is non-empty', () => {
+    assert.ok((json('package.json').description as string)?.length > 20);
+    assert.ok((json('packages/ratchet-mcp/package.json').description as string)?.length > 20);
+  });
+});
