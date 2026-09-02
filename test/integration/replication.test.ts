@@ -181,6 +181,22 @@ describe('reading replica health', () => {
       assert.equal(r.problems.some((p) => p.includes('1 of 2')), true);
     } finally { delete process.env.EXPECTED_REPLICAS; }
   });
+
+  /**
+   * The gap that let a real outage stay quiet. On 2 Sep the cluster ran for
+   * twenty minutes on a single node with no redundancy at all, while /workerz
+   * cheerfully reported "replication: ok" — because with the expectation unset,
+   * "no replicas" and "no problems" are the same answer.
+   */
+  test('no replicas at all is a problem, not silence', async () => {
+    process.env.EXPECTED_REPLICAS = '2';
+    try {
+      const r = await checkReplication(fakeDb({ rows: [] }));
+      assert.equal(r.observable, true, 'the primary can still see: it has no replicas');
+      assert.equal(r.problems.some((p) => p.includes('0 of 2')), true,
+        'a cluster with nothing replicating must not read as healthy');
+    } finally { delete process.env.EXPECTED_REPLICAS; }
+  });
 });
 
 describe('how a finding reaches an operator', () => {

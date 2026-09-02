@@ -23,6 +23,12 @@ primary_region = "sjc"
   NODE_ENV = "production"
   PORT     = "8787"
   HOST     = "0.0.0.0"
+  # How many standbys should be attached. Left at the default of 0 — which
+  # disables the check — the cluster ran for twenty minutes on a single node with
+  # no redundancy while /workerz reported "replication: ok", because no replicas
+  # and no problems are indistinguishable unless somebody states the expected
+  # number. Update this if the cluster is ever resized.
+  EXPECTED_REPLICAS = "2"
 
 # Only the control plane serves HTTP. The worker has no inbound surface at all.
 [http_service]
