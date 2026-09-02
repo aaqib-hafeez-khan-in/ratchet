@@ -1,6 +1,7 @@
 {
   "name": "ratchet",
   "version": "0.2.0",
+  "license": "Apache-2.0",
   "private": true,
   "type": "module",
   "description": "Ratchet \u2014 the effect gate for AI agents. At-most-once side effects, budget enforcement, and an auditable execution record.",

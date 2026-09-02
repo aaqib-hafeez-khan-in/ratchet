@@ -63,3 +63,27 @@ describe('listing copy', () => {
     assert.ok((json('packages/ratchet-mcp/package.json').description as string)?.length > 20);
   });
 });
+
+/**
+ * The repository's package.json had no `license` field at all, while the
+ * LICENSE file said Apache-2.0 and the published bridge declared Apache-2.0.
+ * Directories and package tooling read the field, not the file, so the project
+ * was one lookup away from being reported as unlicensed — which for anything
+ * a company might depend on is the same as being unusable.
+ */
+describe('licensing', () => {
+  test('every package declares the licence, and the same one', () => {
+    const root = json('package.json').license as string;
+    const bridge = json('packages/ratchet-mcp/package.json').license as string;
+    assert.ok(root, 'the repository package.json must declare a license');
+    assert.equal(root, bridge, 'the repo and the published bridge disagree on the licence');
+  });
+
+  test('the declared licence matches the LICENSE file', () => {
+    const text = readFileSync(new URL('../../LICENSE', import.meta.url), 'utf8');
+    const declared = json('package.json').license as string;
+    const family = declared.split('-')[0]!;   // Apache-2.0 → Apache
+    assert.ok(text.includes(family),
+      `package.json says ${declared} but LICENSE does not mention ${family}`);
+  });
+});
