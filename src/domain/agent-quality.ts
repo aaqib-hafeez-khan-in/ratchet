@@ -65,7 +65,17 @@ export interface AgentReliability {
    * a new key, and that is correct usage. Which is why this is reported as a
    * rate over enough work to mean something, and never fires on one instance.
    */
-  keys: { distinctWork: number; workSubmittedUnderSeveralKeys: number; churnRate: number | null };
+  keys: {
+    distinctWork: number;
+    workSubmittedUnderSeveralKeys: number;
+    /**
+     * Keys beyond one per piece of work. The strongest single number here,
+     * because it is a count of retries the gate could not recognise rather than
+     * a ratio that needs a large sample to mean anything.
+     */
+    excessKeys: number;
+    churnRate: number | null;
+  };
   /**
    * Does the agent know what an action costs before taking it? A ceiling is only
    * as good as the estimates declared against it, and one that nothing is
@@ -91,6 +101,13 @@ export interface AgentReliability {
 export interface AgentSummary {
   agentId: string;
   effects: number;
+  /**
+   * Effects that actually ended, and therefore the denominator reportRate was
+   * computed over. Returned because a UI showing "not enough yet" alongside the
+   * effect count would quote a sample that does not exist: effects still in
+   * flight have concluded nothing.
+   */
+  concluded: number;
   reportRate: number | null;
   lastSeen: string;
 }
@@ -128,6 +145,7 @@ export async function listAgents(
   return rows.map((r) => ({
     agentId: r.agent_id,
     effects: Number(r.effects),
+    concluded: Number(r.concluded),
     reportRate: rate(Number(r.reported), Number(r.concluded)),
     lastSeen: r.last_seen.toISOString(),
   }));
@@ -201,8 +219,10 @@ export async function agentReliability(
   // Key hygiene. One unit of work is one (effect_type, payload fingerprint); if
   // it arrived under more than one idempotency key, the agent is generating keys
   // that do not identify the work.
-  const { rows: keys } = await db.query<{ work: string; churned: string }>(
-    `SELECT count(*) AS work, count(*) FILTER (WHERE keys > 1) AS churned
+  const { rows: keys } = await db.query<{ work: string; churned: string; excess: string }>(
+    `SELECT count(*)                          AS work,
+            count(*) FILTER (WHERE keys > 1)  AS churned,
+            COALESCE(sum(keys - 1), 0)        AS excess
        FROM (SELECT count(DISTINCT idempotency_key) AS keys
                FROM effects
               WHERE workspace_id = $1 AND agent_id = $2
@@ -215,6 +235,7 @@ export async function agentReliability(
   const unreported = Number(b.unreported);
   const work = Number(keys[0]?.work ?? 0);
   const churned = Number(keys[0]?.churned ?? 0);
+  const excessKeys = Number(keys[0]?.excess ?? 0);
   const costMeasurable = Number(b.cost_measurable);
   const leaseMeasured = Number(b.lease_measured);
 
@@ -231,7 +252,18 @@ export async function agentReliability(
     keys: {
       distinctWork: work,
       workSubmittedUnderSeveralKeys: churned,
-      churnRate: rate(churned, work),
+      excessKeys,
+      /**
+       * The floor belongs on how much was observed, not on how many distinct
+       * things were observed. An agent doing six kinds of thing repeatedly is a
+       * completely normal shape — and running real traffic through this showed
+       * it is also the shape where churn matters most: 24 calls across 6
+       * payloads under 24 keys defeats the gate entirely, and gating the rate on
+       * "6 work items" made that silent. Two distinct pieces of work are still
+       * required, so one deliberately repeated thing cannot trigger it alone.
+       */
+      churnRate: work >= 2 && Number(b.effects) >= FLOOR
+        ? Number((churned / work).toFixed(4)) : null,
     },
     cost: {
       measurable: costMeasurable,
@@ -285,10 +317,11 @@ function concerns(p: AgentReliability): AgentReliability['concerns'] {
       severity: p.keys.churnRate > 0.2 ? 'high' : 'medium',
       detail:
         `${p.keys.workSubmittedUnderSeveralKeys} of ${p.keys.distinctWork} distinct pieces of `
-        + `work arrived under more than one idempotency key (${pct(p.keys.churnRate)}). A key `
-        + 'generated per attempt cannot identify a retry, so the gate sees new work every time '
-        + 'and permits it. Derive the key from the work itself. Deliberate repeats look the '
-        + 'same from here, so check before acting on this one.',
+        + `work arrived under more than one idempotency key (${pct(p.keys.churnRate)}), using `
+        + `${p.keys.excessKeys} more keys than there was work. A key generated per attempt `
+        + 'cannot identify a retry, so the gate sees new work every time and permits it. Derive '
+        + 'the key from the work itself. Deliberate repeats look the same from here, so check '
+        + 'before acting on this one.',
     });
   }
 

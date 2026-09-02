@@ -192,6 +192,10 @@ export const agentListSchema = {
         properties: {
           agent_id: { type: 'string' },
           effects: { type: 'integer' },
+          concluded: {
+            type: 'integer',
+            description: 'Effects that ended, and the denominator report_rate was computed over.',
+          },
           report_rate: {
             type: ['number', 'null'],
             description: 'Share of concluded effects this agent reported an outcome for. '

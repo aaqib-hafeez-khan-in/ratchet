@@ -48,6 +48,7 @@ const out = (r: AgentReliability) => ({
   keys: {
     distinct_work: r.keys.distinctWork,
     work_submitted_under_several_keys: r.keys.workSubmittedUnderSeveralKeys,
+    excess_keys: r.keys.excessKeys,
     churn_rate: r.keys.churnRate,
   },
   cost: {
@@ -83,6 +84,7 @@ export default async function agentRoutes(app: FastifyInstance) {
       data: rows.map((a) => ({
         agent_id: a.agentId,
         effects: a.effects,
+        concluded: a.concluded,
         report_rate: a.reportRate,
         last_seen: a.lastSeen,
       })),

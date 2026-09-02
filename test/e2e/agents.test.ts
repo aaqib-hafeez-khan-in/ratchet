@@ -71,6 +71,10 @@ describe('tenant isolation', () => {
 
     const mine = JSON.parse((await get('/v1/agents', a.api_key)).payload);
     assert.deepEqual(mine.data.map((x: { agent_id: string }) => x.agent_id), ['private-bot']);
+    // The console prints this alongside "not enough yet", so it must be the
+    // denominator the rate was actually computed over — not the effect count,
+    // which includes effects still in flight that have concluded nothing.
+    assert.equal(typeof mine.data[0].concluded, 'number');
 
     const theirs = JSON.parse((await get('/v1/agents', b.api_key)).payload);
     assert.deepEqual(theirs.data, [], 'another workspace sees none of it');
@@ -138,6 +142,25 @@ describe('the profile', () => {
     assert.equal(Number(rows[0]?.reserved_micros), 0, 'the live reservation is released');
     assert.equal(Number(rows[0]?.declared_micros), 250_000,
       'but what the agent said it would cost is still on the record');
+  });
+});
+
+describe('the list reports the sample it used', () => {
+  test('an effect still in flight is counted as volume but not as concluded', async () => {
+    const ws = await signup();
+    await gate(ws.agent_api_key, `flight-a-${Date.now()}`, 'half-done');
+    const b = JSON.parse((await gate(ws.agent_api_key, `flight-b-${Date.now()}`, 'half-done')).payload);
+    await app.inject({
+      method: 'POST', url: `/v1/effects/${b.effect_id}/report`,
+      headers: { authorization: `Bearer ${ws.agent_api_key}`, 'content-type': 'application/json' },
+      payload: { lease_token: b.lease_token, outcome: 'succeeded' },
+    });
+
+    const row = JSON.parse((await get('/v1/agents', ws.api_key)).payload)
+      .data.find((a: { agent_id: string }) => a.agent_id === 'half-done');
+    assert.equal(row.effects, 2);
+    assert.equal(row.concluded, 1, 'a live lease has concluded nothing');
+    assert.equal(row.report_rate, null, 'and one sample is not a rate');
   });
 });
 

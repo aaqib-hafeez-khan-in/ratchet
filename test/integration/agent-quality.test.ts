@@ -147,7 +147,40 @@ describe('idempotency key hygiene', () => {
     const p = (await agentReliability(getPool(), ws, 'agent-a', 30))!;
     assert.equal(p.keys.distinctWork, 1, 'twenty-five submissions of one thing is one thing');
     assert.equal(p.keys.workSubmittedUnderSeveralKeys, 1);
-    assert.equal(p.keys.churnRate, null, 'one work item is not a sample worth a rate');
+    assert.equal(p.keys.churnRate, null, 'one work item cannot carry an accusation');
+  });
+
+  /**
+   * Found by running real traffic through the endpoint rather than by reading it.
+   * An agent doing six kinds of thing repeatedly, minting a UUID key each time,
+   * defeats the gate completely — and the first version stayed silent, because
+   * the volume floor was applied to "six distinct pieces of work" instead of to
+   * how much had actually been observed.
+   */
+  test('a busy agent with few distinct payloads is still caught', async () => {
+    for (let i = 0; i < 24; i += 1) {
+      await effect({ state: 'succeeded', fingerprint: `cc${i % 6}`, key: `uuid-${i}` });
+    }
+    const p = (await agentReliability(getPool(), ws, 'agent-a', 30))!;
+    assert.equal(p.keys.distinctWork, 6);
+    assert.equal(p.keys.workSubmittedUnderSeveralKeys, 6);
+    assert.equal(p.keys.excessKeys, 18, 'eighteen calls the gate could not recognise as retries');
+    assert.equal(p.keys.churnRate, 1);
+    const c = p.concerns.find((x) => x.code === 'idempotency_key_churn');
+    assert.ok(c, 'six payloads under twenty-four keys is the failure this metric exists for');
+    assert.equal(c.severity, 'high');
+    assert.match(c.detail, /18 more keys/);
+  });
+
+  test('one repeated thing on its own is not enough to accuse anybody', async () => {
+    for (let i = 0; i < 24; i += 1) {
+      await effect({ state: 'succeeded', fingerprint: 'dddd', key: `daily-${i}` });
+    }
+    const p = (await agentReliability(getPool(), ws, 'agent-a', 30))!;
+    assert.equal(p.keys.distinctWork, 1);
+    assert.equal(p.keys.churnRate, null,
+      'a single thing sent repeatedly is what a daily reminder looks like');
+    assert.deepEqual(p.concerns, []);
   });
 
   test('different work under different keys is exactly right, and silent', async () => {

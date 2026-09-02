@@ -345,6 +345,12 @@ multiply the effective limit by N. Adding instances quietly loosens every publis
 
 ## 9. Console limitations
 
+**Agent reliability shipped 2 Sep 2026.** The console has an *Agents* tab reading
+`GET /v1/agents` and `GET /v1/agents/{id}/reliability`: reporting rate, decision mix from
+receipts, idempotency-key hygiene, declared-vs-actual cost, and lease hold, with a 7/30/90 day
+window. Nothing is computed in the browser — every figure and every sentence in `concerns` comes
+from the server, so the console cannot disagree with the API about how an agent is doing.
+
 - Password-less: a session cookie is issued at signup, and a key can be supplied via `?key=`
   (held in memory only, never in `localStorage`). There is no sign-in-later flow, no password
   reset, and no second factor.

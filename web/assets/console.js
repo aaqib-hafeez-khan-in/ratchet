@@ -350,6 +350,202 @@ const loading = () => panel('<p class="loading" style="padding:1.25rem">Loading�
 const failed = (err) =>
   panel(`<div style="padding:1.25rem"><div class="notice bad">${esc(err.message)}</div></div>`);
 
+/**
+ * Agent reliability.
+ *
+ * Reads GET /v1/agents and GET /v1/agents/:id/reliability. Nothing here is
+ * computed in the browser: every number, every threshold and every sentence
+ * in `concerns` comes from the server, so the console cannot quietly disagree
+ * with the API about how an agent is doing.
+ *
+ * A rate the server declined to compute arrives as null, and that is rendered
+ * as "not enough yet" with the sample size — never as 0%, and never hidden.
+ * The whole point of the null is that it is visible.
+ */
+async function reliability(agentId = null, days = RELIABILITY_DAYS) {
+  loading();
+  try {
+    if (agentId) return await agentProfile(agentId, days);
+
+    const { data } = await api(`/agents?days=${days}`);
+    if (!data.length) {
+      return panel(empty('No agent has identified itself yet.',
+        'Send <code>agent_id</code> on <code>POST /v1/effects/begin</code> and each caller '
+        + 'gets its own record here. It is used for grouping only — it grants nothing.'));
+    }
+
+    panel(`
+      ${windowPicker(days, null)}
+      ${table(['Agent', 'Effects', 'Reported outcomes', 'Last seen', ''],
+        data.map((a) => `<tr>
+          <td class="mono">${esc(a.agent_id)}</td>
+          <td class="mono">${num(a.effects)}</td>
+          <td>${reportCell(a.report_rate, a.concluded)}</td>
+          <td class="small faint">${when(a.last_seen)}</td>
+          <td><button class="btn small secondary" data-agent="${esc(a.agent_id)}">Open</button></td>
+        </tr>`))}`);
+    wireWindow(days, null);
+    for (const btn of $('panel').querySelectorAll('[data-agent]')) {
+      btn.addEventListener('click', () => { void PANELS.reliability(btn.dataset.agent, days); });
+    }
+  } catch (err) { failed(err); }
+}
+
+async function agentProfile(agentId, days) {
+  const p = await api(`/agents/${encodeURIComponent(agentId)}/reliability?days=${days}`);
+  const decisions = Object.entries(p.decisions ?? {})
+    .sort((a, b) => b[1] - a[1]);
+  const totalDecisions = decisions.reduce((sum, [, n]) => sum + n, 0);
+
+  panel(`
+    <div style="padding:1.25rem 1.25rem 0;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:baseline">
+      <button class="btn small secondary" id="rel-back">&larr; All agents</button>
+      <h3 style="margin:0" class="mono">${esc(p.agent_id)}</h3>
+      <span class="small faint">${num(p.volume.effects)} effects &middot;
+        last seen ${when(p.volume.last_seen)}</span>
+    </div>
+    ${windowPicker(days, agentId)}
+
+    ${p.concerns.length ? `<div style="padding:0 1.25rem 0.25rem">${p.concerns.map((c) => `
+      <div class="notice ${c.severity === 'high' ? 'bad' : 'warn'}" style="margin-bottom:0.6rem">
+        <strong>${esc(c.code.replace(/_/g, ' '))}</strong><br>${esc(c.detail)}
+      </div>`).join('')}</div>`
+    : `<div style="padding:0 1.25rem 0.25rem"><div class="notice">
+        Nothing crossed a threshold in this window.
+        ${p.reporting.report_rate === null
+          ? 'That is partly because there is not yet enough volume to say much.' : ''}
+      </div></div>`}
+
+    <div style="padding:0 1.25rem 1.25rem">
+      <h3 class="small" style="margin:1rem 0 0.35rem">Reporting an outcome</h3>
+      <p class="small faint" style="margin:0 0 0.5rem">
+        An effect whose lease ends with no report becomes <code>indeterminate</code>: the agent
+        took permission to act and never said what happened. The next attempt on that
+        idempotency key is blocked until someone resolves it.
+      </p>
+      ${table(['Concluded', 'Reported', 'Left unreported', 'Rate'], [`<tr>
+        <td class="mono">${num(p.reporting.concluded)}</td>
+        <td class="mono">${num(p.reporting.reported)}</td>
+        <td class="mono">${p.reporting.unreported > 0
+          ? `<span class="pill unk">${num(p.reporting.unreported)}</span>`
+          : num(p.reporting.unreported)}</td>
+        <td>${reportCell(p.reporting.report_rate, p.reporting.concluded)}</td>
+      </tr>`])}
+
+      <h3 class="small" style="margin:1.5rem 0 0.35rem">What the gate answered</h3>
+      <p class="small faint" style="margin:0 0 0.5rem">
+        Counted from receipts, not effects: <code>duplicate</code>, <code>in_flight</code> and
+        <code>blocked</code> create no effect record, so retry behaviour is invisible in the
+        effects table.
+      </p>
+      ${decisions.length ? table(['Decision', 'Calls', 'Share'],
+        decisions.map(([d, n]) => `<tr>
+          <td>${decisionPill(d)}</td>
+          <td class="mono">${num(n)}</td>
+          <td class="mono small faint">${((n / totalDecisions) * 100).toFixed(1)}%</td>
+        </tr>`))
+      : empty('No decisions recorded in this window.')}
+
+      <h3 class="small" style="margin:1.5rem 0 0.35rem">Idempotency keys</h3>
+      <p class="small faint" style="margin:0 0 0.5rem">
+        One unit of work is one effect type plus one payload fingerprint. The same work arriving
+        under several keys means the gate cannot recognise a retry. &ldquo;Unrecognisable
+        retries&rdquo; counts the keys beyond one per piece of work &mdash; the number of calls
+        that looked new to the gate. A deliberate repeat looks identical from here, so check
+        before acting on it.
+      </p>
+      ${table(['Distinct work', 'Under several keys', 'Unrecognisable retries', 'Rate'], [`<tr>
+        <td class="mono">${num(p.keys.distinct_work)}</td>
+        <td class="mono">${num(p.keys.work_submitted_under_several_keys)}</td>
+        <td class="mono">${p.keys.excess_keys > 0
+          ? `<span class="pill unk">${num(p.keys.excess_keys)}</span>`
+          : '0'}</td>
+        <td>${pctCell(p.keys.churn_rate, p.volume.effects, 'effects')}</td>
+      </tr>`])}
+
+      <h3 class="small" style="margin:1.5rem 0 0.35rem">Declared cost against actual</h3>
+      <p class="small faint" style="margin:0 0 0.5rem">
+        A spend ceiling is computed from <code>estimated_cost_micros</code>. One with nothing
+        counted against it can never fire.
+      </p>
+      ${table(['Comparable', 'Spent without declaring', 'Under-declared', 'Typical actual ÷ declared'],
+        [`<tr>
+          <td class="mono">${num(p.cost.measurable)}</td>
+          <td class="mono">${p.cost.declared_nothing > 0
+            ? `<span class="pill wait">${num(p.cost.declared_nothing)}</span>`
+            : '0'}</td>
+          <td class="mono">${num(p.cost.under_declared)}</td>
+          <td class="mono">${p.cost.median_accuracy === null
+            ? `<span class="faint small">not enough yet (${num(p.cost.measurable)})</span>`
+            : `${p.cost.median_accuracy}×`}</td>
+        </tr>`])}
+
+      <h3 class="small" style="margin:1.5rem 0 0.35rem">How long it holds a lease</h3>
+      <p class="small faint" style="margin:0 0 0.5rem">
+        Compare against the lease length in your policy. An agent routinely using most of its
+        window is one slow vendor call away from producing indeterminates. Only effects begun
+        after 2 Sep 2026 carry this.
+      </p>
+      ${table(['Measured', 'Median', 'p95'], [`<tr>
+        <td class="mono">${num(p.lease.measured)}</td>
+        <td class="mono">${secs(p.lease.median_hold_seconds, p.lease.measured)}</td>
+        <td class="mono">${secs(p.lease.p95_hold_seconds, p.lease.measured)}</td>
+      </tr>`])}
+    </div>`);
+
+  $('rel-back').addEventListener('click', () => { void PANELS.reliability(null, days); });
+  wireWindow(days, agentId);
+}
+
+/** Windows the server accepts. Anything else is refused, so offer only these. */
+const RELIABILITY_DAYS = 30;
+const WINDOWS = [7, 30, 90];
+
+const windowPicker = (days, agentId) => `
+  <div style="padding:0.75rem 1.25rem;display:flex;gap:0.4rem;align-items:center">
+    <span class="small faint">Window</span>
+    ${WINDOWS.map((d) => `<button class="btn small ${d === days ? '' : 'secondary'}"
+      data-window="${d}"${agentId ? ` data-for="${esc(agentId)}"` : ''}>${d}d</button>`).join('')}
+  </div>`;
+
+function wireWindow(days, agentId) {
+  for (const btn of $('panel').querySelectorAll('[data-window]')) {
+    btn.addEventListener('click', () => {
+      void PANELS.reliability(agentId, Number(btn.dataset.window));
+    });
+  }
+}
+
+/**
+ * A decision is not a state, so it gets its own mapping rather than borrowing
+ * the effect-state pills. `execute` is the only one that means work happened.
+ */
+const DECISION_PILL = {
+  execute: 'go', duplicate: 'flat', in_flight: 'wait',
+  blocked: 'unk', approval_required: 'wait', denied: 'stop',
+};
+const decisionPill = (d) =>
+  `<span class="pill ${DECISION_PILL[d] ?? 'flat'}">${esc(d)}</span>`;
+
+/**
+ * A rate the server declined to compute is shown as such, with the sample it
+ * had. Rendering null as 0% would invent a catastrophe; hiding it would let a
+ * reader assume the silence means fine.
+ */
+const reportCell = (rate, sample) => rate === null
+  ? `<span class="faint small">not enough yet (${num(sample)})</span>`
+  : `<span class="pill ${rate >= 0.99 ? 'go' : rate >= 0.95 ? 'wait' : 'stop'}">${
+      (rate * 100).toFixed(1)}%</span>`;
+
+const pctCell = (rate, sample, unit) => rate === null
+  ? `<span class="faint small">not enough yet (${num(sample)} ${unit})</span>`
+  : `<span class="pill ${rate <= 0.05 ? 'go' : rate <= 0.2 ? 'wait' : 'stop'}">${
+      (rate * 100).toFixed(1)}%</span>`;
+
+const secs = (v, sample) => v === null
+  ? `<span class="faint small">not enough yet (${num(sample)})</span>`
+  : v < 1 ? `${(v * 1000).toFixed(0)} ms` : `${v.toFixed(1)} s`;
+
 const PANELS = {
   async effects() {
     loading();
@@ -372,6 +568,8 @@ const PANELS = {
         </tr>`)));
     } catch (err) { failed(err); }
   },
+
+  reliability,
 
   async attention() {
     loading();

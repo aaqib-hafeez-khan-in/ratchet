@@ -127,7 +127,7 @@ statistics.
 |---|---|
 | `reporting` | Of the effects that concluded, how many were reported vs left `indeterminate`. The headline: what the outside world cannot tell you |
 | `decisions` | What `begin` answered, counted from **receipts** — `duplicate`, `in_flight` and `blocked` create no effect row, so retry behaviour is invisible in `effects` |
-| `keys` | Identical work (same `effect_type` + payload fingerprint) arriving under several idempotency keys — the tell of an agent minting a key per attempt |
+| `keys` | Identical work (same `effect_type` + payload fingerprint) arriving under several idempotency keys — the tell of an agent minting a key per attempt. `excess_keys` counts the keys beyond one per piece of work, i.e. the calls that looked new to the gate |
 | `cost` | Declared estimate against actual spend |
 | `lease` | Median and p95 seconds between taking permission and reporting |
 | `concerns` | Plain sentences, worst first, only where a threshold is crossed with volume behind it |
@@ -142,8 +142,20 @@ samples (`FLOOR = 20` for rates, `SAMPLE_FLOOR = 5` for cost and lease medians, 
 
 **Key churn is a hint, not a verdict.** A deliberate repeat looks identical from here: the same
 reminder sent again next week is the same payload under a new key, and that is correct usage.
-Which is why it is reported as a rate over enough work to mean something, and never fires on a
-single instance.
+Which is why it is reported as a rate over enough volume to mean something, and never fires on a
+single piece of repeated work.
+
+**The churn floor is on volume observed, not on distinct work — found by running real traffic.**
+The first version gated the rate on the number of distinct work items, and an agent doing six
+kinds of thing repeatedly under a fresh UUID key each time — 24 calls, 6 payloads, 24 keys, which
+defeats the gate completely — produced no concern at all, because six is below the floor. That is
+a normal shape for an agent and the shape where churn matters most. The rate is now gated on
+`volume.effects >= 20` with `distinctWork >= 2`, so one deliberately repeated thing still cannot
+trigger it alone.
+
+**The listing returns `concluded` as well as `effects`.** The console prints the sample size
+beside "not enough yet", and effects still in flight have concluded nothing — quoting the effect
+count there would name a sample that does not exist.
 
 Two columns exist for this, both written by the UPDATE that grants a lease, so neither costs a
 round trip (migration 032):
