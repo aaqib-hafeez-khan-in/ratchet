@@ -17,6 +17,128 @@
 <link rel="alternate" type="text/plain" href="/llms.txt" title="Ratchet for LLMs — the whole service in one file">
 <link rel="alternate" type="application/json" href="/.well-known/agent-manifest.json" title="Capability manifest">
 <link rel="stylesheet" href="/assets/style.css">
+<!-- schema:auto -->
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "FAQPage",
+ "mainEntity": [
+  {
+   "@type": "Question",
+   "name": "What does Ratchet actually do?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Your agent asks Ratchet for permission immediately before it does something irreversible — send the email, charge the card, book the flight. Ratchet answers execute, duplicate, blocked, or a few others, and records that answer durably. If the same action is attempted again, from any process or machine, it gets the recorded answer instead of a second go-ahead."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Do I need to sign up, or not? The site says both.",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Both, because there are two ways in. A person creates a workspace with an email, confirms it, and gets the free plan. An agent can call the gate with no credential at all — a workspace and key come back alongside the decision. They are the same product. Claiming an agent-made workspace with an email later turns it into the first kind."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Why does it say 100 gated effects in one place and 1,000 in another?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Those are two different states of the same workspace."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "What counts as a \"gated effect\"? Am I billed per API call?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "No. A gated effect is the first time you ask about a particular action — the call that creates the record. Everything after that about the same action is free: the duplicate checks, the report of what happened, the reads, the replays. An action retried forty times is one gated effect, not forty-one calls."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Does Ratchet send my emails or charge my cards?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Never. Ratchet holds no vendor credentials, has no outbound access to your systems, and cannot retry anything on your behalf. It answers a question; your code does the work and reports back what happened. That boundary is deliberate and it is the main safety property of the design."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "What happens if my agent dies halfway through charging a card?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "The permission it was holding expires with nothing reported, and the effect becomes indeterminate. We do not guess. We will not mark it succeeded because it probably worked, and we will not mark it failed because it probably did not. Your policy for that effect type decides what happens next: stop and wait for a human, retry if the action is genuinely safe to repeat, or go and check the vendor first."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Why won't you promise exactly-once?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Because it is not achievable, by anyone, in a system where messages can be lost. Any service promising it is either redefining the words or is wrong. What is achievable is at-most-once initiation — the same action is never authorised twice — plus a recorded outcome that later callers replay, plus an explicit state for the case where the truth is genuinely unknown."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "What is an idempotency key, and how do I choose one?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "It is the name you give one piece of real-world work, so that two attempts at the same work can be recognised as the same. Build it from what makes the action unique and nothing else: invoice:2026-08:acct_8812, not a timestamp and not a random value. If two attempts should be the same action, they must produce the same string — byte for byte."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Does Ratchet work with MCP?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Yes — Ratchet ships as an MCP server, published to the registry and installable with npx -y ratchet-mcp. That is the primary way agents use it. Claude Code, Claude Desktop, Cursor, Windsurf, Zed, Cline, Continue, Goose, VS Code agent mode, JetBrains AI, Warp, Raycast and a dozen more speak it; Works with lists them all with the setup for each."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Does it work with Figma? With Stripe? With something you haven't listed?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Yes to all three, and the site has two different lists which is what makes this confusing. Here is the distinction."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "How much do I have to change my code?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Two calls around something you already do. Ask before, report after. No SDK is required — it is HTTP — and there is nothing to rewrite. The five-minute setup shows the before and after side by side."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Can Ratchet learn what normal looks like for my agent?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Yes. You can set a hard ceiling if you know your numbers — at most 40 charges an hour. Most people do not know their numbers, so instead you set a multiple: never more than three times normal. Ratchet computes normal itself, as the median of the last seven days of that effect type, recomputed continuously in the background."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "What happens to my agent if Ratchet goes down?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Your agent decides, and it should decide deliberately rather than by accident. Ratchet is a gate, so the safe default is to stop: if you cannot get permission, do not perform the irreversible action. For effects where not acting is worse than acting twice, you can choose to proceed and reconcile afterwards. What matters is that this is a choice you make once, in code, rather than a question your agent improvises during an outage."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Do you store what my agent is actually doing?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "No. We store a SHA-256 fingerprint of the payload, never the payload. We can tell you that two attempts differ; we cannot tell you, or anyone else, what was in them. API keys are stored as a peppered HMAC and cannot be recovered, only replaced. The security page is specific about what we do and do not hold, including what we cannot claim."
+   }
+  }
+ ]
+}
+</script>
+<!-- /schema:auto -->
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
