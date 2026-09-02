@@ -3,6 +3,7 @@
  * Kept dependency-free so the same code path serves the HTTP endpoint inside
  * Fastify and the stdio process, with no divergence between them.
  */
+import { createRequire } from 'node:module';
 import { MCP_TOOLS } from './tools.js';
 import { callTool, toolError } from './handlers.js';
 import type { AuthContext } from '../domain/auth.js';
@@ -10,10 +11,22 @@ import type { AuthContext } from '../domain/auth.js';
 export const PROTOCOL_VERSION = '2025-06-18';
 export const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 
+/**
+ * Read from package.json rather than typed here.
+ *
+ * There were five places declaring a version and four different answers: the
+ * repository said 0.1.0, the bridge package 0.2.0, the registry manifest 0.2.0
+ * for the server and 0.1.1 for its package, and npm had published 0.1.1. A
+ * client asking `initialize` was told 0.1.0 while the registry advertised
+ * 0.2.0 — which is the kind of inconsistency that makes a directory distrust a
+ * listing, and rightly.
+ */
+const PKG = createRequire(import.meta.url)('../../package.json') as { version: string };
+
 export const SERVER_INFO = {
   name: 'ratchet',
   title: 'Ratchet — effect gate',
-  version: '0.1.0',
+  version: PKG.version,
 } as const;
 
 export interface JsonRpcRequest {
