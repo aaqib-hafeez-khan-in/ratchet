@@ -4,7 +4,7 @@ What is not done, why, and what it would take. Nothing here is hidden elsewhere 
 
 ---
 
-## 1. Payments are wired but have only been exercised in Stripe test mode
+## 1. Payments are live and proven; automatic top-up is not
 
 **State.** The full Stripe path is implemented and verified: `startCheckout` creates real
 Checkout Sessions via Stripe's API, and the signed `checkout.session.completed` webhook credits
@@ -357,11 +357,16 @@ resolve/approve actions that have no API-only equivalent for a human. Everything
 
 ---
 
-## 10. No published SDK package
+## 10. The MCP bridge is published; no SDK is
 
-`examples/` carries complete working clients for Python, TypeScript, curl, and MCP, but nothing is
-published to npm or PyPI. The agent manifest names the stdio command as `npx -y ratchet-mcp` while
-explicitly noting it is **not yet published** and pointing at the from-source path.
+**Corrected 2 Sep 2026.** `ratchet-mcp` has been on npm since before this entry was last read,
+and the agent manifest was still telling agents it was **not yet published**, pointing them at a
+from-source install. That claim is machine-read by the clients deciding how to install this
+server, so the cost was concrete: it sent them the long way round when `npx -y ratchet-mcp`
+already worked. Fixed in `src/api/routes/meta.ts`.
+
+What remains true: `examples/` carries working clients for Python, TypeScript, curl and MCP, and
+**no language SDK is published** to npm or PyPI.
 
 **Trade-off:** a published SDK would carry versioning and security-patch obligations larger than
 the friction it removes for a two-call API. Worth revisiting if integrators repeatedly get the
@@ -393,10 +398,11 @@ Steps 1 and 2 are prerequisites, not optional polish: a directory listing that r
 hand-pasted key is not a listing anyone will complete. *Directory requirements change; confirm
 them at submission time rather than trusting this note.*
 
-## 11. Registry submission material is prepared, not submitted
+## 11. Listed on Glama; not submitted anywhere else
 
-Nothing has been submitted to any MCP registry, directory, or marketplace, and no provider has
-reviewed or approved this service. The discoverability surfaces that exist are the legitimate ones:
+**Corrected 2 Sep 2026.** "Nothing has been submitted" stopped being true: the server is live on
+Glama with an A tool-definition score, a maintenance grade, and related-server links. No provider
+has reviewed or approved the service, which is the part of this entry that still stands. The discoverability surfaces that exist are the legitimate ones:
 a standards-compatible MCP server at `/mcp`, an accurate OpenAPI document, a capability manifest at
 `/.well-known/agent-manifest.json`, and `/llms.txt`.
 
@@ -406,10 +412,16 @@ package.
 
 ---
 
-## 12. Observability is structured logs and health endpoints only
+## 12. Observability: alerting yes, metrics no
 
-No metrics export, no tracing, no dashboards, no alerting. `/healthz` and `/readyz` (which reports
-real database latency) are suitable for a load balancer.
+**Corrected 2 Sep 2026.** "No alerting" was wrong. A scheduled workflow probes production every
+15 minutes and emails on failure, covering liveness, worker loops, whether the gate still gates,
+and replica health — see [`ALERTING.md`](ALERTING.md). It caught a real replica failure the day
+it was added.
+
+What is still missing is **metrics export, tracing and dashboards**. `/healthz` and `/readyz`
+(which reports real database latency) are suitable for a load balancer, and `/workerz` reports
+loop health and replication in one word.
 
 **Next step:** a `/metrics` endpoint with decision counts by type, lease-expiry rate, webhook
 delivery outcomes, and queue depth. Lease-expiry rate in particular is the number an operator
@@ -463,6 +475,25 @@ weakening every assertion beneath it.
 **The general lesson is the one worth keeping:** a test that is intermittently red is often
 also quietly wrong when it is green, and the green failures are the expensive ones. The
 earlier note here said "it should be diagnosed rather than retried". That was correct.
+
+## This file goes stale faster than anything else here
+
+Six entries in two days described a state the system had already left: the operations section,
+the payments section twice, the rate limiter, the published-package note, and the alerting one.
+None was a lie when written. Each stopped being true because the fix landed and the entry did
+not, which is the specific failure mode of a document whose job is to describe what is *not*
+done.
+
+It matters more than an ordinary stale doc, for two reasons. This is the file a new operator is
+told to read, so a wrong entry sends them to fix something already fixed — or, worse, leaves them
+believing a gap exists where one does not. And one of the six was a **live false claim on a
+machine-read surface**: the agent manifest told clients the npm package did not exist.
+
+**The rule that would have caught all six:** when a commit closes something described here, the
+same commit edits this file. Not a follow-up, not a sweep. That is cheap at the moment of the fix
+and expensive at every other moment, which is the shape of every discipline that actually holds.
+
+---
 
 ## Error details are inconsistently cased
 

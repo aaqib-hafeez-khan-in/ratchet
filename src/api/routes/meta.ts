@@ -138,7 +138,11 @@ export default async function metaRoutes(app: FastifyInstance) {
     mcp: {
       protocol: 'model-context-protocol',
       transports: {
-        stdio: { command: 'npx', args: ['-y', 'ratchet-mcp'], note: 'Not yet published to npm; run from source with `npm run mcp:stdio`.' },
+        // The note said "not yet published" for as long as the package had been
+        // on npm. This manifest is read by agents deciding how to install the
+        // server, so the cost of that was concrete: it sent them to build from
+        // source when one command already works.
+        stdio: { command: 'npx', args: ['-y', 'ratchet-mcp'], note: 'Published on npm. From a clone, `npm run mcp:stdio` runs the same bridge.' },
         streamable_http: { url: `${config.publicUrl}/mcp` },
       },
       tools: MCP_TOOLS.map((t) => ({ name: t.name, description: t.description })),

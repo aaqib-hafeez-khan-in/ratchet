@@ -1,5 +1,6 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { setupDb, closePool } from '../helpers.js';
 
 const { buildApp } = await import('../../src/api/app.js');
@@ -99,9 +100,36 @@ describe('agent manifest', () => {
     assert.match(text, /raw payload|only a fingerprint/, 'must state that payloads are not stored');
   });
 
-  test('the stdio install hint does not claim a package that is not published', async () => {
+  /**
+   * The manifest must describe the package as it actually is.
+   *
+   * This test used to assert the note said "not yet published", which was true
+   * when it was written and quietly became a false claim on a machine-read
+   * surface once the package shipped — agents read this to decide how to
+   * install the server, and it was sending them to build from source.
+   *
+   * It now compares the claim against the repository rather than against a
+   * string, so it fails whichever way the two drift apart.
+   */
+  test('the stdio install hint matches whether the package is actually publishable', async () => {
     const m = await json('/.well-known/agent-manifest.json');
-    assert.match(m.mcp.transports.stdio.note, /[Nn]ot yet published/);
+    const note: string = m.mcp.transports.stdio.note;
+    const bridge = JSON.parse(readFileSync(
+      new URL('../../packages/ratchet-mcp/package.json', import.meta.url), 'utf8'));
+
+    // The command must name the package the repository actually builds.
+    assert.deepEqual(m.mcp.transports.stdio.args, ['-y', bridge.name],
+      'the install command names a different package than the one in this repo');
+
+    const publishable = bridge.private !== true && typeof bridge.version === 'string';
+    if (publishable) {
+      assert.equal(/not yet published/i.test(note), false,
+        `the manifest calls ${bridge.name} unpublished while this repo publishes it — `
+        + 'agents read this to decide how to install, and are being sent the long way round');
+    } else {
+      assert.match(note, /not yet published/i,
+        'a package this repo does not publish must not be advertised as installable');
+    }
   });
 });
 
