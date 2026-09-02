@@ -10,6 +10,9 @@ Disallow: /v1/
 Allow: /v1/integrate
 Allow: /v1/vendors
 Disallow: /mcp
+# Operational aggregates behind a token. Nothing here is content, and a crawler
+# hitting it produces a 404 and a log line either way.
+Disallow: /metrics
 # The OAuth consent screen collects a credential. It is not content, nobody
 # should reach it from search, and an indexed password form on a young domain
 # reads to automated classifiers as phishing.

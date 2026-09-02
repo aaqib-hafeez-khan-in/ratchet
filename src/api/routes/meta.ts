@@ -8,6 +8,8 @@ import { MCP_TOOLS } from '../../mcp/tools.js';
 import { recipes } from '../../domain/integrate.js';
 import { VENDOR_PROFILES, type VendorProfile } from '../../domain/vendor-keys.js';
 import { workerHealth } from '../../worker/heartbeat.js';
+import { timingSafeEqual } from 'node:crypto';
+import { collect as collectMetrics, render as renderMetrics } from '../../domain/operational-metrics.js';
 
 const startedAt = Date.now();
 
@@ -52,6 +54,44 @@ export default async function metaRoutes(app: FastifyInstance) {
    * Unauthenticated, because a monitor should not need a credential, and
    * deliberately terse: loop names and staleness, no instance identifiers.
    */
+  /**
+   * Operating metrics, for a scraper.
+   *
+   * Guarded by a bearer token rather than a workspace key: the caller is a
+   * monitoring system, not a tenant, and it should not need a customer identity
+   * to read aggregates. Unset token means the route 404s — an operational
+   * endpoint that announces itself with a 401 on a public domain is an
+   * invitation to go looking for the credential.
+   *
+   * Nothing here is per-workspace. Metrics are the classic place a multi-tenant
+   * service leaks its customer list, and these end up in a third-party
+   * monitoring vendor by design.
+   */
+  app.get('/metrics', { schema: { hide: true } }, async (req, reply) => {
+    const expected = config.metricsToken;
+    if (!expected) {
+      reply.code(404);
+      return { error: { code: 'not_found', message: 'Not found.' } };
+    }
+
+    const header = req.headers.authorization;
+    const presented = typeof header === 'string' && header.startsWith('Bearer ')
+      ? header.slice(7) : '';
+    // Constant time, and run even when the length differs, for the same reason
+    // API key comparison does: timing must not distinguish "wrong" from "close".
+    const a = Buffer.from(presented.padEnd(expected.length).slice(0, expected.length));
+    const b = Buffer.from(expected);
+    if (presented.length !== expected.length || !timingSafeEqual(a, b)) {
+      reply.code(404);
+      return { error: { code: 'not_found', message: 'Not found.' } };
+    }
+
+    const m = await collectMetrics();
+    reply.header('content-type', 'text/plain; version=0.0.4; charset=utf-8');
+    reply.header('cache-control', 'no-store');
+    return renderMetrics(m);
+  });
+
   app.get('/workerz', {
     schema: {
       tags: ['Meta'], operationId: 'workerz',

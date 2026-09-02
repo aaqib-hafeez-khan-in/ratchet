@@ -419,9 +419,27 @@ package.
 and replica health — see [`ALERTING.md`](ALERTING.md). It caught a real replica failure the day
 it was added.
 
-What is still missing is **metrics export, tracing and dashboards**. `/healthz` and `/readyz`
-(which reports real database latency) are suitable for a load balancer, and `/workerz` reports
-loop health and replication in one word.
+**Metrics export added 2 Sep 2026.** `GET /metrics` emits Prometheus text behind a bearer
+token (`METRICS_TOKEN`), aggregates only. The series worth alerting on is
+`ratchet_effects_indeterminate` — leases that expired unreported, which is the leading
+indicator of agents crashing mid-action and is invisible from every other signal: the API is
+healthy, the worker is healthy, the database is fine, and a customer's refunds are sitting in
+a state nobody has resolved.
+
+Two decisions in it are worth keeping:
+
+- **404, not 401**, when the token is missing or wrong. A 401 confirms the endpoint exists and
+  is worth attacking, and this is a public domain with a public repository.
+- **Nothing is per-workspace.** Metrics are the classic place a multi-tenant service leaks its
+  customer list, and these end up inside a third-party monitoring vendor by design. A test
+  asserts no workspace id, key prefix, or tenant label appears in the output.
+- Replication series are **omitted rather than zeroed** on a standby, where replication is
+  genuinely unobservable. Reporting "0 lag" from the one process that cannot see is how a
+  dashboard reports health it has no basis for.
+
+Still missing: **tracing and dashboards**. `/healthz` and `/readyz` (which reports real
+database latency) are suitable for a load balancer, and `/workerz` reports loop health and
+replication in one word.
 
 **Next step:** a `/metrics` endpoint with decision counts by type, lease-expiry rate, webhook
 delivery outcomes, and queue depth. Lease-expiry rate in particular is the number an operator

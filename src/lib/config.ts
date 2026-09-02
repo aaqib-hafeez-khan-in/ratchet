@@ -106,6 +106,18 @@ export const config = {
   // A getter, not a captured value: ES module imports are hoisted, so a script
   // that sets this before its import statements would otherwise be read too
   // late and silently ignored.
+  /**
+   * Bearer token for GET /metrics. Unset means the endpoint does not exist —
+   * it 404s rather than 401s, because advertising a protected operational
+   * endpoint on a public domain invites people to go looking for the token.
+   *
+   * A getter, like everything else here that a script may set before importing.
+   */
+  get metricsToken(): string | null {
+    const raw = process.env.METRICS_TOKEN;
+    return raw && raw.length >= 16 ? raw : null;
+  },
+
   get rateLimitOverride(): number | null {
     const raw = process.env.RATE_LIMIT_OVERRIDE;
     if (!raw) return null;
@@ -291,6 +303,13 @@ export function assertProductionSafety(): string[] {
   }
   if (config.corsOrigins.includes('*')) {
     problems.push('CORS_ORIGINS must not contain "*" in production.');
+  }
+  // Set but too short to be a credential. Refusing to start is right: the
+  // endpoint would otherwise be silently disabled, and an operator who set the
+  // variable would believe they had monitoring when they had a 404.
+  if (process.env.METRICS_TOKEN && process.env.METRICS_TOKEN.length < 16) {
+    problems.push('METRICS_TOKEN is set but shorter than 16 characters. '
+      + 'It guards an operational endpoint on a public domain.');
   }
   // Every OAuth surface is derived from PUBLIC_URL: the issuer, the redirect
   // target, and the metadata clients trust to find them. Over plaintext, the
