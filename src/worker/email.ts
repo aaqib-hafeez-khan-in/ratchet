@@ -137,10 +137,24 @@ export async function deliverEmails(batch = 10): Promise<number> {
       id: string; workspace_id: string; to_email: string; subject: string;
       body_text: string; body_html: string | null; attempts: number; deferrals: number;
     }>(
+      // Priority, then age.
+      //
+      // Under a spent quota every deferred message comes due at the same instant
+      // — the reset — and whatever the batch claims first is what actually gets
+      // sent. Ordering by arrival there hands the recovered budget to a backlog
+      // of operator digests while a new customer sits waiting for the link that
+      // verifies their account. Someone is blocked on the first group and merely
+      // informed by the second.
       `SELECT id, workspace_id, to_email, subject, body_text, body_html, attempts, deferrals
          FROM email_messages
         WHERE state = 'queued' AND next_attempt_at <= now()
-        ORDER BY next_attempt_at
+        ORDER BY CASE category
+                   WHEN 'welcome'  THEN 0
+                   WHEN 'security' THEN 1
+                   WHEN 'billing'  THEN 2
+                   ELSE 3
+                 END,
+                 next_attempt_at
         LIMIT $1 FOR UPDATE SKIP LOCKED`,
       [batch]);
     if (rows.length === 0) return [];

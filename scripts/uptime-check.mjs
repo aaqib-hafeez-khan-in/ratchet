@@ -68,6 +68,29 @@ for (const p of ['/healthz', '/readyz']) {
     // which is indistinguishable from a healthy cluster if it is not said.
     fail('replication', 'The replication watcher has not checked in, so replica health is unknown.');
   }
+
+  /*
+   * The one failure that silences the alert channel itself.
+   *
+   * Outbound mail and these alerts share a sending quota. When it runs out the
+   * alert email cannot go out either — so this is reported by FAILING the
+   * workflow, which makes GitHub send its own notification through a channel
+   * that does not depend on the thing that is broken. That is the only reason a
+   * non-outage condition is allowed to fail this probe.
+   */
+  const mail = r.json?.email;
+  if (mail === 'quota_exhausted') {
+    fail('email', 'The sending quota is spent. Verification links for new signups are parked '
+      + 'until it resets, and this alert could not have reached you by email. '
+      + 'Raise the plan at resend.com/settings/billing.');
+  } else if (mail === 'degraded') {
+    fail('email', 'Mail was discarded in the last day. New signups may not have received their '
+      + 'verification link. Check ratchet_email_queue{state="dead_24h"} on /metrics.');
+  } else if (mail === 'ok') {
+    ok('email', 'queue delivering');
+  } else if (r.status === 200) {
+    fail('email', 'The mail queue did not report its state, so delivery is unknown.');
+  }
 }
 
 // ---- 3. Does the gate still gate? -------------------------------------------

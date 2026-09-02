@@ -150,3 +150,38 @@ describe('and the operator can see it', () => {
     assert.equal(text.includes(wsId), false);
   });
 });
+
+describe('when the budget is short, the blocked person goes first', () => {
+  /**
+   * A spent quota makes every deferred message come due at the same instant —
+   * the reset — so whatever the batch claims first is what actually gets sent.
+   */
+  test('a verification link beats a backlog of operator digests', async () => {
+    const { rows: [w2] } = await getPool().query<{ id: string }>(
+      `INSERT INTO workspaces (id, name, owner_email)
+       VALUES ($1, 'other', $2) RETURNING id`,
+      [`ws_prio${Date.now().toString(36)}`, `prio-${Date.now()}@example.test`]);
+
+    // Older, and more of them: on arrival order these would take the whole batch.
+    for (let i = 0; i < 6; i += 1) {
+      await queueEmail({ workspaceId: w2!.id, category: 'indeterminate',
+        dedupeKey: `d-${i}-${Date.now()}`, subject: 'digest', text: 't' });
+    }
+    await getPool().query(
+      "UPDATE email_messages SET next_attempt_at = now() - interval '1 hour'");
+
+    await queueEmail({ workspaceId: wsId, category: 'welcome',
+      dedupeKey: `w-${Date.now()}`, subject: 'verify', text: 't' });
+
+    const sent: string[] = [];
+    await withProvider(() => new Response(JSON.stringify({ id: 'x' }),
+      { status: 200, headers: { 'content-type': 'application/json' } }),
+      async () => { await deliverEmails(3); });
+
+    const { rows } = await getPool().query<{ category: string; state: string }>(
+      "SELECT category, state FROM email_messages WHERE state = 'sent'");
+    for (const r of rows) sent.push(r.category);
+    assert.ok(sent.includes('welcome'),
+      `the verification link must not wait behind digests; sent: ${sent.join(',')}`);
+  });
+});
