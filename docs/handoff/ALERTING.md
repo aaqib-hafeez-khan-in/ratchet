@@ -128,30 +128,33 @@ Background and the reasoning behind the byte-distance measure:
 
 ---
 
-## Cadence and what it costs (1 Sep 2026)
+## Cadence and what it would cost if the repository were private
 
-The repository went private, and private repositories meter GitHub Actions against
-**2,000 free minutes a month**. Public repositories get unlimited minutes, so this cost
-did not exist before and will disappear again if it is ever made public.
+**Currently it costs nothing.** The repository is public and public repositories get
+unlimited GitHub Actions minutes, so the probe runs every 15 minutes. This section exists
+because that was briefly not true — the repository was private for a few hours on
+1–2 Sep 2026, and private repositories meter Actions against **2,000 free minutes a
+month**. The numbers below are what to do if it goes private again.
 
 Measured, not estimated — median durations over the last 100 runs, billed rounded up to
 the whole minute:
 
 | Workflow | Median | Billed | At current cadence |
 |---|---|---|---|
-| `uptime` | 12s | 1 min | 48/day → **~1,440 min/month** |
+| `uptime` | 12s | 1 min | 96/day at 15 min → **~2,880 min/month** |
 | `backup` | 26s | 1 min | 1/day → ~30 min/month |
 | `ci` | 102s | 2 min | per push → **the swing factor** |
 
-The uptime probe was moved from every 15 minutes to **every 30** because the old cadence
-billed ~2,880 minutes on its own — it would have exhausted the allowance around the third
-week of every month and then stopped, taking CI and the nightly backup down with it.
-Monitoring that silently switches itself off partway through the month is worse than
-monitoring that runs half as often.
+At 15 minutes the probe alone bills ~2,880 minutes — more than the entire private-repo
+allowance, before CI or backups. It would exhaust it around the third week of every month
+and then stop, taking CI and the nightly backup with it. **Monitoring that silently
+switches itself off partway through the month is worse than monitoring that runs half as
+often**, which is why going private and leaving this at 15 minutes is not an option.
 
-**It is still tight.** ~1,470 minutes go to uptime and backup, leaving ~530 for CI, which
-is about 265 pushes a month. A heavy development day can use 50 of those. Watch it, and if
-CI starts getting squeezed the next moves in order of preference are:
+**If the repository goes private again, do this in the same commit:** halve the cadence to
+`*/30`, which bills ~1,440 and leaves ~530 minutes for CI — about 265 pushes a month, and
+a heavy development day uses 50. That is tight rather than comfortable, so the better
+options in order of preference are:
 
 1. Move the uptime probe off GitHub to an external monitor — it needs no repository access,
    only HTTP, and this is the only item here that is not really CI work.

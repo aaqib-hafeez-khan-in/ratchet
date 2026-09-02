@@ -15,30 +15,21 @@
 # and can lag under load. That is an acceptable trade for zero cost and zero new
 # vendors, but it means this is a safety net, not a guarantee.
 #
-# A second limitation, added 1 Sep 2026: this is no longer free. The repository
-# went private, and private repositories meter Actions minutes against a 2,000
-# per month allowance. At the previous cadence this workflow alone billed ~2,880
-# minutes a month — it would have exhausted the allowance around the third week
-# and then stopped, taking the nightly backup and CI with it. Monitoring that
-# switches itself off partway through every month, silently, is worse than
-# monitoring that runs half as often.
+# It is free again. The repository was private for a few hours on 1–2 Sep, during
+# which Actions minutes were metered against a 2,000/month allowance and this
+# workflow alone would have billed ~2,880 — exhausting it around the third week
+# and then stopping, taking the nightly backup and CI with it. Public
+# repositories get unlimited minutes, so the cadence is back to 15 minutes. If
+# this ever goes private again, halve the cadence in the same commit.
 name: uptime
 
 on:
   schedule:
-    # Every 30 minutes: ~1,440 billed minutes a month, which leaves room for CI
-    # (2 min a run) and the nightly backup (1 min) inside the 2,000 free.
-    #
-    # The cost is real and worth naming: worst-case detection latency doubles
-    # from 15 minutes to 30. For the failure this exists to catch — a worker
-    # that has stopped expiring leases — that is tolerable, because the damage
-    # accrues slowly and nothing is lost, only delayed. It would not be
-    # tolerable for a total outage, which is why /healthz is also watched by
-    # Fly's own checks every 15 seconds, independently of GitHub.
-    #
-    # Making the repository public again would restore unlimited minutes and
-    # with them the 15-minute cadence.
-    - cron: '*/30 * * * *'
+    # Every 15 minutes. Fine-grained enough to notice a dead worker long before
+    # anyone else does, coarse enough that GitHub does not throttle it — and
+    # free, because the repository is public. See the note above before changing
+    # that.
+    - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
       test_alert:
