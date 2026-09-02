@@ -57,30 +57,6 @@ export function windowResetsAt(day: string): string {
   return next.toISOString();
 }
 
-/**
- * Ensure the window row exists, then lock and read it.
- *
- * The insert-then-lock order matters. A plain `SELECT ... FOR UPDATE` locks
- * nothing when the row is absent, so on the first spend of a day every
- * concurrent caller would read 0 and every one of them would pass the ceiling
- * check. Materialising the row first gives us something to actually lock.
- */
-async function lockAndReadSpend(
-  tx: PoolClient, workspaceId: string, scope: string, day: string,
-): Promise<number> {
-  await tx.query(
-    `INSERT INTO spend_windows (workspace_id, scope, day, spent_micros)
-     VALUES ($1,$2,$3,0) ON CONFLICT (workspace_id, scope, day) DO NOTHING`,
-    [workspaceId, scope, day],
-  );
-  const { rows } = await tx.query<{ spent_micros: number }>(
-    `SELECT spent_micros FROM spend_windows
-      WHERE workspace_id = $1 AND scope = $2 AND day = $3 FOR UPDATE`,
-    [workspaceId, scope, day],
-  );
-  return rows[0]?.spent_micros ?? 0;
-}
-
 async function addSpend(
   tx: PoolClient, workspaceId: string, scope: string, day: string, delta: number,
 ): Promise<void> {
@@ -126,26 +102,62 @@ export async function reserveSpend(tx: PoolClient, args: ReserveArgs): Promise<v
     { scope: scopeForType(args.effectType), limit: args.typeDailyBudgetMicros },
   ];
 
-  // Phase 1: take every lock in a fixed order and read the true committed
-  // spend. Holding all three before validating any is what makes the ceiling
-  // hold under concurrency.
-  const spent: number[] = [];
-  for (const { scope } of checks) {
-    spent.push(await lockAndReadSpend(tx, args.workspaceId, scope, day));
-  }
-  // Phase 2: validate. Throwing here rolls back, releasing the locks.
-  for (let i = 0; i < checks.length; i++) {
-    const { scope, limit } = checks[i]!;
-    if (limit !== null && spent[i]! + args.amountMicros > limit) {
+  /**
+   * Increment every scope in one statement, then validate what came back.
+   *
+   * This used to be nine sequential round trips — three scopes × (materialise,
+   * lock, increment) — every one of them awaited, none able to overlap. It was
+   * the largest single cost on the begin path for any caller that declares a
+   * cost, which the API documentation tells them to do.
+   *
+   * INCREMENT-THEN-VALIDATE IS SAFE HERE, AND ONLY BECAUSE OF WHERE IT RUNS.
+   * `reserveSpend` is called inside begin's transaction, and a BudgetExceeded
+   * propagates out of it as an ApiError — nothing catches it in a way that lets
+   * the transaction commit. So the increment this statement performs is undone
+   * by the same rollback that refuses the effect. Externally that is identical
+   * to the old "lock, validate, increment": a refusal leaves nothing behind.
+   * If that ever stops being true — if some caller catches BudgetExceeded and
+   * carries on in the same transaction — this becomes a ceiling that counts the
+   * spend it refused, which would ratchet a workspace shut over repeated
+   * refusals. `test/integration/budget-reserve.test.ts` asserts the property
+   * rather than the implementation, and would catch it.
+   *
+   * ORDER BY s.ord IS LOAD-BEARING. Rows are locked in the order the subquery
+   * produces them, so a fixed order across concurrent callers is what keeps two
+   * reservations from deadlocking on each other's scopes. Without it, row order
+   * is unspecified.
+   *
+   * The materialise-before-lock rule (CLAUDE.md §7 rule 2) is not weakened but
+   * strengthened: one atomic upsert has no window in which a row is absent and
+   * a SELECT ... FOR UPDATE would lock nothing, which is the race the old
+   * three-step dance existed to avoid.
+   */
+  const { rows } = await tx.query<{ scope: string; spent_micros: string }>(
+    `INSERT INTO spend_windows (workspace_id, scope, day, spent_micros)
+     SELECT $1, s.scope, $2, $3
+       FROM unnest($4::text[]) WITH ORDINALITY AS s(scope, ord)
+      ORDER BY s.ord
+     ON CONFLICT (workspace_id, scope, day)
+     DO UPDATE SET spent_micros = spend_windows.spent_micros + EXCLUDED.spent_micros
+     RETURNING scope, spent_micros`,
+    [args.workspaceId, day, args.amountMicros, checks.map((c) => c.scope)],
+  );
+
+  // RETURNING gives the total AFTER this reservation. The ceiling is expressed
+  // in terms of what was already spent, and the error reports that, so the
+  // caller sees the same numbers they would have before.
+  const after = new Map(rows.map((r) => [r.scope, Number(r.spent_micros)]));
+  for (const { scope, limit } of checks) {
+    if (limit === null) continue;
+    const total = after.get(scope) ?? args.amountMicros;
+    if (total > limit) {
       throw new BudgetExceeded({
-        scope, limitMicros: limit, spentMicros: spent[i]!, requestedMicros: args.amountMicros,
+        scope, limitMicros: limit,
+        spentMicros: total - args.amountMicros,
+        requestedMicros: args.amountMicros,
         resetsAt: windowResetsAt(day),
       });
     }
-  }
-  // Phase 3: commit the reservation against every scope.
-  for (const { scope } of checks) {
-    await addSpend(tx, args.workspaceId, scope, day, args.amountMicros);
   }
 }
 
