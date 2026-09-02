@@ -111,6 +111,12 @@ async function settleAsDenied(
  * The gate. Decides whether the caller may perform a side effect, and records
  * that decision durably before returning it.
  */
+/**
+ * How many unreported effects a workspace may accumulate before begin says so.
+ * Two is a normal amount of mid-experiment; the third is a pattern.
+ */
+const UNREPORTED_WARN_AT = 3;
+
 export async function beginEffect(input: BeginInput): Promise<BeginResult> {
   const now = new Date();
   const fingerprint = canonicalFingerprint(input.payload);
@@ -125,6 +131,11 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
     // Fetched once, above the wrapper, because the post-decision checks below
     // need it too.
     const policy = await getPolicy(tx, input.workspaceId, input.effectType);
+
+    // Assigned inside decide(), read after it. Null unless this workspace has
+    // never once reported an outcome, in which case it counts the effects begun
+    // here and left unreported.
+    let unreported: number | null = null;
 
     const decide = async (): Promise<BeginResult> => {
 
@@ -192,7 +203,23 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
     );
     const preExisting = preCheck.rows[0];
     if (!preExisting) {
-      await tx.query('SELECT 1 FROM workspaces WHERE id = $1 FOR UPDATE', [input.workspaceId]);
+      // The workspace lock this path has always taken, now also answering the
+      // one question worth asking on a brand-new integration. Both branches ride
+      // effects_state_idx (workspace_id, state, ...): the EXISTS stops at the
+      // first settled row, so a workspace that has ever reported pays one index
+      // probe and never runs the count. No extra round trip either way.
+      const ws = await tx.query<{ unreported: string | null }>(
+        `SELECT CASE WHEN EXISTS (SELECT 1 FROM effects
+                                   WHERE workspace_id = $1 AND state IN ('succeeded','failed'))
+                     THEN NULL
+                     ELSE (SELECT count(*) FROM effects
+                            WHERE workspace_id = $1 AND state IN ('pending','indeterminate'))
+                END AS unreported
+           FROM workspaces WHERE id = $1 FOR UPDATE`,
+        [input.workspaceId],
+      );
+      const seen = ws.rows[0]?.unreported;
+      unreported = seen == null ? null : Number(seen);
     }
 
     // Atomic claim. The unique index on (workspace, type, key) is what makes
@@ -433,6 +460,20 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
         + 'ceiling will never trigger.';
     }
 
+    // Begin without report is the first mistake nearly every integration makes,
+    // and it is free until a lease expires — at which point the call that fails
+    // is a LATER one, for reasons that read like a fault in us. Say it while the
+    // author is still watching, in the response they are already parsing. One
+    // successful report turns this off for this workspace permanently.
+    if (unreported !== null && unreported >= UNREPORTED_WARN_AT) {
+      decided.integrationWarning =
+        `${unreported} effects here were begun and never reported, and this workspace has `
+        + 'never reported an outcome at all. Every begin needs a matching POST '
+        + '/v1/effects/{effect_id}/report with the lease_token from that begin. Unreported '
+        + 'effects become "indeterminate" when the lease expires, and the next attempt on '
+        + 'the same idempotency_key is blocked until someone resolves it.';
+    }
+
     await writeReceipt(tx, {
       v: RECEIPT_VERSION,
       workspace_id: input.workspaceId,
@@ -616,7 +657,7 @@ async function handleIndeterminate(
     ` Resolve it once you know what really happened: POST /v1/effects/${effect.id}/resolve`
     + ' with {"outcome":"succeeded"} or {"outcome":"failed"}, and an "evidence" note saying'
     + ' how you checked. If this is a new integration, the usual cause is that a previous'
-    + ' attempt ran but was never reported to /v1/effects/report.';
+    + ' attempt ran but was never reported.';
 
   const reason = (policy.onIndeterminate === 'probe'
     ? 'A prior attempt may or may not have taken effect. Verify the real-world outcome and resolve this effect explicitly before retrying.'

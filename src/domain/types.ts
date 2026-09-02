@@ -131,6 +131,13 @@ export interface BeginResult {
    * count toward it, so the ceiling cannot fire. Advisory, not an error.
    */
   budgetWarning?: string;
+  /**
+   * Set when this workspace has never once reported an outcome and unreported
+   * effects are piling up. The most common failure in a new integration, and
+   * silent until leases start expiring — by which point the call that stalls is
+   * a later one, and the cause looks like us.
+   */
+  integrationWarning?: string;
   /** Present only with a lease: the key the vendor itself deduplicates on. */
   vendorKey?: import('./vendor-keys.js').VendorKey;
   leaseExpiresAt?: string;

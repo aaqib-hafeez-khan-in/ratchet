@@ -51,9 +51,26 @@ Response:
 | `retry_after_seconds` | `in_flight`, `approval_required` |
 | `prior_attempt` | `blocked`, and a retry granted after an indeterminate attempt |
 | `reason` | every non-`execute` decision |
+| `budget_warning` | a ceiling exists for this type and the call declared no cost |
+| `integration_warning` | this workspace has never reported an outcome and ≥3 effects sit unreported |
 | `billing.metered`, `billing.included_remaining` | always |
 
 **A lease is issued only with `execute`.** No other decision carries one — asserted in tests.
+
+**`integration_warning` costs no round trip.** It rides the workspace `FOR UPDATE` that the
+new-effect path already takes, as a `CASE WHEN EXISTS (a settled effect) THEN NULL ELSE
+count(unreported)`. Both branches use `effects_state_idx`; a workspace that has ever reported
+short-circuits on the first index row and never runs the count, and the duplicate path — which
+does not take the workspace lock — never computes it at all. One successful report disables it
+for that workspace permanently, so it cannot become background noise for a working integration.
+Threshold `UNREPORTED_WARN_AT = 3` in `src/domain/effects.ts`.
+
+**Guidance text that names an endpoint is part of the contract.** `next_step.then` at signup,
+the `blocked` reason, and `integration_warning` all name paths, and `report` and `resolve` are
+addressed by effect **id** while `begin` is addressed by `effect_type` + `idempotency_key`.
+Copying one shape into the other sends an already-stuck caller to a 404 — which happened three
+times while writing these messages. `test/e2e/first-five-minutes.test.ts` extracts every `/v1/…`
+path from what the service actually says and asserts each one resolves.
 
 ### `POST /v1/effects/{id}/report`
 

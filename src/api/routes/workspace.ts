@@ -263,10 +263,13 @@ export default async function workspaceRoutes(app: FastifyInstance) {
           + ` -d '{"effect_type":"email.send","idempotency_key":"welcome:user_1"`
           + `,"payload":{"to":"someone@example.com"}}'`,
         expect: 'A decision. Only "execute" means go ahead and do the real thing.',
-        then: 'After you act, POST the outcome to /v1/effects/report with the same '
-          + 'effect_type and idempotency_key. An effect begun and never reported becomes '
-          + '"indeterminate" when its lease expires and the next attempt is refused — '
-          + 'the single most common mistake in a new integration.',
+        // Addressed by id, not by the type+key pair begin was addressed with.
+        // Both values come straight out of the response above.
+        then: 'After you act, POST {"lease_token":"...","outcome":"succeeded"} to '
+          + '/v1/effects/{effect_id}/report, using the effect_id and lease_token the call '
+          + 'above returned. An effect begun and never reported becomes "indeterminate" '
+          + 'when its lease expires, and the next attempt on that idempotency_key is then '
+          + 'blocked — the single most common mistake in a new integration.',
         docs: `${config.publicUrl}/simple`,
       },
     };

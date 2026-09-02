@@ -121,6 +121,15 @@ export const beginResponse = {
         + 'declared no cost, so nothing counted toward it. The ceiling cannot trigger '
         + 'until callers send estimated_cost_micros.',
     },
+    integration_warning: {
+      type: 'string',
+      description:
+        'Present when this workspace has never reported an outcome and unreported '
+        + 'effects are accumulating. Every begin must be followed by POST '
+        + '/v1/effects/{effect_id}/report. '
+        + 'Unreported effects become "indeterminate" when their lease expires, and the next '
+        + 'attempt on the same idempotency_key is then blocked until an operator resolves it.',
+    },
     workspace: {
       type: 'object',
       description:

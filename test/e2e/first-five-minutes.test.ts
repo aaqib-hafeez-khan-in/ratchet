@@ -139,3 +139,137 @@ describe('when it goes wrong, the response says how to get out', () => {
       'the error should name the field that is missing');
   });
 });
+
+describe('the mistake is named while it is still happening', () => {
+  const beginN = async (key: string, n: number, tag: string) => {
+    const out = [];
+    for (let i = 0; i < n; i += 1) {
+      out.push(JSON.parse((await begin(key, {
+        effect_type: 'email.send', idempotency_key: `${tag}:${i}`, payload: { i },
+      })).payload));
+    }
+    return out;
+  };
+
+  test('a couple of unreported effects is not worth a warning', async () => {
+    const ws = await signup();
+    const r = await beginN(ws.agent_api_key, 3, `quiet-${Date.now()}`);
+    assert.equal(r[0].integration_warning, undefined);
+    assert.equal(r[2].integration_warning, undefined,
+      'someone testing carefully should not be scolded for it');
+  });
+
+  test('the fourth unreported begin says what is going wrong', async () => {
+    const ws = await signup();
+    const r = await beginN(ws.agent_api_key, 4, `loud-${Date.now()}`);
+    const w = r[3].integration_warning;
+    assert.ok(w, 'four effects begun, none reported, and nothing said');
+    assert.match(w, /\/v1\/effects\/\{effect_id\}\/report/,
+      'it must name the call that is missing, at the address it actually has');
+    assert.match(w, /indeterminate/, 'and what happens if it stays missing');
+    assert.match(w, /blocked/, 'and the failure it turns into later');
+  });
+
+  test('one report turns it off, and it stays off', async () => {
+    const ws = await signup();
+    const key = ws.agent_api_key;
+    const tag = `fixed-${Date.now()}`;
+    const first = await beginN(key, 4, tag);
+    assert.ok(first[3].integration_warning, 'precondition: it was warning');
+
+    const reported = await app.inject({
+      method: 'POST', url: `/v1/effects/${first[0].effect_id}/report`,
+      headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+      payload: { lease_token: first[0].lease_token, outcome: 'succeeded' },
+    });
+    assert.equal(reported.statusCode, 200, reported.payload.slice(0, 200));
+
+    // Three effects are still unreported. The workspace has reported once, and
+    // that is the whole signal: this integration is wired up.
+    const after = await beginN(key, 1, `${tag}-post`);
+    assert.equal(after[0].integration_warning, undefined,
+      'a workspace that reports must never be nagged about its backlog');
+  });
+
+  test('expired leases still count — the evidence outlives the lease', async () => {
+    const ws = await signup();
+    const key = ws.agent_api_key;
+    const tag = `expired-${Date.now()}`;
+    const begun = await beginN(key, 3, tag);
+    await getPool().query(
+      `UPDATE effects SET state='indeterminate', lease_token=NULL,
+              lease_expires_at = now() - interval '1 minute'
+        WHERE id = ANY($1)`, [begun.map((b) => b.effect_id)]);
+
+    const next = await beginN(key, 1, `${tag}-after`);
+    assert.ok(next[0].integration_warning,
+      'reaping the leases must not erase the reason the workspace is in trouble');
+  });
+
+  test('a replayed duplicate is not a new mistake', async () => {
+    const ws = await signup();
+    const key = ws.agent_api_key;
+    const tag = `dup-${Date.now()}`;
+    await beginN(key, 4, tag);
+    // Same key again: the duplicate path never takes the workspace lock, so it
+    // cannot have computed a count, and must not invent one.
+    const again = JSON.parse((await begin(key, {
+      effect_type: 'email.send', idempotency_key: `${tag}:0`, payload: { i: 0 },
+    })).payload);
+    assert.equal(again.integration_warning, undefined);
+  });
+});
+
+/**
+ * Guidance that names an endpoint is a promise. Every one of these messages has
+ * already been written wrong once — `resolve` and `report` are both addressed by
+ * effect id, while `begin` is addressed by effect_type and idempotency_key, and
+ * copying the shape of one into the other sends an already-stuck caller to a 404.
+ * This walks whatever the service actually says today and knocks on every door.
+ */
+describe('every path our own guidance names is a real one', () => {
+  const paths = (text: string) =>
+    [...text.matchAll(/\/v1\/[A-Za-z0-9_{}/-]*[A-Za-z0-9_}]/g)].map((m) => m[0]);
+
+  test('signup, blocked and the unreported warning all point somewhere real', async () => {
+    const ws = await signup();
+    const key = ws.agent_api_key;
+    const tag = `paths-${Date.now()}`;
+
+    const said: string[] = [ws.next_step.curl, ws.next_step.then, ws.next_step.expect];
+
+    // Four unreported begins: the last carries the integration warning.
+    let last: Record<string, string> = {};
+    for (let i = 0; i < 4; i += 1) {
+      last = JSON.parse((await begin(key, {
+        effect_type: 'email.send', idempotency_key: `${tag}:${i}`, payload: {} })).payload);
+    }
+    assert.ok(last.integration_warning);
+    said.push(last.integration_warning);
+
+    await getPool().query(
+      `UPDATE effects SET state='indeterminate', lease_expires_at = now() - interval '1 minute'
+        WHERE workspace_id=$1`, [ws.workspace_id]);
+    const blocked = JSON.parse((await begin(key, {
+      effect_type: 'email.send', idempotency_key: `${tag}:0`, payload: {} })).payload);
+    assert.equal(blocked.decision, 'blocked');
+    said.push(blocked.reason);
+
+    const found = [...new Set(said.flatMap(paths))];
+    assert.ok(found.length >= 3, `expected several paths, saw ${JSON.stringify(found)}`);
+
+    for (const path of found) {
+      // A named placeholder stands for a value the caller already holds.
+      const url = path.replace('{effect_id}', blocked.effect_id);
+      assert.equal(url.includes('{'), false, `unresolved placeholder in ${path}`);
+      const r = await app.inject({
+        method: 'POST', url,
+        headers: { authorization: `Bearer ${ws.api_key}`, 'content-type': 'application/json' },
+        payload: {},
+      });
+      // 400 means the route exists and disliked the empty body — which is the
+      // point. 404 means we sent a stuck person somewhere that does not exist.
+      assert.notEqual(r.statusCode, 404, `${url} is named in our guidance and does not exist`);
+    }
+  });
+});

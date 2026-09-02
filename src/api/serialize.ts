@@ -29,6 +29,7 @@ export function beginOut(r: BeginResult) {
     ...(r.retryAfterSeconds ? { retry_after_seconds: r.retryAfterSeconds } : {}),
     ...(r.reason ? { reason: r.reason } : {}),
     ...(r.budgetWarning ? { budget_warning: r.budgetWarning } : {}),
+    ...(r.integrationWarning ? { integration_warning: r.integrationWarning } : {}),
     ...(r.priorAttempt ? {
       prior_attempt: {
         attempt: r.priorAttempt.attempt,

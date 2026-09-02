@@ -59,7 +59,9 @@ export const MCP_TOOLS: McpToolDef[] = [
       '(sending a message, charging a card, creating a resource, writing to someone else\'s system). ' +
       'Returns a decision you MUST obey. If the response carries budget_warning, a spend '+
       'ceiling exists but nothing was counted toward it — surface that to the operator '+
-      'rather than ignoring it.\n' +
+      'rather than ignoring it. If it carries integration_warning, you have been beginning '+
+      'effects without reporting them: call ratchet_report_effect after every action, and '+
+      'tell the operator, because the effects already begun will start being blocked.\n' +
       'Decisions:\n' +
       '- "execute": you hold the lease. Perform the action now, then call ratchet_report_effect.\n' +
       '  If the response carries vendor_idempotency_key, send that key to the vendor as ITS own '+
