@@ -105,6 +105,7 @@ export function mountChrome(current) {
         <div>
           <h3>Operations</h3>
           <ul>
+            <li><a href="/status">Status</a></li>
             <li><a href="/security">Security posture</a></li>
             <li><a href="/healthz" target="_blank" rel="noopener">Health<span class="fmt">JSON</span></a></li>
             <li><a href="/readyz" target="_blank" rel="noopener">Readiness<span class="fmt">JSON</span></a></li>
@@ -118,9 +119,10 @@ export function mountChrome(current) {
           Ratchet gates side effects. It does not execute them, holds no vendor credentials,
           and never takes custody of your funds.
         </p>
-        <p style="margin:0;white-space:nowrap">
-          Powered by <a href="https://deimos.mx" target="_blank" rel="noopener noreferrer">Deimos.MX</a>
-        </p>
+        <a class="by-deimos" href="https://deimos.mx" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 100 66" role="img" aria-label="Deimos"> <defs>  <linearGradient id="deimosTri" x1="0.15" y1="0" x2="0.5" y2="1">   <stop offset="0" stop-color="currentColor" stop-opacity="0.55"/>   <stop offset="1" stop-color="currentColor" stop-opacity="0.18"/>  </linearGradient> </defs> <g fill="none" stroke="currentColor" stroke-width="2.2">  <ellipse cx="50" cy="33" rx="45" ry="15" transform="rotate(26 50 33)"/>  <ellipse cx="50" cy="33" rx="45" ry="15" transform="rotate(-26 50 33)"/> </g> <path d="M50 9 L76 55 H24 Z" fill="url(#deimosTri)" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>
+          <span>Powered by <b>Deimos.MX</b></span>
+        </a>
       </div>
     </div>`;
   }

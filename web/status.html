@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Status — Ratchet</title>
+<meta name="description" content="Live health of the Ratchet gate: control plane, readiness, and the worker that expires leases. Checked from your browser, against production.">
+<link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/mark.svg">
+<link rel="canonical" href="https://ratchetgate.com/status">
+<meta name="theme-color" content="#1c5cff">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ratchet">
+<meta property="og:title" content="Status — Ratchet">
+<meta property="og:description" content="Live health of the Ratchet gate, checked from your browser against production.">
+<meta property="og:url" content="https://ratchetgate.com/status">
+<meta property="og:image" content="https://ratchetgate.com/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Status — Ratchet">
+<meta name="twitter:description" content="Live health of the Ratchet gate, checked from your browser against production.">
+<meta name="twitter:image" content="https://ratchetgate.com/assets/og.png">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+<section>
+  <div class="wrap reading">
+    <p class="eyebrow">Status</p>
+    <h1>Is the gate up?</h1>
+    <p class="lede">
+      These checks run in your browser, against production, when you load this page.
+      Nothing is cached and nothing is reported by us — you are reading the same endpoints
+      our own monitoring reads.
+    </p>
+
+    <div id="checks" class="statusgrid" aria-live="polite">
+      <p class="dim">Checking…</p>
+    </div>
+
+    <p class="small faint" id="checked-at"></p>
+
+    <h2>What each one means</h2>
+    <dl class="statusdl">
+      <dt>Control plane</dt>
+      <dd>The API is running and serving. If this is down, <code>begin</code> and
+          <code>report</code> are unreachable — your agent gets a connection error, which is
+          the safe failure: no decision means no permission to act.</dd>
+
+      <dt>Readiness</dt>
+      <dd>The API can reach its database. A gate that cannot write cannot promise
+          at-most-once, so it refuses rather than guessing.</dd>
+
+      <dt>Lease expiry</dt>
+      <dd>The worker is running. This is the one that fails quietly: if leases stop
+          expiring, effects sit at <code>pending</code> for ever and every retry is answered
+          <code>in_flight</code> — while every other check on this page stays green. It is
+          the failure we watch hardest.</dd>
+    </dl>
+
+    <h2>The honest limitation of this page</h2>
+    <p>
+      A status page served by the thing it reports on cannot tell you the thing is down.
+      If Ratchet is unreachable, so is this. That is why it is not the only monitor:
+      an external service probes production on a schedule from outside our infrastructure,
+      and Fly's own health checks restart an unhealthy machine every 15 seconds.
+    </p>
+    <p id="external-status"></p>
+
+    <h2>Machine-readable</h2>
+    <p class="small">
+      Point your own monitor at these. They need no credential and return JSON.
+    </p>
+    <ul class="small">
+      <li><a href="/healthz" target="_blank" rel="noopener"><code>/healthz</code></a> — the process is alive</li>
+      <li><a href="/readyz" target="_blank" rel="noopener"><code>/readyz</code></a> — it can reach the database</li>
+      <li><a href="/workerz" target="_blank" rel="noopener"><code>/workerz</code></a> — leases are being expired</li>
+    </ul>
+  </div>
+</section>
+</main>
+
+<footer class="site"></footer>
+<script type="module" src="/assets/status.js"></script>
+</body>
+</html>

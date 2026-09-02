@@ -98,6 +98,38 @@ describe('notes section', () => {
     }
   });
 
+  /**
+   * The article version of this existed and covered only `/notes/…`. Adding
+   * `/status` to the sitemap without routing it would have sailed straight
+   * past — a URL advertised to Google that returns 404 is worse than one that
+   * was never advertised, because it is a crawl error against the domain.
+   */
+  test('every page the sitemap advertises is actually served', async () => {
+    const sitemap = readFileSync(
+      new URL('../../web/sitemap.xml', import.meta.url), 'utf8');
+    const paths = [...sitemap.matchAll(/<loc>https:\/\/ratchetgate\.com([^<]*)<\/loc>/g)]
+      .map((m) => m[1] || '/');
+    assert.ok(paths.length >= 10, 'the sitemap should list the whole public site');
+
+    for (const path of paths) {
+      const r = await app.inject({ method: 'GET', url: path });
+      assert.equal(r.statusCode, 200, `${path} is in the sitemap but returned ${r.statusCode}`);
+    }
+  });
+
+  // A status page nobody can find is decoration. It is reachable from every
+  // page's footer on purpose.
+  test('the status page is served and linked from the footer chrome', async () => {
+    const r = await app.inject({ method: 'GET', url: '/status' });
+    assert.equal(r.statusCode, 200);
+    assert.match(r.body, /Is the gate up\?/);
+
+    const partials = readFileSync(
+      new URL('../../web/assets/partials.js', import.meta.url), 'utf8');
+    assert.match(partials, /href="\/status"/,
+      'the footer must link the status page, or nobody will find it');
+  });
+
   test('every article the notes index links to is served', async () => {
     const index = await app.inject({ method: 'GET', url: '/notes' });
     const slugs = [...index.body.matchAll(/href="\/notes\/([a-z0-9-]+)"/g)]

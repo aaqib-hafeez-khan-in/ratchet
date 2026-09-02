@@ -1060,3 +1060,50 @@ ul.checks li::before {
 .rest a strong { color: var(--text); font-weight: 600; }
 .rest a:hover strong { color: var(--accent); }
 .rest a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+/* The Deimos mark sits beside the wordmark rather than replacing it: the logo
+   alone is not yet recognisable enough to carry attribution on its own. It is
+   drawn in currentColor so it inherits the footer's text colour and works on
+   both grounds without a second asset. Optical sizing, not metric — the mark is
+   wider than it is tall, so matching cap height would make it loom. */
+.by-deimos {
+  display: inline-flex; align-items: center; gap: 0.55rem;
+  margin: 0; white-space: nowrap;
+  color: var(--text-faint); text-decoration: none;
+  transition: color 0.15s ease;
+}
+.by-deimos svg { width: 26px; height: auto; flex: none; opacity: 0.75; transition: opacity 0.15s ease; }
+.by-deimos b { font-weight: 600; }
+.by-deimos:hover { color: var(--text); }
+.by-deimos:hover svg { opacity: 1; }
+.by-deimos:focus-visible { outline: 2px solid var(--accent, #1c5cff); outline-offset: 3px; border-radius: 4px; }
+
+/* ---- status page ---------------------------------------------------------
+   A row per check: a dot that carries the state in shape as well as colour,
+   the name, what it means right now, and how long it took. The timing is not
+   decoration — a check that passes in 4 seconds is telling you something a
+   green tick alone would hide. */
+.statusgrid { display: grid; gap: 0.5rem; margin: 1.75rem 0 0.75rem; }
+.statusrow {
+  display: grid; grid-template-columns: auto 1fr auto auto;
+  gap: 0.75rem; align-items: center;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--card, transparent);
+}
+.statusdot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.statusrow.is-ok   .statusdot { background: #12a150; box-shadow: 0 0 0 3px #12a15022; }
+.statusrow.is-down .statusdot { background: #d1242f; box-shadow: 0 0 0 3px #d1242f22; }
+.statuslabel  { font-weight: 600; }
+.statusdetail { color: var(--text-faint); font-size: 0.86rem; text-align: right; }
+.statusms {
+  font: 600 0.72rem/1 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  color: var(--text-faint); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.statusrow.is-down .statusdetail { color: #d1242f; }
+@media (max-width: 560px) {
+  .statusrow { grid-template-columns: auto 1fr auto; }
+  .statusdetail { grid-column: 2 / -1; text-align: left; }
+}
+.statusdl dt { font-weight: 600; margin-top: 1.1rem; }
+.statusdl dd { margin: 0.3rem 0 0; color: var(--text-faint); }
