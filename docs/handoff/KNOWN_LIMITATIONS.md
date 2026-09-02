@@ -73,23 +73,37 @@ credit is correct — the $0.80 is tax, not product.
 sales-tax or VAT obligations depending on where you and your customers are. This project does not
 give tax advice and does not assume an answer.
 
-## 2. Rate limits are per-process
+## 2. Rate limits are approximate, in two specific ways
 
-`@fastify/rate-limit` uses an in-memory store, so an N-instance deployment allows roughly N× the
-configured rate. Fine for one or two instances; wrong at scale.
+**Corrected 2 Sep 2026.** This section described the limiter as per-process and in-memory,
+allowing N instances to serve N× the published rate. That was fixed by
+`src/api/shared-rate-limit.ts`, which shares counters across instances through Postgres
+without putting the database on the request path — each instance counts locally, pushes its
+delta in the background, and answers from `globalAtLastFlush + unflushedLocal`. The entry
+outlived the fix, which is the third time in two days a limitation here has described a
+state the system had already left.
 
-**Fix:** point the plugin at a Redis store. Contained change, one config block. Deferred because it
-would add a second stateful dependency for a problem that does not exist at one instance.
+Two real approximations remain, both deliberate:
 
-**This is live, not theoretical.** `fly.toml` sets `auto_start_machines = true` with a second app
-machine on standby, so Fly starts it under load. The moment it does, every published limit
-doubles: the free plan's advertised 120/min becomes 240/min, and the manifest at
-`/.well-known/agent-manifest.json` is telling agents a number the system no longer enforces.
+**Between flushes, an instance is behind.** `incr` never awaits the database — that is the
+whole point, since the gate itself costs ~2.5 ms and a round trip per call to police a
+ceiling almost nobody approaches would be a poor trade. The cost is a window, bounded by the
+flush interval, in which several instances can each be under the limit locally while their
+sum is over it. The overshoot is bounded by the flush interval, not by the number of
+instances, which is what makes it acceptable.
 
-**The choice, when it matters:** move the counter to a shared store (Redis or a Postgres table —
-the latter adds a write to the hot path), or pin the app to a single machine and accept the
-throughput ceiling. Doing neither is defensible only while traffic is low enough that nobody
-reaches the limit at all, which is true today and stops being true silently.
+**Windows are fixed to wall-clock boundaries**, not sliding: `Math.floor(now / window) *
+window`. A caller who times a burst across a boundary can therefore receive up to **twice**
+the published limit in a rolling sixty seconds — the tail of one window plus the head of the
+next. This is the standard trade-off of fixed-window limiting, and it is the honest reason
+the manifest's numbers are a ceiling on sustained rate rather than a guarantee about any
+arbitrary sixty-second slice.
+
+It also caused a test flake worth recording, because the failure looked like a product bug:
+`plan-limits.test.ts` burst 125 requests against a 120/min limit in ~300 ms and asserted the
+next one was refused. On roughly one run in two hundred the burst straddled a boundary, the
+counter reset halfway through, and nothing was throttled. It never failed locally. The test
+now drives to twice the limit, so one boundary cannot save the caller.
 
 ---
 
