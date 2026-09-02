@@ -24,6 +24,13 @@ export interface BudgetCheck {
   requestedMicros: number;
   /** When this UTC-day window rolls over, so the caller can wait rather than guess. */
   resetsAt: string;
+  /**
+   * Present when what was breached was a VELOCITY ceiling rather than a spend
+   * one. A caller told "budget exceeded" while having spent nothing would go
+   * looking for money that was never the problem.
+   */
+  countLimit?: number;
+  countUsed?: number;
 }
 
 export class BudgetExceeded extends Error {
@@ -58,16 +65,25 @@ export function windowResetsAt(day: string): string {
 }
 
 async function addSpend(
-  tx: PoolClient, workspaceId: string, scope: string, day: string, delta: number,
+  tx: PoolClient, workspaceId: string, scope: string, day: string,
+  delta: number, deltaCount = 0,
 ): Promise<void> {
-  if (delta === 0) return;
+  if (delta === 0 && deltaCount === 0) return;
   await tx.query(
-    `INSERT INTO spend_windows (workspace_id, scope, day, spent_micros)
-     VALUES ($1,$2,$3,$4)
+    `INSERT INTO spend_windows (workspace_id, scope, day, spent_micros, used_count)
+     VALUES ($1,$2,$3,$4,$5)
      ON CONFLICT (workspace_id, scope, day)
-     DO UPDATE SET spent_micros = GREATEST(0, spend_windows.spent_micros + EXCLUDED.spent_micros)`,
-    [workspaceId, scope, day, delta],
+     DO UPDATE SET spent_micros = GREATEST(0, spend_windows.spent_micros + EXCLUDED.spent_micros),
+                   used_count   = GREATEST(0, spend_windows.used_count + EXCLUDED.used_count)`,
+    [workspaceId, scope, day, delta, deltaCount],
   );
+}
+
+export interface DimensionCeiling {
+  /** `dim:<name>:<blinded>` — see src/lib/dimensions.ts. */
+  scope: string;
+  limitMicros: number | null;
+  limitCount: number | null;
 }
 
 export interface ReserveArgs {
@@ -78,6 +94,13 @@ export interface ReserveArgs {
   workspaceDailyBudgetMicros: number | null;
   keyDailyBudgetMicros: number | null;
   typeDailyBudgetMicros: number | null;
+  /**
+   * Ceilings for the dimensions this effect declared. Strictly additive: they
+   * can refuse an effect the workspace, key and type ceilings would have
+   * allowed, and can never permit one those refused. That is what stops a
+   * caller-supplied string from widening its own authority (CLAUDE.md §6).
+   */
+  dimensionCeilings?: DimensionCeiling[];
   now: Date;
 }
 
@@ -93,13 +116,20 @@ export async function reserveSpend(tx: PoolClient, args: ReserveArgs): Promise<v
   // effect that declares no cost should not be charged against one. Skipping
   // here keeps six queries off the hot path for the common case where a caller
   // has not declared a cost.
-  if (args.amountMicros === 0) return;
+  const dims = args.dimensionCeilings ?? [];
+
+  // Reserving nothing used to be a flat no-op: zero can never breach a SPEND
+  // ceiling. A velocity ceiling is different — "no more than five of these per
+  // day" has no monetary component at all, and outbound messaging is exactly the
+  // case that needs one. So the skip now also requires that nothing is counting.
+  if (args.amountMicros === 0 && !dims.some((d) => d.limitCount !== null)) return;
 
   const day = utcDay(args.now);
-  const checks: Array<{ scope: string; limit: number | null }> = [
+  const checks: Array<{ scope: string; limit: number | null; limitCount?: number | null }> = [
     { scope: SCOPE_WORKSPACE, limit: args.workspaceDailyBudgetMicros },
     { scope: scopeForKey(args.apiKeyId), limit: args.keyDailyBudgetMicros },
     { scope: scopeForType(args.effectType), limit: args.typeDailyBudgetMicros },
+    ...dims.map((d) => ({ scope: d.scope, limit: d.limitMicros, limitCount: d.limitCount })),
   ];
 
   /**
@@ -132,31 +162,49 @@ export async function reserveSpend(tx: PoolClient, args: ReserveArgs): Promise<v
    * a SELECT ... FOR UPDATE would lock nothing, which is the race the old
    * three-step dance existed to avoid.
    */
-  const { rows } = await tx.query<{ scope: string; spent_micros: string }>(
-    `INSERT INTO spend_windows (workspace_id, scope, day, spent_micros)
-     SELECT $1, s.scope, $2, $3
+  const { rows } = await tx.query<{ scope: string; spent_micros: string; used_count: number }>(
+    `INSERT INTO spend_windows (workspace_id, scope, day, spent_micros, used_count)
+     SELECT $1, s.scope, $2, $3, 1
        FROM unnest($4::text[]) WITH ORDINALITY AS s(scope, ord)
       ORDER BY s.ord
      ON CONFLICT (workspace_id, scope, day)
-     DO UPDATE SET spent_micros = spend_windows.spent_micros + EXCLUDED.spent_micros
-     RETURNING scope, spent_micros`,
+     DO UPDATE SET spent_micros = spend_windows.spent_micros + EXCLUDED.spent_micros,
+                   used_count   = spend_windows.used_count + EXCLUDED.used_count
+     RETURNING scope, spent_micros, used_count`,
     [args.workspaceId, day, args.amountMicros, checks.map((c) => c.scope)],
   );
 
   // RETURNING gives the total AFTER this reservation. The ceiling is expressed
   // in terms of what was already spent, and the error reports that, so the
   // caller sees the same numbers they would have before.
-  const after = new Map(rows.map((r) => [r.scope, Number(r.spent_micros)]));
-  for (const { scope, limit } of checks) {
-    if (limit === null) continue;
-    const total = after.get(scope) ?? args.amountMicros;
-    if (total > limit) {
-      throw new BudgetExceeded({
-        scope, limitMicros: limit,
-        spentMicros: total - args.amountMicros,
-        requestedMicros: args.amountMicros,
-        resetsAt: windowResetsAt(day),
-      });
+  const after = new Map(rows.map((r) => [r.scope, r]));
+  for (const { scope, limit, limitCount } of checks) {
+    const row = after.get(scope);
+
+    if (limit !== null) {
+      const total = row ? Number(row.spent_micros) : args.amountMicros;
+      if (total > limit) {
+        throw new BudgetExceeded({
+          scope, limitMicros: limit,
+          spentMicros: total - args.amountMicros,
+          requestedMicros: args.amountMicros,
+          resetsAt: windowResetsAt(day),
+        });
+      }
+    }
+
+    if (limitCount !== undefined && limitCount !== null) {
+      const used = row ? Number(row.used_count) : 1;
+      if (used > limitCount) {
+        throw new BudgetExceeded({
+          scope, limitMicros: limit ?? 0,
+          spentMicros: row ? Number(row.spent_micros) - args.amountMicros : 0,
+          requestedMicros: args.amountMicros,
+          resetsAt: windowResetsAt(day),
+          countLimit: limitCount,
+          countUsed: used - 1,
+        });
+      }
     }
   }
 }
@@ -167,12 +215,30 @@ export async function reserveSpend(tx: PoolClient, args: ReserveArgs): Promise<v
  */
 export async function adjustSpend(
   tx: PoolClient,
-  args: { workspaceId: string; apiKeyId: string; effectType: string; deltaMicros: number; day: Date },
+  args: {
+    workspaceId: string; apiKeyId: string; effectType: string;
+    deltaMicros: number; day: Date;
+    /** Scopes this effect's declared dimensions reserved against. */
+    dimensionScopes?: string[];
+    /**
+     * -1 when releasing a reservation outright, 0 when reconciling a reported
+     * cost. A retried effect releases and re-reserves, so without this a
+     * velocity ceiling would count every attempt: three tries at one payment
+     * would look like three payments to that counterparty. At-most-once
+     * initiation says it is one payment, and the ceiling has to agree.
+     */
+    deltaCount?: number;
+  },
 ): Promise<void> {
-  if (args.deltaMicros === 0) return;
+  const deltaCount = args.deltaCount ?? 0;
+  if (args.deltaMicros === 0 && deltaCount === 0) return;
   const day = utcDay(args.day);
-  for (const scope of [SCOPE_WORKSPACE, scopeForKey(args.apiKeyId), scopeForType(args.effectType)]) {
-    await addSpend(tx, args.workspaceId, scope, day, args.deltaMicros);
+  const scopes = [
+    SCOPE_WORKSPACE, scopeForKey(args.apiKeyId), scopeForType(args.effectType),
+    ...(args.dimensionScopes ?? []),
+  ];
+  for (const scope of scopes) {
+    await addSpend(tx, args.workspaceId, scope, day, args.deltaMicros, deltaCount);
   }
 }
 

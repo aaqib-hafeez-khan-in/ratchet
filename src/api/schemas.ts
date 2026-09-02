@@ -62,6 +62,20 @@ export const beginBody = {
       type: 'object', additionalProperties: true,
       description: 'Small, non-sensitive metadata shown in the console. Redact secrets before sending.',
     },
+    dimensions: {
+      type: 'object',
+      maxProperties: 8,
+      additionalProperties: { type: 'string', minLength: 1, maxLength: 256 },
+      propertyNames: { pattern: '^[a-z][a-z0-9_]{0,31}$' },
+      description:
+        'Axes this effect can be counted against, most usefully the counterparty: '
+        + '{"counterparty":"acct_1234"}. Send the identifier itself — only a keyed hash '
+        + 'is stored, so Ratchet can count how much has gone to a destination today '
+        + 'without ever being able to say which destination it is. A declaration can only '
+        + 'TIGHTEN: it adds whatever ceiling policy keys on that dimension, and never '
+        + 'removes the workspace, key or effect-type ceilings. Omitting one that policy '
+        + 'requires is refused with `dimension_required`.',
+    },
     lease_seconds: {
       type: 'integer', minimum: 5, maximum: 3600,
       description: 'Requested lease length. Clamped to the policy maximum for this effect type.',
@@ -304,6 +318,29 @@ export const policySchema = {
     daily_budget_micros: { type: ['integer', 'null'] },
     retention_days: { type: 'integer' },
     require_cost: { type: 'boolean' },
+    required_dimensions: {
+      type: 'array', maxItems: 8,
+      items: { type: 'string', pattern: '^[a-z][a-z0-9_]{0,31}$' },
+      description:
+        'Dimensions a caller must declare on begin, or the call is refused. Without this a '
+        + 'ceiling keyed on a dimension is evaded by simply not declaring it.',
+    },
+    dimension_limits: {
+      type: 'object', maxProperties: 8,
+      propertyNames: { pattern: '^[a-z][a-z0-9_]{0,31}$' },
+      additionalProperties: {
+        type: 'object', additionalProperties: false,
+        properties: {
+          daily_micros: { type: ['integer', 'null'], minimum: 0 },
+          daily_count: { type: ['integer', 'null'], minimum: 0 },
+        },
+      },
+      description:
+        'Per-dimension daily ceilings, e.g. {"counterparty":{"daily_micros":200000000,'
+        + '"daily_count":20}} for "no more than $200 and no more than 20 effects to any one '
+        + 'counterparty per UTC day". daily_count applies even to effects that declare no '
+        + 'cost, which is what makes it usable for outbound messaging.',
+    },
     surge_per_hour: { type: ['integer', 'null'],
       description: 'New effects of this type per hour above which the circuit breaker opens. '
         + 'Null disables surge containment, which is the default.' },

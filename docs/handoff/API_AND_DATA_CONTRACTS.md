@@ -39,6 +39,7 @@ The only metered call, and only when it creates a new effect record.
 | `agent_id`, `run_id` | string ≤128 | no | Operator visibility |
 | `request_summary` | object | no | Small non-sensitive metadata shown in the console |
 | `lease_seconds` | int 5–3600 | no | Clamped to the policy maximum |
+| `dimensions` | object ≤8 | no | Axes to count this effect against, e.g. `{"counterparty":"acct_1"}`. Only an HMAC of each value is stored |
 
 Response:
 
@@ -168,6 +169,53 @@ round trip (migration 032):
 
 Both are `NULL`/`0` for effects begun before the migration. The endpoint reports how many effects
 it could actually measure rather than averaging over rows that never carried the field.
+
+### Dimensions and per-destination ceilings
+
+A ceiling could be scoped to a workspace, an API key or an effect type. None of those is a
+**destination**, so twenty distinct $500 refunds to one bank account passed every check. A
+destination lives in the payload, and Ratchet never stores payloads.
+
+**Counting does not require reading.** A caller declares `dimensions` on begin; Ratchet stores
+`HMAC(AUTH_SECRET, "dim:v1:<workspace>:<name>:<value>")` truncated to 128 bits, as
+`dim:<name>:<32 hex>`. It cannot say who the counterparty is and cannot reverse the value — and
+because the workspace id is inside the MAC, the same account in two workspaces is two unrelated
+identifiers. It can still count.
+
+Policy gains two fields:
+
+```
+PUT /v1/policies/payment.refund
+{ "required_dimensions": ["counterparty"],
+  "dimension_limits": { "counterparty": { "daily_micros": 200000000, "daily_count": 20 } } }
+```
+
+`daily_count` applies to effects that declare **no cost at all**, which is what makes it usable
+for outbound messaging — "no more than five to this address per day" has no monetary component.
+A velocity refusal is `budget_exceeded` with `count_limit`/`count_used` in the detail and a
+message that says so, because a caller told "spend budget" while having declared nothing would go
+looking for money that was never the problem.
+
+**A declaration tightens and never loosens.** This is the whole reason CLAUDE.md §6 tolerates
+caller-supplied text selecting a ceiling, and it is asserted by tests:
+
+- Declaring adds a limit; the workspace, key and type limits still apply. A generous
+  `dimension_limits` entry cannot override a tighter `daily_budget_micros`.
+- Omitting a dimension in `required_dimensions` is a `400 dimension_required`, not a bypass —
+  a 400 rather than a `denied` decision so a caller bug does not burn the idempotency key.
+- Lying puts the effect in a different bucket and grants nothing extra. The vendor knows the
+  real destination, so `POST /v1/reconcile` is where a lie surfaces.
+- A **retry cannot move buckets.** Ceilings are computed from the effect's stored dimensions,
+  never from the retry's body.
+
+**Counts follow at-most-once, money follows reality.** Three attempts at one payment is one
+payment against a velocity ceiling — a retry releases its count and takes it again. But a
+lease that expires unreported, or an effect that is resolved or cancelled, keeps its count:
+returning it would make crashing the agent, or cancelling, the cheapest way past the ceiling.
+Money is reconciled to the reported actual, so under-declaring cannot walk past a spend ceiling.
+
+`effects.reserved_dimension_scopes` records what a lease actually reserved against, so a release
+reverses exactly what was taken even if policy is edited in between.
 
 ### Policies
 

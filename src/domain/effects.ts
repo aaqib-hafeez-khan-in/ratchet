@@ -9,6 +9,7 @@ import { reserveSpend, adjustSpend, BudgetExceeded } from './budget.js';
 import { reserveRunSpend, RunBudgetExceeded } from './run-budget.js';
 import { vendorIdempotencyKey } from './vendor-keys.js';
 import { writeReceipt, RECEIPT_VERSION } from './receipts.js';
+import { blind, scopeForDimension, type Blinded } from '../lib/dimensions.js';
 import { meterEffect, InsufficientCredit, AnonymousQuotaExhausted } from './metering.js';
 import { enqueueEvent } from './events.js';
 import { recordActivity, recordMilestone } from './activity.js';
@@ -34,7 +35,8 @@ const SELECT_EFFECT = `
          reserved_micros, actual_micros, request_summary, result,
          failure_reason, denial_reason, agent_id, run_id,
          approval_state, approved_by, created_at, updated_at, settled_at, expires_at,
-         group_id, compensation, compensates_effect_id, compensated_at, group_seq
+         group_id, compensation, compensates_effect_id, compensated_at, group_seq,
+         dimensions, reserved_dimension_scopes
     FROM effects`;
 
 /**
@@ -48,15 +50,43 @@ async function grantLease(
   const leaseToken = newId('lt', 24);
   const expiresAt = new Date(now.getTime() + leaseSeconds * 1000);
 
+  /**
+   * Ceilings for what this effect declared.
+   *
+   * Read from the EFFECT, never from the current request. A retry arrives with
+   * its own body, and taking the dimensions from it would let a caller move an
+   * effect into a fresh bucket on attempt two — the exact evasion these ceilings
+   * exist to stop. The row holds what was declared when the effect was created,
+   * and that is what it is counted against for its whole life.
+   */
+  const dimensionCeilings = Object.entries(effect.dimensions ?? {})
+    .map(([name, blinded]) => ({ name, scope: scopeForDimension(name, blinded) }))
+    .filter(({ name }) => policy.dimensionLimits[name] !== undefined)
+    .map(({ name, scope }) => ({
+      scope,
+      limitMicros: policy.dimensionLimits[name]!.dailyMicros,
+      limitCount: policy.dimensionLimits[name]!.dailyCount,
+    }));
+
   // Release any reservation still outstanding from the previous attempt before
-  // reserving afresh, so a retried effect never double-books its budget.
-  if (effect.reserved_micros > 0) {
+  // reserving afresh, so a retried effect never double-books its budget. The
+  // count goes back with it: three attempts at one payment is one payment
+  // against a velocity ceiling, because at-most-once initiation says so.
+  // attempt > 0 is what says a previous grant happened. reserved_micros alone is
+  // not enough any more: a reported effect has had its reservation zeroed, but
+  // its COUNT against a velocity ceiling is still standing and must come back
+  // before the retry adds another.
+  const releasing = effect.attempt > 0
+    && (effect.reserved_micros > 0 || dimensionCeilings.length > 0);
+  if (releasing) {
     await adjustSpend(tx, {
       workspaceId: effect.workspace_id,
       apiKeyId: effect.leased_by_key_id ?? input.apiKeyId,
       effectType: effect.effect_type,
       deltaMicros: -effect.reserved_micros,
       day: effect.created_at,
+      dimensionScopes: effect.reserved_dimension_scopes ?? [],
+      deltaCount: -1,
     });
   }
 
@@ -68,6 +98,7 @@ async function grantLease(
     workspaceDailyBudgetMicros: null,
     keyDailyBudgetMicros: input.keyDailyBudgetMicros,
     typeDailyBudgetMicros: policy.dailyBudgetMicros,
+    dimensionCeilings,
     now,
   });
 
@@ -87,7 +118,7 @@ async function grantLease(
         SET state = 'pending', attempt = attempt + 1, lease_token = $2,
             lease_expires_at = $3, leased_by_key_id = $4,
             reserved_micros = $5, actual_micros = 0, declared_micros = $5,
-            lease_granted_at = now(),
+            lease_granted_at = now(), reserved_dimension_scopes = $6,
             failure_reason = NULL, denial_reason = NULL, updated_at = now()
       WHERE id = $1
       RETURNING id, workspace_id, effect_type, idempotency_key, fingerprint, state,
@@ -95,8 +126,10 @@ async function grantLease(
                 reserved_micros, actual_micros, request_summary, result,
                 failure_reason, denial_reason, agent_id, run_id,
                 approval_state, approved_by, created_at, updated_at, settled_at, expires_at,
-                group_id, compensation, compensates_effect_id, compensated_at, group_seq`,
-    [effect.id, leaseToken, expiresAt, input.apiKeyId, input.estimatedCostMicros],
+                group_id, compensation, compensates_effect_id, compensated_at, group_seq,
+                dimensions, reserved_dimension_scopes`,
+    [effect.id, leaseToken, expiresAt, input.apiKeyId, input.estimatedCostMicros,
+     dimensionCeilings.map((d) => d.scope)],
   );
   return rows[0]!;
 }
@@ -137,6 +170,11 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
     // need it too.
     const policy = await getPolicy(tx, input.workspaceId, input.effectType);
 
+    // Blinded once, up front: the required-dimension check, the INSERT and the
+    // reservation must all be talking about the same values, and blinding is a
+    // pure function of (workspace, name, value) so doing it here costs nothing.
+    const declared: Blinded = blind(input.workspaceId, input.dimensions);
+
     // Assigned inside decide(), read after it. Null unless this workspace has
     // never once reported an outcome, in which case it counts the effects begun
     // here and left unreported.
@@ -158,6 +196,19 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
         + 'estimated_cost_micros (micro-USD, 1e-6 USD) so budget ceilings can count it. '
         + 'Without it the ceiling on this effect type would never trigger.',
         { effectType: input.effectType });
+    }
+
+    // A 400 rather than a `denied` decision, matching require_cost above. A
+    // denial would burn the idempotency key on what is a caller bug: fix the
+    // code, retry the same key, and you would replay the denial for ever.
+    const missing = policy.requiredDimensions.filter((name) => !(name in declared));
+    if (missing.length > 0) {
+      throw new ApiError(400, 'dimension_required',
+        `Effect type "${input.effectType}" requires the dimension`
+        + `${missing.length > 1 ? 's' : ''} ${missing.map((m) => `"${m}"`).join(', ')}. `
+        + 'Send it in `dimensions` so the ceiling keyed on it can count this effect. '
+        + 'Only a keyed hash of the value is stored — Ratchet never sees it.',
+        { effectType: input.effectType, missing });
     }
 
     if (policy.maxCostMicros !== null && input.estimatedCostMicros > policy.maxCostMicros) {
@@ -237,8 +288,8 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
       `INSERT INTO effects
          (id, workspace_id, effect_type, idempotency_key, fingerprint, state,
           request_summary, agent_id, run_id, expires_at,
-          group_id, compensation, compensates_effect_id, group_seq)
-       VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,
+          group_id, compensation, compensates_effect_id, dimensions, group_seq)
+       VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,
                CASE WHEN $10::text IS NULL THEN NULL ELSE nextval('effect_group_seq') END)
        ON CONFLICT (workspace_id, effect_type, idempotency_key) DO NOTHING
        RETURNING id, workspace_id, effect_type, idempotency_key, fingerprint, state,
@@ -246,13 +297,15 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
                  reserved_micros, actual_micros, request_summary, result,
                  failure_reason, denial_reason, agent_id, run_id,
                  approval_state, approved_by, created_at, updated_at, settled_at, expires_at,
-                 group_id, compensation, compensates_effect_id, compensated_at, group_seq`,
+                 group_id, compensation, compensates_effect_id, compensated_at, group_seq,
+                dimensions, reserved_dimension_scopes`,
       [effectId, input.workspaceId, input.effectType, input.idempotencyKey, fingerprint,
        JSON.stringify(input.requestSummary ?? {}), input.agentId ?? null,
        input.runId ?? null, expiresAt,
        group?.id ?? null,
        input.compensation ? JSON.stringify(input.compensation) : null,
-       input.compensatesEffectId ?? null],
+       input.compensatesEffectId ?? null,
+       JSON.stringify(declared)],
     );
 
     let effect = claim.rows[0];
@@ -558,12 +611,23 @@ async function grantLeaseGuarded(
     return await grantLease(tx, effect, input, policy, now);
   } catch (err) {
     if (err instanceof BudgetExceeded) {
+      // A velocity ceiling and a spend ceiling are different refusals and the
+      // remedies differ, so the message says which one it was. A caller told
+      // "spend budget" while having declared no cost at all would go looking for
+      // money that was never the problem.
+      const velocity = err.check.countLimit !== undefined;
       throw new ApiError(403, 'budget_exceeded',
-        'This effect would exceed a configured daily spend budget.', {
+        velocity
+          ? `This effect would exceed a configured daily limit of ${err.check.countLimit} `
+            + `effects for ${err.check.scope}.`
+          : 'This effect would exceed a configured daily spend budget.', {
           scope: err.check.scope,
           limitMicros: err.check.limitMicros,
           spentMicros: err.check.spentMicros,
           requestedMicros: err.check.requestedMicros,
+          ...(velocity
+            ? { countLimit: err.check.countLimit, countUsed: err.check.countUsed }
+            : {}),
           // Budgets bucket by UTC day, which is not local midnight for most of
           // the world. Give the caller the instant, not a rule to apply.
           resetsAt: err.check.resetsAt,
@@ -605,7 +669,8 @@ async function markIndeterminate(tx: PoolClient, effect: EffectRow): Promise<Eff
                 reserved_micros, actual_micros, request_summary, result,
                 failure_reason, denial_reason, agent_id, run_id,
                 approval_state, approved_by, created_at, updated_at, settled_at, expires_at,
-                group_id, compensation, compensates_effect_id, compensated_at, group_seq`,
+                group_id, compensation, compensates_effect_id, compensated_at, group_seq,
+                dimensions, reserved_dimension_scopes`,
     [effect.id],
   );
   const updated = rows[0]!;
@@ -847,13 +912,19 @@ export async function reportEffect(input: ReportInput): Promise<ReportResult> {
       ? (input.actualCostMicros ?? effect.reserved_micros)
       : 0;
 
-    // Reconcile the external-spend reservation against what really happened.
+    // Reconcile the external-spend reservation against what really happened —
+    // including the dimension buckets, or a counterparty ceiling would count
+    // estimates rather than money, and under-declaring would walk past it.
+    //
+    // The COUNT is untouched: this effect was attempted, and a velocity ceiling
+    // is counting attempts to act on a counterparty, not outcomes.
     await adjustSpend(tx, {
       workspaceId: effect.workspace_id,
       apiKeyId: effect.leased_by_key_id ?? input.apiKeyId,
       effectType: effect.effect_type,
       deltaMicros: actual - effect.reserved_micros,
       day: effect.created_at,
+      dimensionScopes: effect.reserved_dimension_scopes ?? [],
     });
 
     const { rows: updated } = await tx.query<EffectRow>(
@@ -930,12 +1001,17 @@ export async function resolveEffect(args: {
     }
 
     if (effect.reserved_micros > 0) {
+      // The money comes back; the count does not. An attempt on a counterparty
+      // was made, and resolving or cancelling it afterwards must not hand the
+      // day's velocity allowance back — otherwise cancelling becomes the way
+      // round the ceiling.
       await adjustSpend(tx, {
         workspaceId: effect.workspace_id,
         apiKeyId: effect.leased_by_key_id ?? 'unknown',
         effectType: effect.effect_type,
         deltaMicros: -effect.reserved_micros,
         day: effect.created_at,
+        dimensionScopes: effect.reserved_dimension_scopes ?? [],
       });
     }
 
@@ -1042,6 +1118,7 @@ export async function cancelEffect(args: {
       await adjustSpend(tx, {
         workspaceId: effect.workspace_id, apiKeyId: effect.leased_by_key_id ?? 'unknown',
         effectType: effect.effect_type, deltaMicros: -effect.reserved_micros, day: effect.created_at,
+        dimensionScopes: effect.reserved_dimension_scopes ?? [],
       });
     }
     await tx.query(

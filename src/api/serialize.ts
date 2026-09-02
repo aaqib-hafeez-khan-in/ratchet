@@ -92,6 +92,11 @@ export function policyOut(p: Policy) {
     // require_cost was declared in the schema but never serialised, so the API
     // silently reported nothing for a setting an operator had turned on.
     require_cost: p.requireCost,
+    required_dimensions: p.requiredDimensions,
+    dimension_limits: Object.fromEntries(
+      Object.entries(p.dimensionLimits).map(([name, v]) => [name, {
+        daily_micros: v.dailyMicros, daily_count: v.dailyCount,
+      }])),
     surge_per_hour: p.surgePerHour,
     surge_action: p.surgeAction,
     surge_cooldown_seconds: p.surgeCooldownSeconds,

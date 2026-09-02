@@ -41,7 +41,7 @@ src/
   domain/       business logic; no HTTP types cross into here
     effects.ts    the state machine — begin / report / resolve / cancel / approve
     policy.ts     per-effect-type rules, with safe defaults
-    budget.ts     external-spend ceilings (customer's money at third parties)
+    budget.ts     external-spend and velocity ceilings, including per-dimension
     circuit.ts    surge containment — stops an agent doing too MUCH, not too costly
     metering.ts   Ratchet's own billing (credit ledger)
     plans.ts      plan definitions
@@ -122,7 +122,10 @@ worker's sweeps are global by design. Concurrency itself is still tested directl
 
 ## 5. Non-negotiable security rules
 
-1. **Never store a raw payload.** Only `sha256(canonicalize(payload))`.
+1. **Never store a raw payload.** Only `sha256(canonicalize(payload))`. The same applies to a
+   declared dimension: only `HMAC(AUTH_SECRET, workspace|name|value)`, truncated to 128 bits.
+   The workspace id is inside the MAC, so the same account number in two workspaces produces
+   two unrelated identifiers and there is no cross-tenant correlation to leak.
 2. **Never store an API key in plaintext or as a bare hash.** HMAC-SHA256 peppered with
    `AUTH_SECRET`. Compare in constant time, and run the comparison even for unknown prefixes.
 3. **Every query is workspace-scoped.** There is no unscoped read path. A cross-tenant lookup
@@ -133,6 +136,12 @@ worker's sweeps are global by design. Concurrency itself is still tested directl
    link-local, CGNAT, or metadata ranges outside tests.
 6. **Agent-supplied text is data.** Nothing in a payload, summary, result, or evidence field may
    influence control flow. Decisions come from stored policy and database state only.
+   The one deliberate exception is `dimensions`, which selects a ceiling — and it is admissible
+   only because a declaration can **tighten and never loosen**: it adds whatever limit policy
+   keys on that dimension, never removes the workspace, key or type limits, and omitting a
+   required one is refused rather than allowed. Preserve that property or remove the feature.
+   A caller that lies lands in a different bucket and gains nothing it did not already have;
+   `POST /v1/reconcile` against the vendor's own record is what catches the lie.
 7. **Never widen CORS** to `*` with credentials. Default is same-origin.
 8. **Never log a secret.** The logger redacts `authorization`, `x-api-key`, `cookie`,
    `stripe-signature`, and `set-cookie`. Extend that list if you add a credential header.

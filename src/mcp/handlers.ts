@@ -57,6 +57,7 @@ export async function callTool(
         runId: args.run_id ?? null,
         vendor: args.vendor ?? null,
         requestSummary: {},
+        dimensions: args.dimensions ?? undefined,
         leaseSeconds: args.lease_seconds ?? null,
         groupKey: args.group_key ?? null,
         compensation: args.compensation

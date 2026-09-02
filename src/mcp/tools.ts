@@ -94,6 +94,11 @@ export const MCP_TOOLS: McpToolDef[] = [
           type: 'integer', minimum: 0,
           description: 'What this action will cost at the third party, in micro-USD (1000000 = $1). ALWAYS SEND THIS when the action costs money. Spend ceilings are computed from it, and a ceiling with nothing declared against it never fires — the operator would be relying on a limit that cannot trigger. If the response contains budget_warning, that is exactly what has happened: tell the operator. Ratchet does not collect this money; it only counts it.',
         },
+        dimensions: {
+          type: 'object',
+          additionalProperties: { type: 'string' },
+          description: 'Who or what this action is aimed at, most often the destination: {"counterparty":"acct_1234"}. SEND THIS whenever the action targets a specific recipient, account or customer. It is how a per-destination ceiling can exist at all — "no more than $200 to any one counterparty per day" — and only a keyed hash of the value is stored, so Ratchet counts the destination without ever being able to read it. Declaring can only tighten: it never removes a limit. If begin is refused with dimension_required, the operator has made a dimension mandatory for this effect type and you must send it.',
+        },
         agent_id: { type: 'string', description: 'Identifier for you, the calling agent.' },
         run_id: { type: 'string', description: 'Groups all effects from one task or run.' },
         lease_seconds: {

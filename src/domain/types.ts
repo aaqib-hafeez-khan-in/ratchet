@@ -35,6 +35,20 @@ export interface Policy {
   /** Refuse a begin for this effect type unless it declares a cost. */
   requireCost: boolean;
   /**
+   * Dimensions that must be declared, or begin is refused.
+   *
+   * Without this a counterparty ceiling is trivially evaded: a compromised agent
+   * simply stops declaring a counterparty and every effect lands in no bucket.
+   * Requiring the dimension turns omission into a refusal.
+   */
+  requiredDimensions: string[];
+  /**
+   * Per-dimension daily ceilings, keyed by dimension name. Either limit may be
+   * null. A dimension with no entry is still recorded — recording without
+   * limiting is what makes fan-in and fan-out countable.
+   */
+  dimensionLimits: Record<string, { dailyMicros: number | null; dailyCount: number | null }>;
+  /**
    * Surge containment. New effects of this type per hour above which the
    * breaker opens. NULL disables it, which is the default — an unrequested
    * ceiling that starts refusing work is worse than none.
@@ -87,6 +101,10 @@ export interface EffectRow {
   compensates_effect_id: string | null;
   compensated_at: Date | null;
   group_seq: number | null;
+  /** Blinded declared dimensions: {name: 32 hex chars}. Never the raw values. */
+  dimensions: Record<string, string>;
+  /** Scopes the current lease reserved against, so a release reverses exactly that. */
+  reserved_dimension_scopes: string[];
 }
 
 export interface BeginInput {
@@ -101,6 +119,11 @@ export interface BeginInput {
   agentId?: string | null;
   runId?: string | null;
   requestSummary?: Record<string, unknown>;
+  /**
+   * Caller-declared dimensions, raw. Blinded on the way in and never stored as
+   * given — see src/lib/dimensions.ts for what a declaration can and cannot do.
+   */
+  dimensions?: Record<string, unknown>;
   /** Overrides the policy lease, clamped to [5, policy.leaseSeconds]. */
   leaseSeconds?: number | null;
   /**

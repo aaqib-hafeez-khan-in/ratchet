@@ -16,6 +16,16 @@ export const DEFAULT_POLICY = {
   dailyBudgetMicros: null,
   retentionDays: 7,
   requireCost: false,
+  /** Dimensions that must be declared, or begin is refused. */
+  requiredDimensions: [] as string[],
+  /**
+   * Per-dimension ceilings, keyed by dimension name:
+   *   { counterparty: { dailyMicros: 200_000_000, dailyCount: 20 } }
+   * Either may be null. A dimension with no entry here is recorded but not
+   * limited, which is useful on its own — it is what makes fan-in and fan-out
+   * countable later.
+   */
+  dimensionLimits: {} as Record<string, { dailyMicros: number | null; dailyCount: number | null }>,
   // Surge containment is OFF unless a threshold is set. An unrequested ceiling
   // that starts refusing work is worse than no ceiling at all.
   surgePerHour: null as number | null,
@@ -42,6 +52,8 @@ interface PolicyRow {
   daily_budget_micros: number | null;
   retention_days: number;
   require_cost: boolean;
+  required_dimensions: string[];
+  dimension_limits: Record<string, { daily_micros?: number | null; daily_count?: number | null }>;
   surge_per_hour: number | null;
   surge_action: Policy['surgeAction'];
   surge_cooldown_seconds: number;
@@ -50,12 +62,46 @@ interface PolicyRow {
   surge_baseline_at: Date | null;
 }
 
+/**
+ * Policy is stored snake_case in JSONB and used camelCase in the domain, and
+ * `src/api/serialize.ts` is the only place allowed to convert the WIRE format.
+ * This is a different boundary — database JSONB to domain — so it lives here,
+ * and it is defensive because the column is free-form: a hand-edited row must
+ * not be able to turn a missing limit into NaN and thereby into no limit at all.
+ */
+/** The inverse of fromWire: domain camelCase back into the stored JSONB shape. */
+function toWire(
+  limits: Record<string, { dailyMicros: number | null; dailyCount: number | null }>,
+): Record<string, { daily_micros: number | null; daily_count: number | null }> {
+  const out: Record<string, { daily_micros: number | null; daily_count: number | null }> = {};
+  for (const [name, v] of Object.entries(limits)) {
+    out[name] = { daily_micros: v.dailyMicros, daily_count: v.dailyCount };
+  }
+  return out;
+}
+
+function fromWire(
+  raw: Record<string, { daily_micros?: number | null; daily_count?: number | null }> | null,
+): Record<string, { dailyMicros: number | null; dailyCount: number | null }> {
+  const out: Record<string, { dailyMicros: number | null; dailyCount: number | null }> = {};
+  for (const [name, v] of Object.entries(raw ?? {})) {
+    const micros = typeof v?.daily_micros === 'number' && Number.isFinite(v.daily_micros)
+      ? v.daily_micros : null;
+    const count = typeof v?.daily_count === 'number' && Number.isFinite(v.daily_count)
+      ? v.daily_count : null;
+    if (micros === null && count === null) continue;   // an entry limiting nothing is not a limit
+    out[name] = { dailyMicros: micros, dailyCount: count };
+  }
+  return out;
+}
+
 export async function getPolicy(
   db: Db, workspaceId: string, effectType: string,
 ): Promise<Policy> {
   const { rows } = await db.query<PolicyRow>(
     `SELECT effect_type, mode, on_indeterminate, lease_seconds, max_attempts,
             max_cost_micros, daily_budget_micros, retention_days, require_cost,
+            required_dimensions, dimension_limits,
             surge_per_hour, surge_action, surge_cooldown_seconds,
             surge_multiplier, surge_baseline_per_hour, surge_baseline_at
        FROM effect_policies
@@ -75,6 +121,8 @@ export async function getPolicy(
     dailyBudgetMicros: row.daily_budget_micros,
     retentionDays: row.retention_days,
     requireCost: row.require_cost,
+    requiredDimensions: row.required_dimensions ?? [],
+    dimensionLimits: fromWire(row.dimension_limits),
     surgePerHour: row.surge_per_hour,
     surgeAction: row.surge_action,
     surgeCooldownSeconds: row.surge_cooldown_seconds,
@@ -89,6 +137,7 @@ export async function listPolicies(db: Db, workspaceId: string): Promise<Policy[
   const { rows } = await db.query<PolicyRow>(
     `SELECT effect_type, mode, on_indeterminate, lease_seconds, max_attempts,
             max_cost_micros, daily_budget_micros, retention_days, require_cost,
+            required_dimensions, dimension_limits,
             surge_per_hour, surge_action, surge_cooldown_seconds,
             surge_multiplier, surge_baseline_per_hour, surge_baseline_at
        FROM effect_policies WHERE workspace_id = $1 ORDER BY effect_type`,
@@ -105,6 +154,8 @@ export async function listPolicies(db: Db, workspaceId: string): Promise<Policy[
     dailyBudgetMicros: row.daily_budget_micros,
     retentionDays: row.retention_days,
     requireCost: row.require_cost,
+    requiredDimensions: row.required_dimensions ?? [],
+    dimensionLimits: fromWire(row.dimension_limits),
     surgePerHour: row.surge_per_hour,
     surgeAction: row.surge_action,
     surgeCooldownSeconds: row.surge_cooldown_seconds,
@@ -125,6 +176,8 @@ export interface PolicyUpsert {
   dailyBudgetMicros?: number | null;
   retentionDays?: number;
   requireCost?: boolean;
+  requiredDimensions?: string[];
+  dimensionLimits?: Record<string, { dailyMicros: number | null; dailyCount: number | null }>;
   surgePerHour?: number | null;
   surgeAction?: Policy['surgeAction'];
   surgeCooldownSeconds?: number;
@@ -139,8 +192,9 @@ export async function upsertPolicy(
     `INSERT INTO effect_policies
        (workspace_id, effect_type, mode, on_indeterminate, lease_seconds,
         max_attempts, max_cost_micros, daily_budget_micros, retention_days, require_cost,
+        required_dimensions, dimension_limits,
         surge_per_hour, surge_action, surge_cooldown_seconds, surge_multiplier)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
      ON CONFLICT (workspace_id, effect_type) DO UPDATE SET
        mode                = EXCLUDED.mode,
        on_indeterminate    = EXCLUDED.on_indeterminate,
@@ -150,6 +204,8 @@ export async function upsertPolicy(
        daily_budget_micros = EXCLUDED.daily_budget_micros,
        retention_days      = EXCLUDED.retention_days,
        require_cost        = EXCLUDED.require_cost,
+       required_dimensions = EXCLUDED.required_dimensions,
+       dimension_limits    = EXCLUDED.dimension_limits,
        surge_per_hour      = EXCLUDED.surge_per_hour,
        surge_action        = EXCLUDED.surge_action,
        surge_cooldown_seconds = EXCLUDED.surge_cooldown_seconds,
@@ -165,6 +221,8 @@ export async function upsertPolicy(
       input.dailyBudgetMicros ?? d.dailyBudgetMicros,
       input.retentionDays ?? d.retentionDays,
       input.requireCost ?? d.requireCost,
+      input.requiredDimensions ?? d.requiredDimensions,
+      JSON.stringify(toWire(input.dimensionLimits ?? d.dimensionLimits)),
       input.surgePerHour === undefined ? d.surgePerHour : input.surgePerHour,
       input.surgeAction ?? d.surgeAction,
       input.surgeCooldownSeconds ?? d.surgeCooldownSeconds,

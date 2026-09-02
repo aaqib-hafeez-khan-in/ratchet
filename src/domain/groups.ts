@@ -139,7 +139,7 @@ export async function unwindGroup(args: {
 async function buildPlan(tx: PoolClient | Db, group: GroupRow): Promise<UnwindPlan> {
   const { rows } = await tx.query(
     `SELECT id, effect_type, idempotency_key, state, result, compensation,
-            compensated_at, group_seq
+            compensated_at, group_seq, dimensions, reserved_dimension_scopes
        FROM effects
       WHERE group_id = $1
       ORDER BY group_seq DESC`,

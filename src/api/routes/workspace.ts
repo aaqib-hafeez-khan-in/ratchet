@@ -439,6 +439,27 @@ export default async function workspaceRoutes(app: FastifyInstance) {
             description: 'Refuse a begin for this effect type unless it declares a cost. '
               + 'Turn this on wherever you have set a spend ceiling, so the ceiling cannot '
               + 'be bypassed by simply not declaring anything.' },
+          required_dimensions: {
+            type: 'array', maxItems: 8, items: { type: 'string', pattern: '^[a-z][a-z0-9_]{0,31}$' },
+            description: 'Dimensions a caller must declare on begin, or the call is refused. '
+              + 'Set this alongside any dimension_limits entry: a ceiling keyed on a dimension '
+              + 'is otherwise evaded by simply not declaring it.' },
+          dimension_limits: {
+            type: 'object', maxProperties: 8,
+            propertyNames: { pattern: '^[a-z][a-z0-9_]{0,31}$' },
+            additionalProperties: {
+              type: 'object', additionalProperties: false,
+              properties: {
+                daily_micros: { type: ['integer', 'null'], minimum: 0 },
+                daily_count: { type: ['integer', 'null'], minimum: 0 },
+              },
+            },
+            description: 'Per-destination ceilings, e.g. '
+              + '{"counterparty":{"daily_micros":200000000,"daily_count":20}} for "no more than '
+              + '$200 and no more than 20 effects to any one counterparty per UTC day". '
+              + 'daily_count applies to effects that declare no cost at all, which is what '
+              + 'makes it usable for outbound messaging. Only a keyed hash of the value is '
+              + 'ever stored.' },
           surge_per_hour: { type: ['integer', 'null'], minimum: 1,
             description: 'Surge containment. New effects of this type per hour above which '
               + 'the circuit breaker opens. Budget ceilings catch an agent spending too '
@@ -480,6 +501,16 @@ export default async function workspaceRoutes(app: FastifyInstance) {
       maxCostMicros: b.max_cost_micros, dailyBudgetMicros: b.daily_budget_micros,
       retentionDays: b.retention_days,
       requireCost: b.require_cost,
+      requiredDimensions: b.required_dimensions,
+      // The schema has already refused anything but integers or null here; this
+      // narrows the type rather than re-validating.
+      dimensionLimits: b.dimension_limits && Object.fromEntries(
+        Object.entries(b.dimension_limits as Record<
+          string, { daily_micros?: number | null; daily_count?: number | null }
+        >).map(([name, v]) => [name, {
+          dailyMicros: v.daily_micros ?? null,
+          dailyCount: v.daily_count ?? null,
+        }])),
       surgePerHour: b.surge_per_hour,
       surgeAction: b.surge_action,
       surgeCooldownSeconds: b.surge_cooldown_seconds,

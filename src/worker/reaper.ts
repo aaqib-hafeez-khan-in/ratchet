@@ -54,9 +54,11 @@ export async function sweepExpiredLeases(batchSize = 50): Promise<number> {
       id: string; workspace_id: string; effect_type: string; idempotency_key: string;
       attempt: number; reserved_micros: number; leased_by_key_id: string | null;
       agent_id: string | null; run_id: string | null; created_at: Date;
+      reserved_dimension_scopes: string[];
     }>(
       `SELECT id, workspace_id, effect_type, idempotency_key, attempt,
-              reserved_micros, leased_by_key_id, agent_id, run_id, created_at
+              reserved_micros, leased_by_key_id, agent_id, run_id, created_at,
+              reserved_dimension_scopes
          FROM effects
         WHERE state = 'pending' AND lease_expires_at <= now()
         ORDER BY lease_expires_at
@@ -77,12 +79,18 @@ export async function sweepExpiredLeases(batchSize = 50): Promise<number> {
         [r.id],
       );
       if (r.reserved_micros > 0) {
+        // The reservation comes back, including from any dimension bucket it was
+        // taken from. The COUNT stays: an effect that expired unreported was an
+        // attempt to act on that counterparty, and the day's velocity allowance
+        // was genuinely spent on it. Returning it here would make crashing the
+        // agent the cheapest way past a velocity ceiling.
         await adjustSpend(tx, {
           workspaceId: r.workspace_id,
           apiKeyId: r.leased_by_key_id ?? 'unknown',
           effectType: r.effect_type,
           deltaMicros: -r.reserved_micros,
           day: r.created_at,
+          dimensionScopes: r.reserved_dimension_scopes ?? [],
         });
       }
       await tx.query(
