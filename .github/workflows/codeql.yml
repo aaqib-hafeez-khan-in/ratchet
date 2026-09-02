@@ -1,0 +1,25 @@
+# Static analysis, on the schedule a one-person project can actually sustain.
+#
+# On every push to main and every PR, plus weekly so a newly published rule
+# finds old code. It is also one of the signals OpenSSF Scorecard and the
+# directory listings read, which is a side benefit rather than the reason.
+name: codeql
+on:
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
+  schedule:
+    - cron: '17 4 * * 1'
+permissions:
+  contents: read
+  security-events: write
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v3

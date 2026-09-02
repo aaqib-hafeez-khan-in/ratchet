@@ -1,5 +1,10 @@
 # Ratchet
 
+[![CI](https://github.com/thearchitect0x-glitch/ratchet/actions/workflows/ci.yml/badge.svg)](https://github.com/thearchitect0x-glitch/ratchet/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/thearchitect0x-glitch/ratchet/actions/workflows/codeql.yml/badge.svg)](https://github.com/thearchitect0x-glitch/ratchet/actions/workflows/codeql.yml)
+[![npm](https://img.shields.io/npm/v/ratchet-mcp?label=ratchet-mcp)](https://www.npmjs.com/package/ratchet-mcp)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
 **An effect gate for AI agents.** Your agent asks before it does anything it cannot take back —
 charge a card, ship a deploy, publish a package, send the email — and gets a durable decision, so
 the same real-world action is attempted at most once across crashes and retries. Agents can also

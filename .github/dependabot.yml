@@ -1,0 +1,23 @@
+# Dependency updates.
+#
+# Grouped and weekly on purpose: this is a one-person project, and a daily
+# stream of individual bumps is noise that trains you to merge without reading.
+# Security updates arrive separately and immediately through GitHub's own alerts.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      production: { dependency-type: production }
+      development: { dependency-type: development }
+
+  - package-ecosystem: npm
+    directory: /packages/ratchet-mcp
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
