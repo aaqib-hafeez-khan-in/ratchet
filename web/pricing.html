@@ -82,12 +82,32 @@
   <div class="wrap">
     <h2>What counts, and what doesn't</h2>
     <div class="grid two" style="margin-top:1.25rem">
-      <div class="card">
+      <!-- One metered item against seven free ones is the argument, not an
+           unfinished box. Left as a lone bullet in a stretched card it read as
+           the latter, so the single item is the hero and the space beneath it
+           carries the worked example a reader is actually trying to do in their
+           head: what a retry storm costs. -->
+      <div class="card metered-card">
         <h3 style="color:var(--warn)">Metered</h3>
-        <ul class="checks">
-          <li>A <code>begin</code> call that creates a new effect record</li>
-        </ul>
-        <p class="small faint" style="margin:0">That's the whole list.</p>
+        <p class="metered-one">A <code>begin</code> call that creates a
+           <strong>new</strong> effect record.</p>
+        <p class="small faint">That is the entire list. There is no second item.</p>
+
+        <div class="metered-worked">
+          <p class="small" style="margin:0 0 .5rem"><strong>What that means in practice</strong></p>
+          <table class="metered-sum">
+            <tr><td>Agent asks to refund a customer</td><td class="num">1</td></tr>
+            <tr><td>Times out; retries 40 times</td><td class="num">0</td></tr>
+            <tr><td>Reports the outcome</td><td class="num">0</td></tr>
+            <tr><td>You read it back twice in the console</td><td class="num">0</td></tr>
+            <tr class="tot"><td>Billed</td><td class="num">1 effect</td></tr>
+          </table>
+          <p class="small faint" style="margin:.6rem 0 0">
+            A runaway loop is a support problem, not an invoice. The meter counts
+            <em>decisions about distinct actions</em> — which is the thing you actually
+            get value from.
+          </p>
+        </div>
       </div>
       <div class="card">
         <h3 style="color:var(--ok)">Free</h3>

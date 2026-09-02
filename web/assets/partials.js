@@ -66,6 +66,7 @@ export function mountChrome(current) {
         <div>
           <h3>Product</h3>
           <ul>
+            <li><a href="/simple">Start here — in plain words</a></li>
             <li><a href="/docs">Documentation</a></li>
             <li><a href="/faq">Questions</a></li>
             <li><a href="/pricing">Pricing</a></li>

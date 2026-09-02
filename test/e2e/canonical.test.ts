@@ -321,3 +321,31 @@ describe('staging is not indexable', () => {
     }
   });
 });
+
+describe('the plain-words page', () => {
+  /**
+   * The audience for this page is the one least able to route around a broken
+   * link: somebody who is not technical, arrived unsure, and will not try twice.
+   */
+  test('it is served, and reachable from every page', async () => {
+    const r = await app.inject({ method: 'GET', url: '/simple' });
+    assert.equal(r.statusCode, 200);
+    assert.match(r.body, /What is this, actually\?/);
+
+    const partials = readFileSync(
+      new URL('../../web/assets/partials.js', import.meta.url), 'utf8');
+    assert.match(partials, /href="\/simple"/,
+      'the footer must link it — this page cannot be found by searching for a term '
+      + 'its reader does not know');
+  });
+
+  test('it explains itself without the vocabulary the rest of the site uses', () => {
+    const html = readFileSync(new URL('../../web/simple.html', import.meta.url), 'utf8');
+    const body = html.replace(/<script[\s\S]*?<\/script>/g, '')
+      .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    for (const term of ['idempoten', 'at-most-once', 'fencing token', 'lease']) {
+      assert.equal(new RegExp(term, 'i').test(body), false,
+        `"${term}" appears on the page that promised no jargon`);
+    }
+  });
+});

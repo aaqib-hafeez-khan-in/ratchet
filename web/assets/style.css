@@ -1151,3 +1151,84 @@ ul.checks li::before {
 .checkout-return p:last-child { margin-bottom: 0; }
 .checkout-return label { display: block; margin-bottom: 0.3rem; font-weight: 600; }
 .checkout-return input { margin-right: 0.5rem; }
+
+/* ---- pricing: what counts ------------------------------------------------
+   One metered item beside seven free ones is the whole argument. As a single
+   bullet in a stretched card it read as an unfinished box, so the one item is
+   set as the statement it is, and the space below carries the sum a reader is
+   already doing in their head. */
+.metered-one {
+  font-size: 1.12rem; line-height: 1.45; margin: 0 0 .4rem;
+}
+.metered-one strong { color: var(--warn); }
+.metered-worked {
+  margin-top: 1.4rem; padding-top: 1.1rem; border-top: 1px solid var(--border);
+}
+.metered-sum { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.metered-sum td { padding: .34rem 0; color: var(--text-faint); }
+.metered-sum td.num {
+  text-align: right; font-variant-numeric: tabular-nums;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+.metered-sum tr.tot td {
+  border-top: 1px solid var(--border); padding-top: .55rem;
+  color: var(--text); font-weight: 600;
+}
+
+/* ---- the plain-words page -------------------------------------------------
+   Wider line height and larger type than the rest of the site: this page is for
+   somebody who is not enjoying reading it, and every bit of friction removed is
+   a reader who gets to the end. */
+.eli5-question {
+  font-size: 1.35rem; font-weight: 600; line-height: 1.35;
+  margin: 1.4rem 0; padding: 1rem 1.25rem;
+  border-left: 4px solid var(--accent, #1c5cff);
+  background: color-mix(in srgb, var(--accent, #1c5cff) 8%, transparent);
+  border-radius: 0 8px 8px 0;
+}
+.eli5-two { display: grid; gap: 1rem; margin: 1.25rem 0; }
+@media (min-width: 640px) { .eli5-two { grid-template-columns: 1fr 1fr; } }
+.eli5-choice {
+  border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem 1.2rem;
+}
+.eli5-choice.bad { border-left: 4px solid #ff4d5e; }
+.eli5-choice h3 { margin: 0 0 .4rem; font-size: 1rem; }
+.eli5-choice p  { margin: 0; color: var(--text-faint); font-size: .94rem; }
+
+.eli5-fig { margin: 2rem 0 1.5rem; }
+.eli5-fig svg { width: 100%; height: auto; color: var(--text); }
+.eli5-fig figcaption {
+  margin-top: .75rem; font-size: .86rem; color: var(--text-faint); text-align: center;
+}
+
+.eli5-steps { list-style: none; counter-reset: s; padding: 0; margin: 1.5rem 0 0; }
+.eli5-steps > li {
+  counter-increment: s; position: relative;
+  padding: 0 0 1.6rem 3.4rem; margin: 0;
+}
+.eli5-steps > li::before {
+  content: counter(s);
+  position: absolute; left: 0; top: 0;
+  width: 2.3rem; height: 2.3rem; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--accent, #1c5cff); color: #fff;
+  font-weight: 700; font-size: 1rem;
+}
+/* The rail makes the sequence read as one journey rather than three cards. */
+.eli5-steps > li:not(:last-child)::after {
+  content: ""; position: absolute; left: 1.15rem; top: 2.6rem; bottom: .35rem;
+  width: 2px; background: var(--border);
+}
+.eli5-steps h3 { margin: .25rem 0 .5rem; font-size: 1.08rem; }
+.eli5-steps p  { margin: 0 0 .5rem; }
+
+.eli5-list { padding-left: 1.2rem; }
+.eli5-list li { margin-bottom: .65rem; }
+
+.eli5-honest {
+  margin-top: 2rem; padding: 1.25rem 1.4rem;
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.eli5-honest h3 { margin: 0 0 .6rem; font-size: 1rem; }
+.eli5-honest p  { margin: 0 0 .7rem; color: var(--text-faint); }
+.eli5-honest p:last-child { margin-bottom: 0; }

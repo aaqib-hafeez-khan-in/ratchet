@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ratchet in plain words</title>
+<meta name="description" content="What Ratchet does, explained without jargon. Why an AI agent can accidentally do something twice, how we stop it, and how to set it up in three steps.">
+<link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/mark.svg">
+<link rel="canonical" href="https://ratchetgate.com/simple">
+<meta name="theme-color" content="#1c5cff">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Ratchet">
+<meta property="og:title" content="Ratchet in plain words">
+<meta property="og:description" content="What Ratchet does, explained without jargon — and how to set it up in three steps.">
+<meta property="og:url" content="https://ratchetgate.com/simple">
+<meta property="og:image" content="https://ratchetgate.com/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Ratchet in plain words">
+<meta name="twitter:description" content="What Ratchet does, explained without jargon — and how to set it up in three steps.">
+<meta name="twitter:image" content="https://ratchetgate.com/assets/og.png">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+
+<section>
+  <div class="wrap reading">
+    <p class="eyebrow">In plain words</p>
+    <h1>What is this, actually?</h1>
+    <p class="lede">
+      No jargon on this page. If you have ever worried about what a computer program might do
+      while nobody is watching it, this explains what we do about that.
+    </p>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------- the problem -->
+<section>
+  <div class="wrap reading">
+    <h2>Start with the thing that goes wrong</h2>
+
+    <p>
+      Imagine you ask an assistant to <strong>refund a customer $240</strong>.
+    </p>
+    <p>
+      The assistant sends the refund. Then the internet hiccups, and the reply never comes
+      back. The assistant is now stuck on a question it genuinely cannot answer:
+    </p>
+
+    <p class="eli5-question">"Did that refund go through, or not?"</p>
+
+    <p>
+      It has two choices, and <strong>both of them are wrong</strong>:
+    </p>
+
+    <div class="eli5-two">
+      <div class="eli5-choice bad">
+        <h3>Try again</h3>
+        <p>If the first refund <em>did</em> work, the customer now gets <strong>$480</strong>.
+           Your money, gone twice.</p>
+      </div>
+      <div class="eli5-choice bad">
+        <h3>Give up</h3>
+        <p>If the first refund <em>didn't</em> work, the customer gets <strong>nothing</strong>
+           and complains tomorrow.</p>
+      </div>
+    </div>
+
+    <p>
+      This is not the assistant being stupid. A person would be stuck too. The information
+      simply isn't there.
+    </p>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------- the fix -->
+<section class="alt">
+  <div class="wrap reading">
+    <h2>What we do about it</h2>
+
+    <p>
+      We keep the notebook that the assistant cannot keep for itself.
+    </p>
+    <p>
+      Before it does anything it cannot undo, the assistant asks us one question:
+      <strong>"Am I allowed to do this?"</strong> We write the answer down somewhere permanent
+      before it acts — so even if the assistant crashes, restarts, or forgets everything, the
+      note survives.
+    </p>
+
+    <figure class="eli5-fig">
+      <svg viewBox="0 0 720 250" role="img" aria-labelledby="flow-title">
+        <title id="flow-title">The assistant asks Ratchet before acting. The second attempt is refused as already done.</title>
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g font-family="inherit" font-size="13" fill="currentColor">
+          <!-- first attempt -->
+          <text x="8" y="26" font-weight="700" font-size="12" opacity=".65">FIRST TRY</text>
+          <rect x="8" y="38" width="150" height="52" rx="10" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".45"/>
+          <text x="83" y="60" text-anchor="middle" font-weight="600">Assistant</text>
+          <text x="83" y="78" text-anchor="middle" font-size="11" opacity=".7">"may I refund?"</text>
+
+          <line x1="164" y1="64" x2="256" y2="64" stroke="currentColor" stroke-width="1.6" opacity=".45" marker-end="url(#ar)"/>
+
+          <rect x="262" y="38" width="150" height="52" rx="10" fill="#1c5cff14" stroke="#1c5cff" stroke-width="1.8"/>
+          <text x="337" y="60" text-anchor="middle" font-weight="700" fill="#1c5cff">Ratchet</text>
+          <text x="337" y="78" text-anchor="middle" font-size="11" opacity=".75">writes it down</text>
+
+          <line x1="418" y1="64" x2="510" y2="64" stroke="#19c37d" stroke-width="1.8" marker-end="url(#ar)" color="#19c37d"/>
+          <text x="464" y="54" text-anchor="middle" font-size="11" font-weight="700" fill="#19c37d">yes, go</text>
+
+          <rect x="516" y="38" width="196" height="52" rx="10" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".45"/>
+          <text x="614" y="60" text-anchor="middle" font-weight="600">Refund sent</text>
+          <text x="614" y="78" text-anchor="middle" font-size="11" opacity=".7">$240</text>
+
+          <!-- second attempt -->
+          <text x="8" y="150" font-weight="700" font-size="12" opacity=".65">IT PANICS AND TRIES AGAIN</text>
+          <rect x="8" y="162" width="150" height="52" rx="10" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".45"/>
+          <text x="83" y="184" text-anchor="middle" font-weight="600">Assistant</text>
+          <text x="83" y="202" text-anchor="middle" font-size="11" opacity=".7">"may I refund?"</text>
+
+          <line x1="164" y1="188" x2="256" y2="188" stroke="currentColor" stroke-width="1.6" opacity=".45" marker-end="url(#ar)"/>
+
+          <rect x="262" y="162" width="150" height="52" rx="10" fill="#1c5cff14" stroke="#1c5cff" stroke-width="1.8"/>
+          <text x="337" y="184" text-anchor="middle" font-weight="700" fill="#1c5cff">Ratchet</text>
+          <text x="337" y="202" text-anchor="middle" font-size="11" opacity=".75">checks the note</text>
+
+          <line x1="418" y1="188" x2="510" y2="188" stroke="#ff4d5e" stroke-width="1.8" marker-end="url(#ar)" color="#ff4d5e"/>
+          <text x="464" y="178" text-anchor="middle" font-size="11" font-weight="700" fill="#ff4d5e">already done</text>
+
+          <rect x="516" y="162" width="196" height="52" rx="10" fill="none" stroke="#ff4d5e" stroke-width="1.6" opacity=".8"/>
+          <text x="614" y="184" text-anchor="middle" font-weight="600">Nothing happens</text>
+          <text x="614" y="202" text-anchor="middle" font-size="11" opacity=".7">customer keeps $240</text>
+        </g>
+      </svg>
+      <figcaption>The second attempt is stopped by the note, not by luck.</figcaption>
+    </figure>
+
+    <p>
+      That's it. That's the whole product. We never touch your money, your accounts, or your
+      customers — <strong>we only answer the question</strong>. Your own software still does
+      the work.
+    </p>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------- three steps -->
+<section>
+  <div class="wrap reading">
+    <h2>Setting it up, in three steps</h2>
+    <p class="dim">
+      You need someone comfortable editing your software's settings for step 3. Steps 1 and 2
+      take about a minute and need nothing technical at all.
+    </p>
+
+    <ol class="eli5-steps">
+      <li>
+        <h3>Make an account</h3>
+        <p>
+          Go to <a href="/console">the sign-up page</a> and enter a name and your email.
+          You get a <strong>key</strong> straight away — a long password-like string starting
+          with <code>rk_</code>. It appears once. Copy it somewhere safe, like a password
+          manager.
+        </p>
+        <p class="small faint">No card. Nothing to cancel.</p>
+      </li>
+      <li>
+        <h3>Click the link in your email</h3>
+        <p>
+          We send one message. Clicking it confirms the address is real and switches on the
+          free allowance — <strong>1,000 protected actions every month</strong>.
+        </p>
+        <p class="small faint">Your key already works before you click. Confirming just raises the ceiling.</p>
+      </li>
+      <li>
+        <h3>Give the key to whoever built your AI assistant</h3>
+        <p>
+          That is genuinely the whole handover. Send them this page and the key:
+        </p>
+        <p class="small">
+          <a href="/start">Setup instructions for developers →</a><br>
+          <span class="faint">Works with Claude, Cursor, ChatGPT tools, n8n, LangChain and anything
+          that can make a web request.</span>
+        </p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------- what for -->
+<section class="alt">
+  <div class="wrap reading">
+    <h2>What it protects you from</h2>
+    <p>Anything your assistant does that you cannot take back. For example:</p>
+
+    <ul class="eli5-list">
+      <li><strong>Charging or refunding a customer twice</strong> because a payment page timed out.</li>
+      <li><strong>Sending the same email to your whole list twice</strong> because the first send looked like it failed.</li>
+      <li><strong>Publishing or deploying the same thing twice</strong>, which can take a site down.</li>
+      <li><strong>Spending more than you meant to</strong> — you set a limit per job, and the assistant cannot raise it.</li>
+      <li><strong>Not knowing what happened overnight</strong> — everything it did is written down and readable.</li>
+    </ul>
+
+    <div class="eli5-honest">
+      <h3>What it does <em>not</em> do</h3>
+      <p>
+        We don't decide whether something was a <em>good idea</em> — only whether it has already
+        happened. If your assistant decides to refund the wrong customer, we will faithfully make
+        sure it does that exactly once.
+      </p>
+      <p>
+        And when an action's outcome is genuinely unknowable, <strong>we say "unknown" rather
+        than guessing</strong>. A guess that sounds confident is worse than an honest shrug,
+        because you would act on it.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reading center">
+    <h2>Still not sure?</h2>
+    <p class="dim">
+      The <a href="/faq">questions page</a> answers most things in plain words too. Or just
+      <a href="/console">make a free account</a> — it costs nothing and there is nothing to cancel.
+    </p>
+    <p style="margin-top:1.5rem">
+      <a class="btn" href="/console">Create a free account</a>
+      <a class="btn secondary" href="/faq">Read the questions</a>
+    </p>
+  </div>
+</section>
+
+</main>
+
+<footer class="site"></footer>
+<script type="module" src="/assets/simple.js"></script>
+</body>
+</html>
