@@ -25,10 +25,19 @@ API, and `charge.refunded` reversed it to zero. The refund was $30 against a $25
 "never reverse more than was credited" guard was exercised by a real payload rather than a fixture.
 All deliveries reported `pending_webhooks=0` — none failed or retried.
 
-**Not yet exercised:** a live-mode key. Nothing in the code path differs between test and live
-keys — Stripe's API is identical and the key is passed through unchanged — but that is reasoning,
-not evidence, and it is recorded here as such. Before switching to `sk_live_`, run one real
-low-value purchase end to end and confirm the ledger.
+**The live key is now deployed — and has never taken a payment.** Corrected 2 Sep 2026:
+production runs an `sk_live_` key. This section previously said switching to live mode was still
+ahead of us, which stopped being true without the paragraph being updated.
+
+**That makes the first real customer the test**, which is the wrong way round. Nothing in the code
+path differs between test and live keys — Stripe's API is identical and the key is passed through
+unchanged — but that is reasoning, not evidence, and reasoning is what this file exists to
+distinguish from the real thing. The remaining step is one low-value purchase with a real card,
+end to end, confirming the ledger. It needs a human with a card, so it cannot be automated or
+done by an agent.
+
+Until then the honest statement is: **we can take money, and we have never watched ourselves do
+it.**
 
 **Also not exercised:** the hosted Checkout page itself was not driven through a browser, because
 that means typing card details into a form. The session URL is produced and valid; completing it
