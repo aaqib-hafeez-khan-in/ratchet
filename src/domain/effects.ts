@@ -598,11 +598,32 @@ async function handleIndeterminate(
     };
   }
 
-  const reason = policy.onIndeterminate === 'probe'
+  /**
+   * Say how to get out, not only what happened.
+   *
+   * This is where a new integration stalls. The usual route to being blocked is
+   * that the caller began an effect and never reported it, the lease expired,
+   * and now every attempt is refused — which from the outside looks like a bug
+   * in us rather than a missing call in their code. Naming the likely cause and
+   * the exact way out turns a dead end into an instruction.
+   *
+   * The path carries `effect_id`, which is in this very response, because
+   * resolve is addressed by id and not by (effect_type, idempotency_key) —
+   * telling somebody to use the pair would send them to a 404 while they were
+   * already stuck.
+   */
+  const howOut =
+    ` Resolve it once you know what really happened: POST /v1/effects/${effect.id}/resolve`
+    + ' with {"outcome":"succeeded"} or {"outcome":"failed"}, and an "evidence" note saying'
+    + ' how you checked. If this is a new integration, the usual cause is that a previous'
+    + ' attempt ran but was never reported to /v1/effects/report.';
+
+  const reason = (policy.onIndeterminate === 'probe'
     ? 'A prior attempt may or may not have taken effect. Verify the real-world outcome and resolve this effect explicitly before retrying.'
     : policy.onIndeterminate === 'retry'
       ? `Prior attempts were indeterminate and the attempt limit of ${policy.maxAttempts} is reached.`
-      : 'A prior attempt may or may not have taken effect. Policy forbids an automatic retry.';
+      : 'A prior attempt may or may not have taken effect. Policy forbids an automatic retry.')
+    + howOut;
 
   return {
     decision: 'blocked',

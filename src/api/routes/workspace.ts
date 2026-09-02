@@ -197,6 +197,11 @@ export default async function workspaceRoutes(app: FastifyInstance) {
             agent_api_key_prefix: { type: 'string' },
             plan: { type: 'string' },
             console_url: { type: 'string' },
+            next_step: {
+              type: 'object', additionalProperties: true,
+              description: 'A runnable command using the key just issued, what to expect back, '
+                + 'and the follow-up call that new integrations forget.',
+            },
           },
         },
         ...errorResponses,
@@ -235,6 +240,35 @@ export default async function workspaceRoutes(app: FastifyInstance) {
       agent_api_key_prefix: agentKey.prefix,
       plan: 'free',
       console_url: `${config.publicUrl}/console`,
+      /**
+       * The next request, already written, with the key just issued.
+       *
+       * Signup is the moment of most intent and least patience. A caller who
+       * has to go and find the documentation to make a second request often
+       * does not make one — and an agent reading this can act on a command,
+       * where it cannot act on a link.
+       *
+       * `then` is here because forgetting to report is the mistake every new
+       * integration makes. It costs nothing until the lease expires, at which
+       * point the effect turns indeterminate and the NEXT attempt is refused
+       * for reasons that look like a bug in us.
+       */
+      next_step: {
+        description: 'Gate one effect. Nothing real happens — this only records a decision.',
+        // One line on purpose: a backslash-continued command is the most common
+        // way a pasted curl arrives broken.
+        curl: `curl -X POST ${config.publicUrl}/v1/effects/begin`
+          + ` -H "authorization: Bearer ${agentKey.plaintext}"`
+          + ' -H "content-type: application/json"'
+          + ` -d '{"effect_type":"email.send","idempotency_key":"welcome:user_1"`
+          + `,"payload":{"to":"someone@example.com"}}'`,
+        expect: 'A decision. Only "execute" means go ahead and do the real thing.',
+        then: 'After you act, POST the outcome to /v1/effects/report with the same '
+          + 'effect_type and idempotency_key. An effect begun and never reported becomes '
+          + '"indeterminate" when its lease expires and the next attempt is refused — '
+          + 'the single most common mistake in a new integration.',
+        docs: `${config.publicUrl}/simple`,
+      },
     };
   });
 
