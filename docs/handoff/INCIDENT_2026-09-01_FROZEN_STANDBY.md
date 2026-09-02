@@ -159,6 +159,55 @@ Not done at the time of writing, because it is deliberate work rather than an em
 The interim mitigation is another restart, which recovers the lag within about twenty
 minutes and buys hours, not days.
 
+## The rebuild, and what it exposed
+
+Done 2 Sep 2026, ~00:20 UTC. Sequence, with the reasoning:
+
+1. **A verified backup first.** Taking one by hand found that the backup pipeline had
+   itself broken — see the commit "The backup had been passing on timing luck". Fixed and
+   re-run to success before anything was destroyed. Infrastructure surgery does not begin
+   with an unverified restore point.
+2. `repmgr standby unregister --node-id=1356046962`, so the cluster's own metadata stayed
+   consistent rather than being repaired afterwards.
+3. Confirmed the target reported `pg_is_in_recovery() = true` immediately before destroying
+   it. The one unrecoverable mistake available here is destroying the primary.
+4. `flyctl machine destroy`, then `flyctl machine clone` from the healthy standby.
+
+Both standbys were at 0 bytes when the window opened, and it lasted a few minutes. The
+control plane stayed at 200 throughout, on the surviving replica.
+
+**The rebuild worked.** The replacement node `d8d204df245618` shows **0.1% steal against
+95% idle**, versus 23.5% lifetime on the machine it replaced. It is streaming at 0 bytes.
+
+## The primary is worse than the node that was replaced
+
+Measuring all three nodes with the same 10-second sample immediately afterwards:
+
+| Node | Role | Steal, sampled now | Idle |
+|---|---|---|---|
+| `d89359da0e5118` | **primary** | **91.0%** | 1% |
+| `7845455b310328` | standby | 28.4% | 65% |
+| `d8d204df245618` | standby (new) | 0.1% | 95% |
+
+The primary is receiving roughly a tenth of the CPU it asks for. That is worse than the
+23.5% which made a standby unable to replay WAL, and it is on the node that serves every
+write.
+
+**It is not currently visible to customers.** `/readyz` medians 188 ms, and a full
+begin → replay → report → replay cycle passes end to end. Postgres is coping because the
+workload is small. That is a statement about current load, not about headroom: the machine
+has almost none.
+
+**The remedy is a controlled switchover, not a restart.** `repmgr standby switchover`
+promotes a healthy standby and demotes the current primary, after which the old primary is
+rebuilt exactly as above. It is a planned operation with a brief write interruption, and it
+is deliberately not being done at 00:30 by one person on a live service. It is the first
+thing to do next.
+
+Until then: `7845455b310328` at 28.4% is the natural promotion target only if it is the
+best available at the time — check steal on both standbys before choosing, because
+`d8d204df245618` is currently the healthiest node in the cluster by a wide margin.
+
 ## Still open
 
 - **Why it wedged is now known: CPU steal, 23.5% against a twin's 0.2%.** See the section
