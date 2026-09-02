@@ -23,12 +23,13 @@ after(async () => { await closePool(); });
 beforeEach(() => { resetReplicationState(); });
 
 /** A stand-in for the cluster, so the shape of the answer can be driven. */
-function fakeDb(opts: { inRecovery?: boolean; rows?: unknown[] }) {
+function fakeDb(opts: { inRecovery?: boolean; rows?: unknown[]; slots?: unknown[] }) {
   return {
     query: async (sql: string) => {
       if (sql.includes('pg_is_in_recovery')) {
         return { rows: [{ in_recovery: opts.inRecovery ?? false }] };
       }
+      if (sql.includes('pg_replication_slots')) return { rows: opts.slots ?? [] };
       return { rows: opts.rows ?? [] };
     },
   } as never;
@@ -133,6 +134,44 @@ describe('reading replica health', () => {
     assert.match(r.problems[0]!, /pg_read_all_stats/, 'and must say how to fix it');
     assert.equal(r.problems.some((p) => p.includes('not streaming')), false,
       'healthy replicas must never be described as broken');
+  });
+
+  /**
+   * Destroying a node on 2 Sep left its slot behind, inactive, still pinning WAL
+   * on the primary. Nothing noticed — it was found by looking. An inactive slot
+   * is bounded by max_slot_wal_keep_size, but that bound is a disk-full backstop
+   * rather than a feature.
+   */
+  test('a slot left behind by a destroyed replica is reported', async () => {
+    const opts = {
+      rows: [replica()],
+      slots: [{ slot_name: 'repmgr_slot_live', active: true },
+              { slot_name: 'repmgr_slot_orphan', active: false }],
+    };
+    // A slot goes inactive whenever its replica restarts, which is routine.
+    for (let i = 0; i < 4; i++) {
+      const r = await checkReplication(fakeDb(opts));
+      assert.equal(r.problems.some((p) => p.includes('orphan')), false,
+        `a briefly inactive slot must not alarm (sample ${i + 1})`);
+    }
+    const r = await checkReplication(fakeDb(opts));
+    assert.equal(r.problems.some((p) => p.includes('repmgr_slot_orphan')), true,
+      'one that persists belongs to a replica that is not coming back');
+    assert.match(r.problems.find((p) => p.includes('orphan'))!, /pg_drop_replication_slot/,
+      'and the message must carry the fix');
+    assert.equal(r.problems.some((p) => p.includes('repmgr_slot_live')), false);
+  });
+
+  test('a slot that comes back before the threshold is forgiven', async () => {
+    const down = { rows: [replica()], slots: [{ slot_name: 's', active: false }] };
+    const up = { rows: [replica()], slots: [{ slot_name: 's', active: true }] };
+    for (let i = 0; i < 4; i++) await checkReplication(fakeDb(down));
+    await checkReplication(fakeDb(up));           // replica finished restarting
+    for (let i = 0; i < 4; i++) {
+      const r = await checkReplication(fakeDb(down));
+      assert.equal(r.problems.some((p) => p.includes('inactive')), false,
+        'the count must restart, not resume');
+    }
   });
 
   test('a replica that vanishes is noticed when a count is declared', async () => {

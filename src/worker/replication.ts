@@ -54,6 +54,16 @@ export interface ReplicationReport {
 /** Last replay position seen per replica, to tell "frozen" from merely "behind". */
 const lastReplay = new Map<string, string>();
 
+/** Consecutive samples a slot has been inactive, to tell "gone" from "restarting". */
+const slotIdle = new Map<string, number>();
+
+/**
+ * How many samples an inactive slot must persist before it is reported. A slot
+ * goes inactive whenever its replica restarts, which is routine; one that stays
+ * inactive belongs to a replica that is not coming back.
+ */
+const SLOT_IDLE_SAMPLES = 5;
+
 interface Row {
   application_name: string;
   state: string | null;
@@ -124,6 +134,30 @@ export async function checkReplication(db: Db = getPool()): Promise<ReplicationR
     }
   }
 
+  // A slot outlives the replica it was made for.
+  //
+  // Destroying a node on 2 Sep left `repmgr_slot_1356046962` behind, inactive.
+  // An inactive slot keeps pinning WAL on the primary — bounded here by
+  // max_slot_wal_keep_size at 2 GB, but that bound is a disk-full backstop, not
+  // a feature. Nothing else notices, which is the whole reason this file exists.
+  const { rows: slots } = await db.query<{ slot_name: string; active: boolean }>(
+    "SELECT slot_name, active FROM pg_replication_slots WHERE slot_type = 'physical'");
+  const liveSlots = new Set(slots.map((x) => x.slot_name));
+  for (const name of [...slotIdle.keys()]) {
+    if (!liveSlots.has(name)) slotIdle.delete(name);
+  }
+  for (const slot of slots) {
+    if (slot.active) { slotIdle.set(slot.slot_name, 0); continue; }
+    const n = (slotIdle.get(slot.slot_name) ?? 0) + 1;
+    slotIdle.set(slot.slot_name, n);
+    if (n >= SLOT_IDLE_SAMPLES) {
+      problems.push(
+        `replication slot ${slot.slot_name} has been inactive for ${n} checks — it is `
+        + 'still pinning WAL on the primary. If its replica is gone for good, drop it with '
+        + `pg_drop_replication_slot('${slot.slot_name}')`);
+    }
+  }
+
   // Losing a replica outright is silent otherwise: the row simply stops being
   // there, and a shrinking list reads the same as a healthy short one.
   const expected = config.worker.expectedReplicas;
@@ -139,4 +173,5 @@ const mb = (bytes: number) => (bytes / 1_048_576).toFixed(1);
 /** Reset between tests; the frozen check is stateful by nature. */
 export function resetReplicationState(): void {
   lastReplay.clear();
+  slotIdle.clear();
 }
