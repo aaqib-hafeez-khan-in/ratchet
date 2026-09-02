@@ -253,10 +253,13 @@ The console's key form already defaults to "Gate only (least privilege)", so the
 exposure is narrower than it first appears: it is specifically the signup key,
 which is full-scope and is what a quickstart invites you to paste into an agent.
 
-There is no code fix that does not break legitimate use — the default key is an
-operator key and has to be. The docs end the containment section with the
-two-scope agent key and the reason for it. Worth doing properly: issue a
-gate-only key alongside the operator key at signup.
+**Fixed 2 Sep 2026.** Signup now issues a second key alongside the operator key:
+`agent_api_key`, scoped to `effects:begin` and `effects:report` and nothing else,
+and the `next_step` command in the signup response uses it. The quickstart now
+hands over the narrow key by default rather than the one that can rewrite its own
+policy. The operator key still exists and still holds every scope — it has to —
+but it is no longer the one a quickstart invites you to paste into an agent.
+A test asserts the agent key cannot write policy.
 
 ---
 
@@ -441,15 +444,20 @@ Still missing: **tracing and dashboards**. `/healthz` and `/readyz` (which repor
 database latency) are suitable for a load balancer, and `/workerz` reports loop health and
 replication in one word.
 
-**Next step:** a `/metrics` endpoint with decision counts by type, lease-expiry rate, webhook
-delivery outcomes, and queue depth. Lease-expiry rate in particular is the number an operator
-would want alerting on — it is the leading indicator of agents that crash mid-effect.
+**Added 2 Sep 2026, after it bit:** `ratchet_email_queue`. Outbound mail was the one moving
+part with no signal at all, and on 2 Sep the sending quota was spent by the uptime probe's own
+alert storm — 96 emails in a day on a 100/day allowance — after which two customers' welcome
+mail, carrying their verification links, was refused and discarded inside the hour. Every other
+probe read healthy throughout. `state="deferred"` is the series to alert on; `/workerz` reports
+the same thing as one word for monitors that only read a status page.
+
+**Still missing:** tracing, dashboards, and decision counts broken down by effect type.
 
 ---
 
 ## 13. No coverage measurement
 
-123 tests pass across unit, integration, and e2e. No coverage tool is configured, so **no coverage
+673 tests pass across unit, integration, and e2e. No coverage tool is configured, so **no coverage
 percentage is claimed anywhere.** The VALIDATION_REPORT lists what is actually covered, by name.
 
 ---

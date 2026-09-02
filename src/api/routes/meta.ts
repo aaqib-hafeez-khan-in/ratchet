@@ -8,6 +8,7 @@ import { MCP_TOOLS } from '../../mcp/tools.js';
 import { recipes } from '../../domain/integrate.js';
 import { VENDOR_PROFILES, type VendorProfile } from '../../domain/vendor-keys.js';
 import { workerHealth } from '../../worker/heartbeat.js';
+import { emailQueueHealth } from '../../domain/email.js';
 import { timingSafeEqual } from 'node:crypto';
 import { collect as collectMetrics, render as renderMetrics } from '../../domain/operational-metrics.js';
 
@@ -122,10 +123,16 @@ export default async function metaRoutes(app: FastifyInstance) {
       // needs no credential; "which node, how far behind" is operator
       // information and stays in the worker's logs where it belongs.
       const rep = h.loops.find((l) => l.loop === 'replication-watch');
+      // Mail is reported here for the same reason replication is: it is not
+      // worker death, and it is invisible everywhere else. A spent sending
+      // quota parks every verification link behind it while the API, the
+      // worker and the database all report themselves perfectly healthy.
+      const mail = await emailQueueHealth();
       return {
         status: 'ok',
         loops: h.loops.length,
         replication: rep === undefined ? 'unobserved' : rep.lastError ? 'degraded' : 'ok',
+        email: mail.deferred > 0 ? 'quota_exhausted' : mail.deadLastDay > 0 ? 'degraded' : 'ok',
       };
     } catch {
       reply.code(503);

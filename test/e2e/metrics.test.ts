@@ -68,10 +68,16 @@ describe('what it must never contain', () => {
 
     assert.equal(body.includes(ws.workspaceId), false, 'a workspace id is in the metrics output');
     assert.equal(body.includes(ws.key.prefix), false, 'an API key prefix is in the metrics output');
-    for (const forbidden of ['workspace_id', 'workspace=', 'key_prefix', 'email', 'cus_', 'rk_']) {
+    for (const forbidden of ['workspace_id', 'workspace=', 'key_prefix', 'cus_', 'rk_']) {
       assert.equal(body.includes(forbidden), false,
         `"${forbidden}" appears in the metrics output — metrics are aggregates only`);
     }
+    // "email" used to be on that list, standing in for an address. It banned the
+    // word rather than the thing, so the mail-queue gauge — which is exactly the
+    // sort of aggregate this endpoint is for — could not be published. Ban the
+    // address instead, which is both narrower and stronger.
+    assert.equal(/[\w.+-]+@[\w-]+\.[\w.]+/.test(body), false,
+      'an email address is in the metrics output');
   });
 
   test('the token is never echoed back', async () => {
@@ -92,6 +98,7 @@ describe('the shape of the output', () => {
       indeterminate: { lastHour: 0, lastDay: 0 },
       leasesOutstanding: 0, awaitingApproval: 0,
       webhooks: { pending: 0, failed: 0, deliveredLastDay: 0 },
+      email: { queued: 0, deferred: 0, deadLastDay: 0 },
       circuitsOpen: 0, workers: { loops: 4, stale: 0 }, replicas: null,
     });
     for (const state of ['pending', 'succeeded', 'failed', 'indeterminate',
@@ -112,6 +119,7 @@ describe('the shape of the output', () => {
       indeterminate: { lastHour: 0, lastDay: 0 },
       leasesOutstanding: 0, awaitingApproval: 0,
       webhooks: { pending: 0, failed: 0, deliveredLastDay: 0 },
+      email: { queued: 0, deferred: 0, deadLastDay: 0 },
       circuitsOpen: 0, workers: { loops: 1, stale: 0 },
     };
     assert.equal(render({ ...base, replicas: null }).includes('ratchet_replica_lag_bytes'), false);

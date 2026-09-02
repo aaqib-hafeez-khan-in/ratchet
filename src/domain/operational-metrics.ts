@@ -1,4 +1,5 @@
 import { getPool, type Db } from '../db/pool.js';
+import { emailQueueHealth } from './email.js';
 
 /**
  * Operating numbers, in a format a monitoring system can scrape.
@@ -39,6 +40,14 @@ export interface OperationalMetrics {
   /** Waiting on a human. A rising number here is a queue nobody is serving. */
   awaitingApproval: number;
   webhooks: { pending: number; failed: number; deliveredLastDay: number };
+  /**
+   * The outbound mail queue. `deferred` is the one to alert on: it means the
+   * provider has refused for lack of sending budget, and every message behind
+   * it — including the verification link a new customer is waiting for — is
+   * parked until the quota window turns over. Nothing else reports this. The
+   * API is healthy, the worker is healthy, and signups quietly do not land.
+   */
+  email: { queued: number; deferred: number; deadLastDay: number };
   circuitsOpen: number;
   workers: { loops: number; stale: number };
   replicas: { connected: number; maxLagBytes: number } | null;
@@ -82,6 +91,8 @@ export async function collect(db: Db = getPool()): Promise<OperationalMetrics> {
             count(*) FILTER (WHERE delivered_at > now() - interval '1 day')    AS delivered
        FROM webhook_deliveries`);
 
+  const mail = await emailQueueHealth(db);
+
   const { rows: circuits } = await db.query<{ n: string }>(
     "SELECT count(*) AS n FROM circuit_breakers WHERE state = 'open'");
 
@@ -121,6 +132,7 @@ export async function collect(db: Db = getPool()): Promise<OperationalMetrics> {
       failed: Number(wh[0]?.failed ?? 0),
       deliveredLastDay: Number(wh[0]?.delivered ?? 0),
     },
+    email: mail,
     circuitsOpen: Number(circuits[0]?.n ?? 0),
     workers: { loops: Number(workers[0]?.loops ?? 0), stale: Number(workers[0]?.stale ?? 0) },
     replicas,
@@ -185,6 +197,16 @@ export function render(m: OperationalMetrics): string {
     [['{state="pending"}', m.webhooks.pending],
      ['{state="failed"}', m.webhooks.failed],
      ['{state="delivered_24h"}', m.webhooks.deliveredLastDay]]);
+
+  // deferred > 0 means the provider is refusing for lack of sending budget, and
+  // every verification link behind it is parked. Alert on it: an alert storm on
+  // a shared quota is exactly how this happens, and it is silent everywhere else.
+  metric('ratchet_email_queue',
+    'Outbound mail. "deferred" means the sending quota is spent and signups are waiting.',
+    'gauge',
+    [['{state="queued"}', m.email.queued],
+     ['{state="deferred"}', m.email.deferred],
+     ['{state="dead_24h"}', m.email.deadLastDay]]);
 
   metric('ratchet_circuits_open',
     'Circuit breakers currently open, i.e. surge containment actively refusing work.',

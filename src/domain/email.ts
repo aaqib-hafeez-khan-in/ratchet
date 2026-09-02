@@ -147,3 +147,27 @@ export async function listEmails(db: Db, workspaceId: string, limit = 25) {
 
 export const emailEnabled = (): boolean =>
   config.email.provider !== 'log' ? config.email.apiKey.length > 0 : true;
+
+/**
+ * Whether outbound mail is actually going out.
+ *
+ * `deferred` is the number parked because the provider refused for lack of
+ * sending budget. It reads as zero on a healthy day and is the only signal that
+ * a spent quota is holding up verification links — the API, the worker and the
+ * database all report perfect health while signups quietly fail to land.
+ */
+export async function emailQueueHealth(db: Db = getPool()): Promise<{
+  queued: number; deferred: number; deadLastDay: number;
+}> {
+  const { rows } = await db.query<{ queued: string; deferred: string; dead: string }>(
+    `SELECT count(*) FILTER (WHERE state = 'queued')                    AS queued,
+            count(*) FILTER (WHERE state = 'queued' AND deferrals > 0)  AS deferred,
+            count(*) FILTER (WHERE state = 'dead'
+                               AND created_at > now() - interval '1 day') AS dead
+       FROM email_messages`);
+  return {
+    queued: Number(rows[0]?.queued ?? 0),
+    deferred: Number(rows[0]?.deferred ?? 0),
+    deadLastDay: Number(rows[0]?.dead ?? 0),
+  };
+}

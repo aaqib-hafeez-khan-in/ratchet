@@ -15,7 +15,37 @@ import * as tpl from '../domain/email-templates.js';
 export interface SendOutcome {
   sent: boolean; providerId?: string; error?: string;
   retryable: boolean; suppress?: boolean;
+  /**
+   * Set when the provider refused for lack of *our* sending budget rather than
+   * anything about the message. Nothing was offered to the recipient, so this
+   * is not a delivery attempt — it is a wait, and the wait is until the quota
+   * window turns over, not the few minutes the retry ladder would allow.
+   */
+  deferUntil?: Date;
 }
+
+/**
+ * The next UTC midnight — when a daily sending quota resets, plus a minute so a
+ * fleet of workers does not all wake against the boundary at once.
+ */
+function nextQuotaReset(now = new Date()): Date {
+  const d = new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 1, 0));
+  return d;
+}
+
+/** A message may wait out this many quota days before we admit it is stale. */
+const MAX_DEFERRALS = 7;
+
+/**
+ * Quota exhaustion, told apart from ordinary throttling.
+ *
+ * Both arrive as 429. A per-second rate limit clears in seconds and the normal
+ * backoff handles it; a daily quota does not clear until the day does, and
+ * backing off by minutes against it just burns the message's retries.
+ */
+const isQuotaExhausted = (message: string) =>
+  /quota|daily (sending )?limit|monthly limit|exceeded your .*plan/i.test(message);
 
 /**
  * Provider adapters. Each is a single HTTPS POST, so no SDK and no dependency.
@@ -57,6 +87,7 @@ async function send(msg: {
       return {
         sent: false, retryable, error: message,
         suppress: /invalid|not a valid|does not exist/i.test(message),
+        ...(retryable && isQuotaExhausted(message) ? { deferUntil: nextQuotaReset() } : {}),
       };
     }
 
@@ -79,9 +110,12 @@ async function send(msg: {
       if (res.ok) return { sent: true, providerId: body?.MessageID, retryable: false };
       // 406 is Postmark's inactive-recipient code: a hard bounce or complaint.
       const suppress = body?.ErrorCode === 406 || res.status === 406;
+      const retryable = res.status >= 500 || res.status === 429;
+      const message = String(body?.Message ?? `HTTP ${res.status}`);
       return {
-        sent: false, retryable: res.status >= 500 || res.status === 429,
-        error: String(body?.Message ?? `HTTP ${res.status}`), suppress,
+        sent: false, retryable,
+        error: message, suppress,
+        ...(retryable && isQuotaExhausted(message) ? { deferUntil: nextQuotaReset() } : {}),
       };
     }
 
@@ -101,9 +135,9 @@ export async function deliverEmails(batch = 10): Promise<number> {
   const claimed = await withTx(async (tx) => {
     const { rows } = await tx.query<{
       id: string; workspace_id: string; to_email: string; subject: string;
-      body_text: string; body_html: string | null; attempts: number;
+      body_text: string; body_html: string | null; attempts: number; deferrals: number;
     }>(
-      `SELECT id, workspace_id, to_email, subject, body_text, body_html, attempts
+      `SELECT id, workspace_id, to_email, subject, body_text, body_html, attempts, deferrals
          FROM email_messages
         WHERE state = 'queued' AND next_attempt_at <= now()
         ORDER BY next_attempt_at
@@ -133,6 +167,24 @@ export async function deliverEmails(batch = 10): Promise<number> {
       await getPool().query(
         `UPDATE email_messages SET state='suppressed', last_error=$2 WHERE id=$1`,
         [m.id, out.error ?? 'undeliverable']);
+    } else if (out.deferUntil) {
+      if (m.deferrals + 1 < MAX_DEFERRALS) {
+        // We had no budget, so nothing was tried. Give the attempt back and wait
+        // for the window to turn over — otherwise a single alert storm on a
+        // shared sending quota silently destroys every signup behind it.
+        await getPool().query(
+          `UPDATE email_messages
+              SET state='queued', attempts = attempts - 1, deferrals = deferrals + 1,
+                  next_attempt_at = $2, last_error = $3
+            WHERE id=$1`,
+          [m.id, out.deferUntil, out.error ?? 'sending quota exhausted']);
+      } else {
+        // A week of this is not a quota blip, it is an unpaid or misconfigured
+        // provider, and the notification is now too old to be worth delivering.
+        await getPool().query(
+          `UPDATE email_messages SET state='dead', last_error=$2 WHERE id=$1`,
+          [m.id, `sending quota exhausted for ${MAX_DEFERRALS} days: ${out.error ?? ''}`.trim()]);
+      }
     } else if (!out.retryable || attempts >= config.email.maxAttempts) {
       await getPool().query(
         `UPDATE email_messages SET state='dead', last_error=$2 WHERE id=$1`,

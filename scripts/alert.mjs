@@ -76,6 +76,38 @@ if (kind === 'check') {
   process.exit(0);
 }
 
+/**
+ * Whether a repeat "still down" notice is worth sending.
+ *
+ * The probe runs every fifteen minutes and this used to mail on every failing
+ * run, so a day-long outage cost 96 emails. That is the whole free sending
+ * quota, shared with the product's own transactional mail — and on 2 Sep 2026
+ * it spent it: two customers' welcome mail, carrying their verification links,
+ * was refused for quota and then thrown away. An alert channel that destroys
+ * signups while telling you about an outage is worse than a quiet one.
+ *
+ * So the notices thin out as the outage lengthens. The first three checks
+ * (45 minutes) each send, then hourly for six hours, then every four hours.
+ * Nothing is lost — the run history and GitHub's own failure mail still show
+ * every failed check. What stops is repeating a fact already delivered.
+ *
+ * Recovery always sends. The end of an outage is news every time.
+ */
+export function shouldNotify(streak) {
+  if (streak <= 3) return true;        // first 45 minutes
+  if (streak <= 24) return streak % 4 === 0;   // hourly, to six hours
+  return streak % 16 === 0;            // then four-hourly
+}
+
+if (kind === 'down' && !shouldNotify(STREAK)) {
+  console.log(JSON.stringify({
+    level: 'info', svc: 'alert', msg: 'suppressed a repeat notice',
+    streak: STREAK,
+    why: 'already reported; the sending quota is shared with customer mail',
+  }));
+  process.exit(0);
+}
+
 // Absent configuration is not a failure. The workflow still fails and GitHub
 // still emails; this is an upgrade to that, not a replacement for it. Exiting
 // non-zero here would turn "no alert channel configured" into a second alarm.
