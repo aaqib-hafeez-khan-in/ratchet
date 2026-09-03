@@ -96,6 +96,46 @@ describe('the argument the figure makes', () => {
   });
 });
 
+describe('both pages tell the same story', () => {
+  const home = readFileSync(new URL('../../web/index.html', import.meta.url), 'utf8');
+  const fraud = readFileSync(new URL('../../web/fraud.html', import.meta.url), 'utf8');
+  const homeJs = readFileSync(new URL('../../web/assets/home.js', import.meta.url), 'utf8');
+  const fraudJs = readFileSync(new URL('../../web/assets/fraud.js', import.meta.url), 'utf8');
+
+  test('the landing page draws from the same module, not its own copy', () => {
+    for (const [name, js] of [['home.js', homeJs], ['fraud.js', fraudJs]] as const) {
+      assert.match(js, /wallet-model\.js/,
+        `${name} should import the shared model — a restatement that quietly disagreed `
+        + 'with the full version would be worse than not restating it');
+      assert.match(js, /drawWallet/, `${name} should use the shared renderer`);
+    }
+  });
+
+  test('the landing legend is seeded with the numbers the model ends on', () => {
+    // Those two values sit in the HTML as literals so the figure reads correctly
+    // before any script runs. Literals drift; the model is the truth.
+    const seeded = (id: string) =>
+      home.match(new RegExp(`id="${id}"[^>]*>\\$([\\d,]+)<`))?.[1]?.replace(/,/g, '');
+    assert.equal(Number(seeded('homeWalDaily')), Math.round(daily(DAYS)),
+      'the daily figure printed before the script runs is not where the line ends');
+    assert.equal(Number(seeded('homeWalRun')), Math.round(run(DAYS)),
+      'the run figure printed before the script runs is not where the line ends');
+  });
+
+  test('both pages name the ceiling the figure is drawn against', () => {
+    for (const [name, html] of [['index.html', home], ['fraud.html', fraud]] as const) {
+      assert.ok(html.includes(`$${CAP}`),
+        `${name} draws a $${CAP} ceiling but never says so in words`);
+    }
+  });
+
+  test('the landing page sends the reader to the full version', () => {
+    assert.match(home, /href="\/fraud#wallet"/,
+      'the compact figure makes a claim it does not have room to justify');
+    assert.match(fraud, /id="wallet"/, 'and the anchor it points at has to exist');
+  });
+});
+
 describe('what the page says about it', () => {
   const html = readFileSync(new URL('../../web/fraud.html', import.meta.url), 'utf8');
 

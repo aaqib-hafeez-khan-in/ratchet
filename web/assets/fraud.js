@@ -4,7 +4,7 @@ import {
   scrollProgress, onScroll, token, fitted, once, reduced,
   drawContainment, PAYOUT,
 } from '/assets/counterfactual.js';
-import { WALLET } from '/assets/wallet-model.js';
+import { WALLET, drawWallet } from '/assets/wallet-model.js';
 
 mountChrome('/fraud');
 revealSections({ skip: ['.stage'], stagger: 60 });
@@ -134,100 +134,23 @@ const ROWS = 5;
   const draw = fitted(canvas);
   const out = { day: $('walDay'), daily: $('walDaily'), run: $('walRun'),
                 gap: $('walGap'), hint: $('walHint') };
-
-  const { DAYS, TOP } = WALLET;
-  const dailyOut = (t) => WALLET.dailyOut(t);
-  const runOut = (t) => WALLET.runOut(t);
-
   const money = (n) => `$${Math.round(n).toLocaleString('en-US')}`;
 
   onScroll(() => {
-    const t = Math.max(0, Math.min(DAYS, scrollProgress(stage) * DAYS));
+    const t = Math.max(0, Math.min(WALLET.DAYS, scrollProgress(stage) * WALLET.DAYS));
+    draw((ctx, w, h) => drawWallet(ctx, w, h, t, {
+      rule: token('--border', '#e3e6ea'),
+      faint: token('--text-faint', '#868d99'),
+      stop: token('--stop', '#b0341f'),
+      accent: token('--accent', '#1c5cff'),
+    }));
 
-    draw((ctx, w, h) => {
-      const padL = 52, padR = 14, padT = 16, padB = 30;
-      const x0 = padL, x1 = w - padR, y0 = padT, y1 = h - padB;
-      const X = (d) => x0 + (d / DAYS) * (x1 - x0);
-      const Y = (v) => y1 - (v / TOP) * (y1 - y0);
-
-      const rule = token('--border', '#e3e6ea');
-      const faint = token('--text-faint', '#868d99');
-      const stop = token('--stop', '#b0341f');
-      const accent = token('--accent', '#1c5cff');
-
-      ctx.font = '500 10px ui-monospace, monospace';
-      ctx.textBaseline = 'middle';
-
-      // money gridlines
-      ctx.strokeStyle = rule; ctx.fillStyle = faint; ctx.lineWidth = 1;
-      for (const v of [0, 200, 400, 600]) {
-        const y = Math.round(Y(v)) + 0.5;
-        ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
-        ctx.textAlign = 'right';
-        ctx.fillText(`$${v}`, x0 - 8, y);
-      }
-
-      // midnights: the whole reason the two lines diverge
-      ctx.textAlign = 'center';
-      ctx.setLineDash([3, 4]);
-      for (let d = 1; d < DAYS; d += 1) {
-        const x = Math.round(X(d)) + 0.5;
-        ctx.strokeStyle = rule;
-        ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
-        if (t > d - 0.02) {
-          ctx.fillStyle = faint;
-          ctx.fillText('midnight', x, y1 + 15);
-        }
-      }
-      ctx.setLineDash([]);
-      ctx.fillStyle = faint;
-      for (let d = 0; d < DAYS; d += 1) ctx.fillText(`day ${d + 1}`, X(d + 0.5), y1 + 15);
-
-      // sample both curves across the elapsed span
-      const steps = 220;
-      const pts = [];
-      for (let i = 0; i <= steps; i += 1) {
-        const tt = (t * i) / steps;
-        pts.push([X(tt), Y(dailyOut(tt)), Y(runOut(tt))]);
-      }
-      if (pts.length < 2) return;
-
-      // the gap: money the wallet kept in and the daily ceiling let out
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1]);
-      for (const [x, yd] of pts) ctx.lineTo(x, yd);
-      for (let i = pts.length - 1; i >= 0; i -= 1) ctx.lineTo(pts[i][0], pts[i][2]);
-      ctx.closePath();
-      ctx.fillStyle = stop; ctx.globalAlpha = 0.13; ctx.fill(); ctx.globalAlpha = 1;
-
-      const line = (idx, colour) => {
-        ctx.beginPath();
-        pts.forEach(([x, ...ys], i) => (i ? ctx.lineTo(x, ys[idx]) : ctx.moveTo(x, ys[idx])));
-        ctx.strokeStyle = colour; ctx.lineWidth = 2; ctx.stroke();
-        const last = pts[pts.length - 1];
-        ctx.beginPath(); ctx.arc(last[0], last[idx + 1], 3.5, 0, Math.PI * 2);
-        ctx.fillStyle = colour; ctx.fill();
-      };
-      line(0, stop);      // daily ceiling
-      line(1, accent);    // run budget
-
-      // name the lines on the canvas, so the figure stands alone
-      const last = pts[pts.length - 1];
-      ctx.textAlign = 'right';
-      if (t > 0.35) {
-        ctx.fillStyle = stop;
-        ctx.fillText('daily ceiling', last[0] - 8, last[1] - 12);
-        ctx.fillStyle = accent;
-        ctx.fillText('run budget', last[0] - 8, last[2] + 14);
-      }
-    });
-
-    const d = dailyOut(t), r = runOut(t);
-    out.day.textContent = String(Math.min(DAYS, Math.floor(t) + 1));
+    const d = WALLET.dailyOut(t), r = WALLET.runOut(t);
+    out.day.textContent = String(Math.min(WALLET.DAYS, Math.floor(t) + 1));
     out.daily.textContent = money(d);
     out.run.textContent = money(r);
     out.gap.textContent = money(d - r);
-    out.hint.textContent = t >= DAYS ? 'three days later' : 'scroll';
+    out.hint.textContent = t >= WALLET.DAYS ? 'three days later' : 'scroll';
   });
 })();
 

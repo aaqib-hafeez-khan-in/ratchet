@@ -1450,6 +1450,32 @@ ul.checks li::before {
 .bar-fill span { padding-left: 0.7rem; font: 500 0.8125rem/1 var(--mono); font-variant-numeric: tabular-nums; color: #fff; white-space: nowrap; }
 .bar-fill.quiet span { color: var(--text); }
 
+/* -- the wallet figure, restated small on the landing page --------------- */
+.walletfig {
+  margin: 1.75rem 0 0; padding: 1.1rem clamp(1rem, 3vw, 1.35rem);
+  background: var(--bg-raised); border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.walletfig figcaption {
+  margin: 0 0 0.9rem; max-width: 64ch;
+  font-size: 0.9rem; line-height: 1.55; color: var(--text-dim);
+}
+.walletfig canvas { display: block; width: 100%; height: clamp(7rem, 20vh, 10.5rem); }
+.walletfig-out {
+  display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; align-items: center;
+  margin-top: 0.9rem; font-size: 0.85rem; color: var(--text-dim);
+}
+.walletfig-out b { font: 500 0.95rem/1 var(--mono); font-variant-numeric: tabular-nums; }
+.walletfig-out a { margin-left: auto; font-size: 0.82rem; }
+/* The swatches carry the same two colours the curves do, so the legend is read
+   off the picture rather than memorised from it. */
+.walletfig-out .sw {
+  display: inline-block; width: 0.7rem; height: 0.2rem; border-radius: 2px;
+  margin-right: 0.45rem; vertical-align: middle;
+}
+.walletfig-out .sw.daily { background: var(--stop); }
+.walletfig-out .sw.run { background: var(--accent); }
+
 /* -- run wallets, in a table cell ---------------------------------------- */
 .spend { display: flex; align-items: center; gap: 0.5rem; min-width: 9rem; }
 .spend-track {

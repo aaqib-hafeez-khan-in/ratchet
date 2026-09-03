@@ -412,6 +412,21 @@ Reached the vendor: 20. Held back: 80.</code></pre>
       </div>
     </div>
 
+    <figure class="walletfig" id="homeWallet">
+      <figcaption>
+        <strong>A day is not a task.</strong> One stuck agent, three days, both limits set to
+        $200. A daily ceiling hands the allowance back every midnight, so the same money
+        leaves again tomorrow. A run budget never refills, so there is nothing to wait for.
+      </figcaption>
+      <canvas id="homeWalletCanvas" role="img"
+        aria-label="Cumulative money leaving over three days. Under a daily ceiling the line climbs to two hundred dollars, flattens, then climbs again after each midnight reset, reaching six hundred. Under a run budget it climbs to two hundred once and stays flat."></canvas>
+      <div class="walletfig-out">
+        <span><i class="sw daily"></i>Daily ceiling <b id="homeWalDaily">$600</b></span>
+        <span><i class="sw run"></i>Run budget <b id="homeWalRun">$200</b></span>
+        <a href="/fraud#wallet">See it drawn out &rarr;</a>
+      </div>
+    </figure>
+
     <p style="max-width:62ch;margin-top:1.5rem">
       The half that matters is not the ceiling — budgets could always refuse. It is that the
       agent can <strong>read its own balance</strong>, and one that sees what is left takes
