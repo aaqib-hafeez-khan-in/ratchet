@@ -100,6 +100,7 @@ describe('the shape of the output', () => {
       webhooks: { pending: 0, failed: 0, deliveredLastDay: 0 },
       email: { queued: 0, deferred: 0, deadLastDay: 0 },
       circuitsOpen: 0, workers: { loops: 4, stale: 0 }, replicas: null,
+      keysByPepper: [],
     });
     for (const state of ['pending', 'succeeded', 'failed', 'indeterminate',
                          'denied', 'cancelled', 'awaiting_approval']) {
@@ -121,6 +122,7 @@ describe('the shape of the output', () => {
       webhooks: { pending: 0, failed: 0, deliveredLastDay: 0 },
       email: { queued: 0, deferred: 0, deadLastDay: 0 },
       circuitsOpen: 0, workers: { loops: 1, stale: 0 },
+      keysByPepper: [],
     };
     assert.equal(render({ ...base, replicas: null }).includes('ratchet_replica_lag_bytes'), false);
     assert.match(render({ ...base, replicas: { connected: 2, maxLagBytes: 512 } }),

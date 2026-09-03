@@ -45,7 +45,10 @@ export type Blinded = Record<string, string>;
  * an attacker already holds AUTH_SECRET and has larger problems.
  */
 function blindOne(workspaceId: string, name: string, value: string): string {
-  return createHmac('sha256', config.authSecret)
+  // dimensionSecret, not authSecret. A blinded value cannot be re-derived — the
+  // input is gone by design — so this pepper changing does not invalidate a
+  // ceiling, it resets one. See the note on config.dimensionSecret.
+  return createHmac('sha256', config.dimensionSecret)
     .update(`dim:v1:${workspaceId}:${name}:${value}`)
     .digest('hex')
     .slice(0, 32);
