@@ -302,6 +302,7 @@ answers.
 | `max_attempts` | 1–50 | 3 | Attempt ceiling per key |
 | `max_cost_micros` | int \| null | null | Per-effect cost ceiling |
 | `approval_above_micros` | int \| null | null | Declared cost at or above which begin returns `approval_required` |
+| `reconcile_every_hours` | 1–8760 \| null | null | Announce `reconciliation.due` when a comparison is this overdue |
 | `daily_budget_micros` | int \| null | null | Daily external-spend ceiling for this type |
 | `retention_days` | 1–400 | 7 | Bounded by plan |
 
@@ -330,6 +331,38 @@ is holding. Begin is refused with `cost_required` instead.
 `upsertPolicy` rejects that configuration with `approval_threshold_above_ceiling` rather than
 storing a control that reads as configured and does nothing. Equal to the ceiling is legal and
 means a one-amount band, since the ceiling refuses only what is strictly above it.
+
+**Scheduled reconciliation.** `GET /v1/reconcile/status` · the `reconciliation-due` worker loop.
+
+What is scheduled is the **remembering, not a fetch.** Ratchet has no vendor credentials and no
+outbound access to customer systems, and this does not change that — it cannot ask Stripe what
+happened. It has the one thing the customer's own cron does not: it knows when the last
+`POST /v1/reconcile` for each effect type arrived. So it keeps the calendar and emits
+`reconciliation.due` when a comparison is overdue. The vendor's truth still arrives from the
+customer, by the same POST. The event wording is asserted by a test to say `cannot fetch`, so
+the boundary cannot be blurred by a later copy edit.
+
+Reconciliation was the one control nobody ran: you reach for it when already suspicious, which
+is exactly too late.
+
+`reconciliation_runs` holds **counts only, no keys.** The caller supplied the keys and gets the
+unmatched ones back live, so persisting them would build a store of records about actions that
+bypassed the gate while answering nothing the counts do not. Coverage and drift are count
+questions. `GET /v1/reconcile/status` returns the last ten `ungated` totals oldest-first, so a
+rising line reads as one.
+
+Restraint is the hard part. The sweep notifies **once per cadence, not once per pass** —
+`reconcile_due_notified_at` is stamped inside the claiming transaction, and rows are claimed
+`FOR UPDATE SKIP LOCKED` so replicas cannot double-announce. A one-hour grace period after
+`updated_at` means turning the reminder on does not immediately accuse you of being late for
+history that predates the setting. Doing the reconciliation is what clears it; nobody has to
+dismiss anything.
+
+One trap worth keeping: `enqueueEvent` dedupes on a hash of the payload, which is correct for an
+event describing a thing that happened once. `reconciliation.due` describes a state that
+persists, so a second announcement a cadence later is a new occurrence and was being silently
+swallowed. The payload carries `noticedAt` for that reason — the replica guarantee lives in
+`SKIP LOCKED` and the stamp, which is where it belongs.
 
 The `effect.approval_required` event carries `trigger` (`value` | `circuit` | `policy`) and
 `approval_above_micros`, so an approval queue can be triaged without looking anything up.

@@ -93,6 +93,7 @@ export function policyOut(p: Policy) {
     // silently reported nothing for a setting an operator had turned on.
     require_cost: p.requireCost,
     approval_above_micros: p.approvalAboveMicros,
+    reconcile_every_hours: p.reconcileEveryHours,
     required_dimensions: p.requiredDimensions,
     structuring_threshold_micros: p.structuringThresholdMicros,
     dimension_limits: Object.fromEntries(

@@ -50,6 +50,9 @@ const GATED: Probe[] = [
   { cap: 'signedReceipts', url: '/v1/receipts/audit', method: 'GET' },
   { cap: 'reconciliation', url: '/v1/reconcile', method: 'POST',
     payload: { effect_type: 'email.send', keys: ['probe-key'] } },
+  // The schedule reads the records the comparison writes, so the same capability
+  // gates it: a plan that cannot reconcile has no calendar to keep.
+  { cap: 'reconciliation', url: '/v1/reconcile/status', method: 'GET' },
 ];
 
 const send = (key: string, probe: Probe) =>

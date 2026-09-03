@@ -50,6 +50,15 @@ export interface Policy {
    */
   approvalAboveMicros: number | null;
   /**
+   * How often this effect type should be compared against the vendor's own
+   * record, in hours. Null disables the reminder.
+   *
+   * Ratchet cannot perform the comparison — it has no vendor credentials. What
+   * it has is the calendar: it knows when the last POST /v1/reconcile for this
+   * type arrived, and says so when the gap exceeds this.
+   */
+  reconcileEveryHours: number | null;
+  /**
    * Dimensions that must be declared, or begin is refused.
    *
    * Without this a counterparty ceiling is trivially evaded: a compromised agent

@@ -13,6 +13,7 @@ import { closePool, getPool } from '../db/pool.js';
 import { drainExpiredLeases, collectExpiredEffects, collectStaleRecords } from './reaper.js';
 import { chainPendingReceipts, pruneReceipts } from '../domain/receipts.js';
 import { refreshSurgeBaselines } from '../domain/circuit.js';
+import { noticeOverdue } from '../domain/reconciliation.js';
 import { gcWindows as gcFeedbackWindows } from '../domain/feedback.js';
 import { gcProvisionWindows } from '../domain/provisioning.js';
 import { gcRunBudgets } from '../domain/run-budget.js';
@@ -148,6 +149,15 @@ async function main() {
   // the request path: a median over a growing history is exactly the kind of
   // aggregate that must never sit in front of a decision.
   loop('surge-baseline', 15 * 60_000, () => refreshSurgeBaselines());
+
+  // Reconciliation is the only control that finds actions which never asked at
+  // all, and it was the one nobody ran: you reach for it when already suspicious,
+  // which is exactly too late. Ratchet cannot perform the comparison — no vendor
+  // credentials, no outbound access, and that stays true. It keeps the calendar
+  // and says when a check is overdue. Hourly is frequent enough for a cadence
+  // measured in hours, and the sweep notifies once per cadence rather than once
+  // per pass.
+  loop('reconciliation-due', 60 * 60_000, () => noticeOverdue());
 
   // Money, so: infrequent, and the only loop here that spends any. Five
   // minutes is deliberate — a balance that just crossed a threshold is not an

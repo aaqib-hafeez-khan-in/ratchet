@@ -530,9 +530,11 @@
       </div>
     </div>
     <p class="dim" style="max-width:60ch;margin-top:1.5rem">
-      Scheduled reconciliation is not built &mdash; today <code>POST /v1/reconcile</code>
-      runs when you call it, not on a timer. It is what the blinded ledger makes possible
-      next, and it is not claimed until it exists.
+      Reconciliation is scheduled, but the fetching is not ours to do. Ratchet has no
+      credentials at your vendors and no way to reach them, so it cannot go and read what
+      really happened. It keeps the calendar instead &mdash; it knows when each effect type
+      was last compared, and says so when one is overdue. You still post the vendor's
+      records; it still tells you which it never authorised.
     </p>
   </div>
 </section>

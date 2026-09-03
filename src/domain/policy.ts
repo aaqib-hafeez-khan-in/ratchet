@@ -19,6 +19,8 @@ export const DEFAULT_POLICY = {
   requireCost: false,
   /** Value-triggered approval is OFF unless a threshold is set. */
   approvalAboveMicros: null as number | null,
+  /** Reconciliation reminders are OFF unless a cadence is set. */
+  reconcileEveryHours: null as number | null,
   /** Dimensions that must be declared, or begin is refused. */
   requiredDimensions: [] as string[],
   /**
@@ -58,6 +60,7 @@ interface PolicyRow {
   retention_days: number;
   require_cost: boolean;
   approval_above_micros: number | null;
+  reconcile_every_hours: number | null;
   required_dimensions: string[];
   dimension_limits: Record<string, { daily_micros?: number | null; daily_count?: number | null }>;
   structuring_threshold_micros: number | null;
@@ -108,7 +111,7 @@ export async function getPolicy(
   const { rows } = await db.query<PolicyRow>(
     `SELECT effect_type, mode, on_indeterminate, lease_seconds, max_attempts,
             max_cost_micros, daily_budget_micros, retention_days, require_cost,
-            approval_above_micros,
+            approval_above_micros, reconcile_every_hours,
             required_dimensions, dimension_limits, structuring_threshold_micros,
             surge_per_hour, surge_action, surge_cooldown_seconds,
             surge_multiplier, surge_baseline_per_hour, surge_baseline_at
@@ -130,6 +133,7 @@ export async function getPolicy(
     retentionDays: row.retention_days,
     requireCost: row.require_cost,
     approvalAboveMicros: row.approval_above_micros,
+    reconcileEveryHours: row.reconcile_every_hours,
     requiredDimensions: row.required_dimensions ?? [],
     dimensionLimits: fromWire(row.dimension_limits),
     structuringThresholdMicros: row.structuring_threshold_micros,
@@ -147,7 +151,7 @@ export async function listPolicies(db: Db, workspaceId: string): Promise<Policy[
   const { rows } = await db.query<PolicyRow>(
     `SELECT effect_type, mode, on_indeterminate, lease_seconds, max_attempts,
             max_cost_micros, daily_budget_micros, retention_days, require_cost,
-            approval_above_micros,
+            approval_above_micros, reconcile_every_hours,
             required_dimensions, dimension_limits, structuring_threshold_micros,
             surge_per_hour, surge_action, surge_cooldown_seconds,
             surge_multiplier, surge_baseline_per_hour, surge_baseline_at
@@ -166,6 +170,7 @@ export async function listPolicies(db: Db, workspaceId: string): Promise<Policy[
     retentionDays: row.retention_days,
     requireCost: row.require_cost,
     approvalAboveMicros: row.approval_above_micros,
+    reconcileEveryHours: row.reconcile_every_hours,
     requiredDimensions: row.required_dimensions ?? [],
     dimensionLimits: fromWire(row.dimension_limits),
     structuringThresholdMicros: row.structuring_threshold_micros,
@@ -190,6 +195,7 @@ export interface PolicyUpsert {
   retentionDays?: number;
   requireCost?: boolean;
   approvalAboveMicros?: number | null;
+  reconcileEveryHours?: number | null;
   requiredDimensions?: string[];
   dimensionLimits?: Record<string, { dailyMicros: number | null; dailyCount: number | null }>;
   structuringThresholdMicros?: number | null;
@@ -227,10 +233,10 @@ export async function upsertPolicy(
     `INSERT INTO effect_policies
        (workspace_id, effect_type, mode, on_indeterminate, lease_seconds,
         max_attempts, max_cost_micros, daily_budget_micros, retention_days, require_cost,
-            approval_above_micros,
+            approval_above_micros, reconcile_every_hours,
         required_dimensions, dimension_limits, structuring_threshold_micros,
         surge_per_hour, surge_action, surge_cooldown_seconds, surge_multiplier)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      ON CONFLICT (workspace_id, effect_type) DO UPDATE SET
        mode                = EXCLUDED.mode,
        on_indeterminate    = EXCLUDED.on_indeterminate,
@@ -241,6 +247,7 @@ export async function upsertPolicy(
        retention_days      = EXCLUDED.retention_days,
        require_cost        = EXCLUDED.require_cost,
        approval_above_micros = EXCLUDED.approval_above_micros,
+       reconcile_every_hours = EXCLUDED.reconcile_every_hours,
        required_dimensions = EXCLUDED.required_dimensions,
        dimension_limits    = EXCLUDED.dimension_limits,
        structuring_threshold_micros = EXCLUDED.structuring_threshold_micros,
@@ -260,6 +267,8 @@ export async function upsertPolicy(
       input.retentionDays ?? d.retentionDays,
       input.requireCost ?? d.requireCost,
       approvalAbove,
+      input.reconcileEveryHours === undefined
+        ? d.reconcileEveryHours : input.reconcileEveryHours,
       input.requiredDimensions ?? d.requiredDimensions,
       JSON.stringify(toWire(input.dimensionLimits ?? d.dimensionLimits)),
       input.structuringThresholdMicros === undefined

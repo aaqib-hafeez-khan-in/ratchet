@@ -322,6 +322,40 @@ export const effectView = {
   },
 } as const;
 
+export const reconciliationStatusSchema = {
+  type: 'object',
+  properties: {
+    effect_types: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          effect_type: { type: 'string' },
+          every_hours: { type: ['integer', 'null'] },
+          last_run_at: { type: ['string', 'null'], format: 'date-time' },
+          hours_since_last_run: { type: ['number', 'null'] },
+          due_at: { type: ['string', 'null'], format: 'date-time' },
+          overdue: { type: 'boolean' },
+          last_run: {
+            type: ['object', 'null'],
+            properties: {
+              checked: { type: 'integer' },
+              gated: { type: 'integer' },
+              ungated: { type: 'integer' },
+            },
+          },
+          ungated_trend: {
+            type: 'array', items: { type: 'integer' },
+            description:
+              'Ungated counts from the last ten runs, oldest first. A rising line means '
+              + 'more of your real actions are reaching the vendor without asking.',
+          },
+        },
+      },
+    },
+  },
+} as const;
+
 export const policySchema = {
   type: 'object',
   properties: {
@@ -334,6 +368,13 @@ export const policySchema = {
     daily_budget_micros: { type: ['integer', 'null'] },
     retention_days: { type: 'integer' },
     require_cost: { type: 'boolean' },
+    reconcile_every_hours: {
+      type: ['integer', 'null'],
+      description:
+        'How often this effect type should be compared against the vendor\'s own record. '
+        + 'Ratchet cannot perform that comparison — it keeps the calendar and says when one '
+        + 'is overdue, via the reconciliation.due event.',
+    },
     approval_above_micros: {
       type: ['integer', 'null'],
       description:
