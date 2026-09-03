@@ -201,3 +201,101 @@ export function once(el, fn) {
   setTimeout(check, 500);
   setTimeout(fire, 4000);       // never leave a figure sitting at zero
 }
+
+/**
+ * Twenty payouts at one destination, against a ceiling.
+ *
+ * Permitted attempts cross the gate and land. Refused ones stop dead on it,
+ * which is the entire point of the picture: the money does not reach the other
+ * side, so there is nothing at the vendor to undo.
+ *
+ * The arithmetic is the rule applied — floor(ceiling / each) get through — not a
+ * measurement, and both pages say so in the text beside it.
+ */
+export const PAYOUT = { attempts: 20, each: 500, ceiling: 2000 };
+PAYOUT.allowed = Math.floor(PAYOUT.ceiling / PAYOUT.each);
+
+export function drawContainment(ctx, w, h, p, colors) {
+  const { attempts, allowed } = PAYOUT;
+  const originX = Math.max(26, w * 0.08);
+  const gateX = Math.round(w * 0.46) + 0.5;      // half pixel: a crisp 1px rule
+  const destX = Math.min(w - 26, w * 0.88);
+  const midY = h * 0.5;
+  const spread = Math.min(h * 0.38, 132);
+  const label = '500 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+
+  // The gate. Drawn first and drawn plainly: everything else is arranged around
+  // the fact that this line is where a decision happens.
+  ctx.strokeStyle = colors.gate;
+  ctx.globalAlpha = 0.55;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(gateX, midY - spread - 16);
+  ctx.lineTo(gateX, midY + spread + 16);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  let tried = 0, landed = 0;
+  for (let i = 0; i < attempts; i += 1) {
+    const t = Math.max(0, Math.min(1, (p - i * (0.6 / attempts)) / 0.3));
+    if (t <= 0) continue;
+    tried += 1;
+
+    const permitted = i < allowed;
+    const fromY = midY + ((i / (attempts - 1)) - 0.5) * 2 * spread;
+    const stopX = permitted ? destX : gateX;
+    const x = originX + (stopX - originX) * t;
+    const reach = permitted ? t : t * (gateX - originX) / (destX - originX);
+    const y = fromY + (midY - fromY) * reach;
+
+    ctx.globalAlpha = permitted ? 0.9 : 0.45;
+    ctx.strokeStyle = permitted ? colors.gate : colors.dim;
+    ctx.lineWidth = permitted ? 1.6 : 1;
+    ctx.beginPath(); ctx.moveTo(originX, fromY); ctx.lineTo(x, y); ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    if (permitted) {
+      ctx.fillStyle = colors.gate;
+      ctx.beginPath(); ctx.arc(x, y, 3.4, 0, Math.PI * 2); ctx.fill();
+      if (t >= 1) landed += 1;
+    } else if (t >= 1) {
+      // Stopped, not travelling: a short bar against the gate rather than a dot,
+      // so a refusal looks like an impact and not like an arrival.
+      ctx.fillStyle = colors.stop;
+      ctx.fillRect(gateX - 4, y - 1.5, 8, 3);
+    } else {
+      ctx.fillStyle = colors.dim;
+      ctx.beginPath(); ctx.arc(x, y, 2.4, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // The destination, filling to its ceiling and no further.
+  const barH = Math.min(h * 0.46, 116), barW = 12;
+  const level = Math.min(1, landed / allowed);
+  ctx.fillStyle = colors.rule;
+  ctx.fillRect(destX - barW / 2, midY - barH / 2, barW, barH);
+  ctx.fillStyle = colors.gate;
+  ctx.fillRect(destX - barW / 2, midY + barH / 2 - barH * level, barW, barH * level);
+  ctx.strokeStyle = level >= 1 ? colors.stop : colors.dim;
+  ctx.lineWidth = level >= 1 ? 2 : 1;
+  ctx.beginPath();
+  ctx.moveTo(destX - barW - 7, midY - barH / 2);
+  ctx.lineTo(destX + barW + 7, midY - barH / 2);
+  ctx.stroke();
+
+  // Labels, so the picture explains itself without the caption.
+  ctx.font = label;
+  ctx.fillStyle = colors.dim;
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
+  ctx.fillText('your agent', originX - 2, midY + spread + 24);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = colors.gate;
+  ctx.fillText('ratchet', gateX, midY + spread + 24);
+  ctx.fillStyle = colors.dim;
+  ctx.textAlign = 'right';
+  ctx.fillText('one account', Math.min(w - 2, destX + barW + 7), midY + spread + 24);
+  ctx.textAlign = 'left';
+
+  return { tried, landed };
+}

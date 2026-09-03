@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fraud controls — Ratchet</title>
+<meta name="description" content="Ratchet is a control, not a detector. It bounds what a compromised or manipulated agent can do — per-destination ceilings computed without ever seeing the destination — and finds the actions that never asked at all.">
+<link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/mark.svg">
+<link rel="canonical" href="https://ratchetgate.com/fraud">
+<meta name="theme-color" content="#1c5cff">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Ratchet">
+<meta property="og:title" content="Fraud controls — Ratchet">
+<meta property="og:description" content="A control, not a detector. Bound what a compromised agent can do, count a destination without ever seeing it, and find the actions that never asked.">
+<meta property="og:url" content="https://ratchetgate.com/fraud">
+<meta property="og:image" content="https://ratchetgate.com/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Fraud controls — Ratchet">
+<meta name="twitter:description" content="A control, not a detector. Bound what a compromised agent can do, count a destination without ever seeing it, and find the actions that never asked.">
+<meta name="twitter:image" content="https://ratchetgate.com/assets/og.png">
+<link rel="alternate" type="text/plain" href="/llms.txt" title="Ratchet for LLMs — the whole service in one file">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site"></header>
+
+<main id="main">
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Fraud &amp; risk controls</p>
+    <h1>A control, not a detector.</h1>
+    <p class="lede" style="max-width:58ch">
+      Ratchet will never tell you a payment is fraudulent. It has no device signals, no identity
+      graph, and it cannot see inside a payload. What it does is stand in front of the action
+      with the authority to refuse — and that turns out to be the position nobody else occupies.
+    </p>
+    <p style="max-width:58ch" class="dim">
+      Card fraud, account takeover and synthetic identity are detection problems on inbound
+      traffic, and there are large companies solving them. This page is about the other half:
+      <strong>outbound actions your own automation takes</strong>, correctly authorised and
+      completely wrong.
+    </p>
+    <div class="actions">
+      <a class="btn" href="/console">Start free</a>
+      <a class="btn secondary" href="#mechanism">How the counting works</a>
+    </div>
+  </div>
+</section>
+
+<section class="sunk">
+  <div class="wrap reading">
+    <p class="eyebrow">The shift nobody has a product for</p>
+    <h2>The question is changing from &ldquo;is this transaction legitimate?&rdquo; to &ldquo;is this agent still doing what we told it?&rdquo;</h2>
+    <p>
+      An agent with a payments credential and a poisoned instruction is not a transaction anomaly.
+      Every call it makes is well-formed, correctly signed, and inside its permissions. Nothing in
+      the payload is unusual. The fraud is in the <em>pattern</em> and in the
+      <em>authority</em>, and both of those are visible from exactly one place: in front of the
+      action, holding the rules.
+    </p>
+  </div>
+  <div class="wrap">
+    <div class="threats">
+      <div class="threat">
+        <h3>Prompt injection</h3>
+        <p>An agent reads a hostile document, an email, a web page, and starts acting on
+          instructions that are not yours. It still holds your credential.</p>
+      </div>
+      <div class="threat">
+        <h3>A stolen agent key</h3>
+        <p>Someone else is now the agent. Nothing about the traffic looks different, because
+          nothing about it is different.</p>
+      </div>
+      <div class="threat">
+        <h3>A loop that will not stop</h3>
+        <p>No malice at all: a retry that never terminates, a batch that runs twice, a
+          disbursement job pointed at the wrong file.</p>
+      </div>
+      <div class="threat">
+        <h3>A path that never asked</h3>
+        <p>An old cron job, a leaked key, a colleague's script. Not visible to a gate, because it
+          never came through one.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── the mechanism: blinding ─────────────────────────────────────────── -->
+<section class="stage" id="mechanism" aria-label="How a destination is counted without being read">
+  <div class="stage-pin">
+    <div class="wrap blind-wrap">
+      <p class="eyebrow">The mechanism</p>
+      <h2>Counting a destination without ever seeing it.</h2>
+      <p class="dim" style="max-width:56ch">
+        Ratchet does not store payloads. A destination lives in the payload. So for a long time
+        there was no way to say <em>&ldquo;no more than $2,000 to any one account per day&rdquo;</em>
+        &mdash; the one ceiling a risk team actually asks for.
+      </p>
+
+      <div class="blind-rail">
+        <div class="blind-step">
+          <span class="k">what you send</span>
+          <code class="blind-in" id="blindIn">acct_9f3ab21c</code>
+        </div>
+        <div class="blind-arrow" aria-hidden="true">
+          <span class="blind-op" id="blindOp">HMAC</span>
+        </div>
+        <div class="blind-step">
+          <span class="k">what is stored</span>
+          <code class="blind-out" id="blindOut">································</code>
+        </div>
+        <div class="blind-arrow" aria-hidden="true">
+          <span class="blind-op">count</span>
+        </div>
+        <div class="blind-step">
+          <span class="k">what can be enforced</span>
+          <div class="blind-meter"><div class="blind-fill" id="blindFill"></div></div>
+          <span class="blind-money" id="blindMoney">$0</span>
+        </div>
+      </div>
+
+      <p class="blind-verdict" id="blindVerdict">&nbsp;</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reading">
+    <p class="eyebrow">Why that is safe</p>
+    <h2>The identifier is unusable by us, and unrelated between tenants.</h2>
+    <p>
+      What is kept is <code>HMAC(secret, workspace | name | value)</code>, truncated to 128 bits.
+      It cannot be reversed. The workspace id is <em>inside</em> the MAC, so the same account
+      number in two customers' workspaces produces two unrelated identifiers &mdash; there is no
+      cross-tenant correlation to leak even by accident.
+    </p>
+    <p>
+      A declaration is a claim by the caller, and it can only <strong>tighten</strong>. It adds
+      whatever ceiling policy keys on that dimension; it never removes the workspace, key or
+      effect-type ceilings that already applied. Omitting one that policy requires is refused, so
+      omission is not an escape. And a caller that lies about the value lands in a different
+      bucket without gaining anything it did not already have &mdash; your vendor knows the real
+      destination, which is what makes reconciliation the place a lie surfaces.
+    </p>
+    <pre><code>PUT /v1/policies/payment.refund
+{
+  "required_dimensions": ["counterparty"],
+  "dimension_limits": {
+    "counterparty": { "daily_micros": 200000000, "daily_count": 20 }
+  }
+}</code></pre>
+    <p class="dim">
+      <code>daily_count</code> applies to effects that declare no cost at all. Velocity is not a
+      money question &mdash; &ldquo;no more than five to this address per day&rdquo; is the
+      control that matters for outbound messaging.
+    </p>
+  </div>
+</section>
+
+<!-- ── the ceiling holding ─────────────────────────────────────────────── -->
+<section class="stage sunk" id="ceiling" aria-label="A per-destination ceiling refusing repeated payouts">
+  <div class="stage-pin">
+    <div class="wrap ceiling-wrap">
+      <div class="ceiling-head">
+        <div>
+          <p class="eyebrow">The ceiling holding</p>
+          <h2>Twenty refunds. One account.</h2>
+        </div>
+        <span class="run-hint" id="ceilHint">scroll</span>
+      </div>
+      <p class="dim" style="max-width:54ch">
+        $500 each, all to the same destination, all correctly authorised. A daily ceiling of
+        $2,000 is configured on that dimension. Every attempt is asked; the gate answers.
+      </p>
+      <canvas id="ceilCanvas" class="ceil-canvas" role="img"
+        aria-label="Twenty payout attempts converging on one destination. The first four are permitted, reaching two thousand dollars; the remaining sixteen are stopped at the gate, eight thousand dollars withheld."></canvas>
+      <div class="tallies">
+        <div><span class="k">Attempted</span><span class="v" id="ceilTried">0</span></div>
+        <div><span class="k">Permitted</span><span class="v good" id="ceilOk">0</span></div>
+        <div><span class="k">Refused</span><span class="v bad" id="ceilNo">0</span></div>
+        <div><span class="k">Withheld</span><span class="v bad" id="ceilHeld">$0</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reading">
+    <p class="eyebrow">Not a simulation</p>
+    <h2>The first four go through and the fifth is refused, live.</h2>
+    <p>
+      That ceiling was configured on production and exercised against it. Four $500 refunds to
+      one blinded counterparty executed; the fifth came back
+      <code>budget_exceeded</code>. The twenty-attempt arithmetic above is that same rule
+      continued &mdash; it is what the ceiling does, not a measurement of anything else.
+    </p>
+    <p>
+      Checking the database afterwards, no row contained the account number. What was there was a
+      single bucket, <code>dim:counterparty:9eb4dace…</code>, holding
+      <code>spent_micros: 2000000000</code> and <code>used_count: 4</code>.
+    </p>
+  </div>
+</section>
+
+<!-- ── containment ─────────────────────────────────────────────────────── -->
+<section class="sunk">
+  <div class="wrap reading">
+    <p class="eyebrow">Blast radius</p>
+    <h2>Assume the agent is already compromised.</h2>
+    <p>
+      This is the design assumption, not the worst case. An agent that can widen its own limits
+      was never limited &mdash; so the key a quickstart tells you to paste into an agent holds
+      exactly two permissions: begin an effect, and report its outcome. Everything below is what
+      that agent hits when it tries to do more.
+    </p>
+  </div>
+  <div class="wrap">
+    <ol class="walls" id="walls">
+      <li class="wall">
+        <code class="wall-try">PUT /v1/policies/payment.refund { "daily_budget_micros": 999999999 }</code>
+        <span class="wall-stamp">403</span>
+        <p>Raising its own spend ceiling needs <code>policies:write</code>. The agent key does not
+          have it, and there is no MCP tool that does.</p>
+      </li>
+      <li class="wall">
+        <code class="wall-try">POST /v1/circuits/payment.refund/close</code>
+        <span class="wall-stamp">403</span>
+        <p>Closing the breaker holding it back is an operator action. A console session or an
+          admin key &mdash; never the key-only path an agent uses.</p>
+      </li>
+      <li class="wall">
+        <code class="wall-try">POST /v1/effects/begin { "dimensions": { "counterparty": "somewhere_new" } }</code>
+        <span class="wall-stamp warn">counted</span>
+        <p>A fresh destination is allowed &mdash; and immediately gets its own ceiling. A new
+          bucket is not a new allowance: the workspace, key and effect-type limits are untouched
+          by anything the caller declares.</p>
+      </li>
+      <li class="wall">
+        <code class="wall-try">POST /v1/effects/begin { }</code>
+        <span class="wall-stamp">400</span>
+        <p>Declaring nothing is the obvious evasion, so policy can make the dimension mandatory.
+          Omission is <code>dimension_required</code>, not a free pass.</p>
+      </li>
+      <li class="wall">
+        <code class="wall-try">retry, retry, retry</code>
+        <span class="wall-stamp warn">once</span>
+        <p>Three attempts at one payment is one payment against a velocity ceiling. And an
+          attempt that crashed mid-flight keeps its count &mdash; otherwise killing the agent
+          would be the cheapest way past the limit.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reading">
+    <p class="eyebrow">The one thing that detects</p>
+    <h2>Find the actions that never asked.</h2>
+    <p>
+      A gate only sees the calls that reach it. The old cron job, the leaked key, the script a
+      colleague never mentioned &mdash; invisible to us, and invisible to you.
+    </p>
+    <p>
+      <code>POST /v1/reconcile</code> closes that. Send the idempotency keys or vendor references
+      for actions your vendor says happened; Ratchet returns which ones it authorised and which
+      it has never seen. <strong>Anything unmatched is a path in your system where a retry can
+      act twice, and where nobody is watching.</strong> That is not a bound on fraud. That is
+      finding it.
+    </p>
+    <pre><code>POST /v1/reconcile
+{ "idempotency_keys": ["refund:ord_1841", "refund:ord_1842", "…"] }
+
+→ { "authorised": 1841, "unknown": 3 }   ← three actions nobody sanctioned</code></pre>
+  </div>
+</section>
+
+<section class="sunk">
+  <div class="wrap reading">
+    <p class="eyebrow">Evidence</p>
+    <h2>Every decision is signed, and refusals most of all.</h2>
+    <p>
+      A control that cannot prove what it did is a control you have to be believed about. Every
+      decision writes an <strong>Ed25519-signed receipt</strong>, verifiable offline against a
+      <a href="/.well-known/ratchet-receipt-key">published key</a> without asking us anything.
+      They are hash-chained, so removing one breaks every link after it.
+    </p>
+    <p>
+      For a risk function that is the useful part: an auditable record of what was authorised,
+      what was refused, and why &mdash; produced as a by-product of the control rather than
+      assembled afterwards from logs.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reading">
+    <p class="eyebrow">What this does not do</p>
+    <h2>The limits, stated plainly.</h2>
+  </div>
+  <div class="wrap">
+    <div class="caveats">
+      <div class="caveat">
+        <h3>It cannot score a transaction</h3>
+        <p>A first-ever payment to a fraudster, for a plausible amount, inside every limit, passes
+          cleanly. Ratchet detects structure and repetition, never intent.</p>
+      </div>
+      <div class="caveat">
+        <h3>A dimension is a declaration</h3>
+        <p>It can be lied about. Lying moves an effect to a different bucket and grants nothing
+          extra, and reconciliation against the vendor's own record is what exposes it &mdash;
+          but nothing here reads a payload to check.</p>
+      </div>
+      <div class="caveat">
+        <h3>Windows are UTC days</h3>
+        <p>Not rolling. A ceiling can be approached twice across a midnight boundary. Documented
+          rather than hidden, and a rolling window is the fix.</p>
+      </div>
+      <div class="caveat">
+        <h3>No third-party audit yet</h3>
+        <p>No SOC 2, and Ratchet is operated by one person. For a regulated buyer those are real
+          blockers and we would rather you learn it here than in procurement.
+          <a href="/security">The full security posture</a>.</p>
+      </div>
+    </div>
+    <p class="dim" style="max-width:60ch;margin-top:1.5rem">
+      Fan-in and fan-out detection, structuring alerts, scheduled reconciliation and
+      value-triggered approval are not built. They are what the blinded ledger makes possible,
+      and they are not claimed until they exist.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reading">
+    <h2>Put a ceiling on it in two calls.</h2>
+    <p>
+      Nothing here needs an integration project. One policy call sets the ceiling; the effect
+      calls your agent already makes start being counted against it.
+    </p>
+    <div class="actions">
+      <a class="btn" href="/console">Start free</a>
+      <a class="btn secondary" href="/docs">Read the documentation</a>
+      <a class="btn secondary" href="/benchmark">See the benchmark</a>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer class="site"></footer>
+
+<script type="module" src="/assets/fraud.js"></script>
+</body>
+</html>

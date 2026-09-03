@@ -71,6 +71,7 @@ export function mountChrome(current) {
             <li><a href="/faq">Questions</a></li>
             <li><a href="/pricing">Pricing</a></li>
             <li><a href="/benchmark">Benchmark &mdash; the same job, twice</a></li>
+            <li><a href="/fraud">Fraud &amp; risk controls</a></li>
             <li><a href="/console">Operator console</a></li>
             <li><a href="/docs#groups">Rollback groups</a></li>
           </ul>

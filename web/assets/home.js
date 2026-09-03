@@ -253,3 +253,43 @@ revealSections({ skip: ['.stage'] });
       ? `${cf.JOBS} of ${cf.JOBS} · complete` : `${t.done} of ${cf.JOBS}`;
   });
 })();
+
+/* ── containment, scrubbed by scroll ──────────────────────────────────────
+   The same drawing /fraud uses, from the same module, so the landing page and
+   the page it links to cannot end up telling different stories. */
+(async () => {
+  const stage = document.getElementById('containment');
+  const canvas = document.getElementById('ctCanvas');
+  if (!stage || !canvas) return;
+
+  const cf = await import('/assets/counterfactual.js');
+  const draw = cf.fitted(canvas);
+  const ok = document.getElementById('ctOk');
+  const no = document.getElementById('ctNo');
+  const held = document.getElementById('ctHeld');
+  const hint = document.getElementById('ctHint');
+  const line = document.getElementById('ctLine');
+
+  cf.onScroll(() => {
+    const p = cf.scrollProgress(stage);
+    let seen = { tried: 0, landed: 0 };
+    draw((ctx, w, h) => {
+      seen = cf.drawContainment(ctx, w, h, p, {
+        gate: cf.token('--accent', '#1c5cff'),
+        stop: cf.token('--stop', '#b0341f'),
+        rule: cf.token('--border', '#e3e6ea'),
+        dim: cf.token('--text-faint', '#868d99'),
+      });
+    });
+    const permitted = Math.min(seen.tried, cf.PAYOUT.allowed);
+    const refused = Math.max(0, seen.tried - cf.PAYOUT.allowed);
+    ok.textContent = String(permitted);
+    no.textContent = String(refused);
+    held.textContent = `$${(refused * cf.PAYOUT.each).toLocaleString('en-US')}`;
+    hint.textContent = seen.tried >= cf.PAYOUT.attempts
+      ? 'ceiling held' : `${seen.tried} of ${cf.PAYOUT.attempts}`;
+    line.textContent = refused > 0
+      ? 'Refused at the gate. The vendor is never asked, so nothing has to be undone.'
+      : ' ';
+  });
+})();

@@ -84,6 +84,61 @@ describe('the scrub never shows a number the run does not reach', () => {
   });
 });
 
+describe('the containment picture is arithmetic, not a claim', () => {
+  const { PAYOUT } = mod;
+
+  test('the numbers on the page are the rule applied', () => {
+    assert.equal(PAYOUT.allowed, Math.floor(PAYOUT.ceiling / PAYOUT.each));
+    assert.equal(PAYOUT.allowed, 4);
+    assert.equal((PAYOUT.attempts - PAYOUT.allowed) * PAYOUT.each, 8000,
+      'the $8,000 both pages show is 16 refused attempts, not a measurement');
+  });
+
+  test('both pages say it is the rule and not a benchmark', () => {
+    const fraud = readFileSync(join(WEB, 'fraud.html'), 'utf8');
+    const home = readFileSync(join(WEB, 'index.html'), 'utf8');
+    assert.match(fraud, /not a measurement of anything else|rule continued/i,
+      'fraud.html must not let the arithmetic read as a measured result');
+    // The landing page block links to the page that explains it rather than
+    // repeating the caveat in a space too small to hold it.
+    assert.ok(home.includes('href="/fraud"'));
+  });
+
+  test('the blinded value shown is the one from the live check', () => {
+    const js = readFileSync(join(WEB, 'assets/fraud.js'), 'utf8');
+    assert.match(js, /9eb4dace24bf8589070244228d4a7ea4/,
+      'the hex settling on screen should be the identifier that really held the $2,000');
+  });
+});
+
+describe('the fraud page claims only what is built', () => {
+  const fraud = readFileSync(join(WEB, 'fraud.html'), 'utf8');
+
+  /** Things discussed as possible must not read as shipped. */
+  test('unbuilt detection is named as unbuilt', () => {
+    for (const unbuilt of ['fan-in', 'structuring', 'scheduled reconciliation']) {
+      if (!fraud.toLowerCase().includes(unbuilt)) continue;
+      const at = fraud.toLowerCase().indexOf(unbuilt);
+      const around = fraud.slice(Math.max(0, at - 400), at + 400).toLowerCase();
+      assert.match(around, /not built|are not claimed|until they exist/,
+        `"${unbuilt}" appears without saying it does not exist yet`);
+    }
+  });
+
+  test('it leads with the boundary rather than burying it', () => {
+    assert.match(fraud, /A control, not a detector/);
+    assert.match(fraud, /never tell you a payment is fraudulent/);
+    assert.match(fraud, /cannot score a transaction/i);
+  });
+
+  test('it does not claim exactly-once anywhere', () => {
+    for (const m of fraud.matchAll(/exactly[\s-]once/gi)) {
+      const sentence = fraud.slice(Math.max(0, m.index - 120), m.index + 120);
+      assert.match(sentence, /\bnot\b|never/i, `possible exactly-once claim: ${sentence}`);
+    }
+  });
+});
+
 describe('the pages quote what the module computes', () => {
   const page = readFileSync(join(WEB, 'benchmark.html'), 'utf8');
   const home = readFileSync(join(WEB, 'index.html'), 'utf8');
