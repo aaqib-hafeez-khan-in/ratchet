@@ -56,6 +56,19 @@ describe('the page must not scroll sideways', () => {
       'the <pre> scrolls; its wrapper was what refused to shrink');
   });
 
+  test('a canvas figure is bounded by its box, not by its backing store', () => {
+    // A canvas has an intrinsic 300x150. Without an explicit width it lays out
+    // at 300px and, worse, will not shrink below it inside a grid item — the
+    // same min-width:auto blowout the rules above exist for. The wallet figure
+    // sits in normal flow today, so this is a guard against it being moved into
+    // a grid later and quietly widening the page on a phone.
+    const rule = topLevelRule('.walletfig canvas');
+    assert.match(rule, /width:\s*100%/,
+      'the canvas must take its width from its container, not from its backing store');
+    assert.match(rule, /display:\s*block/,
+      'an inline canvas also picks up a baseline gap under it');
+  });
+
   test('containers that can hold code or tables may shrink', () => {
     assert.match(css, /\.entry\s*>\s*\*\s*\{[^}]*min-width:\s*0/,
       'a grid item defaults to min-width:auto and will not go below its content');
