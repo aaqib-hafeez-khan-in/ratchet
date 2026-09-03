@@ -576,6 +576,32 @@ Reached the vendor: 20. Held back: 80.</code></pre>
       recognise is a path where a retry can act twice.
       <a href="/security">How all of this is built, and what we do not claim</a>.
     </p>
+
+    <p class="small dim" style="margin-top:2.4rem;max-width:62ch">
+      Two of the three below are issued by somebody who is not us. The third is a
+      self-certification against a public checklist — labelled as one, because that is
+      what it is.
+    </p>
+    <div class="creds">
+      <a class="cred" href="https://www.bestpractices.dev/projects/14440">
+        <span class="cred-issuer">OpenSSF · self-certified</span>
+        <span class="cred-name">Best Practices &mdash; Silver</span>
+        <span class="cred-note">100% of the passing and silver criteria. Every answer and
+          its justification is public, including the five recorded as unmet.</span>
+      </a>
+      <a class="cred" href="https://scorecard.dev/viewer/?uri=github.com/thearchitect0x-glitch/ratchet">
+        <span class="cred-issuer">OpenSSF</span>
+        <span class="cred-name">Scorecard</span>
+        <span class="cred-note">Recomputed weekly from the repository by OpenSSF, not by us.
+          Branch protection, pinned dependencies, token permissions.</span>
+      </a>
+      <a class="cred" href="https://www.npmjs.com/package/ratchet-mcp">
+        <span class="cred-issuer">npm &amp; Sigstore</span>
+        <span class="cred-name">SLSA provenance</span>
+        <span class="cred-note">Releases since 0.2.0 are attested to the exact workflow run
+          and commit that built them. <code>npm audit signatures</code> checks it.</span>
+      </a>
+    </div>
   </div>
 </section>
 

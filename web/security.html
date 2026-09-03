@@ -241,10 +241,11 @@
       <div class="card">
         <h3>Verifiable by you, independently</h3>
         <ul class="checks">
-          <li><strong>Every release carries SLSA provenance.</strong> The npm package is signed
-            with an attestation naming the exact workflow run and commit that built it, so you
-            can prove the artifact came from this source and not from someone's laptop.
-            <code>npm audit signatures</code> checks it.</li>
+          <li><strong>Every release since 0.2.0 carries SLSA provenance.</strong> The npm
+            package is signed with an attestation naming the exact workflow run and commit
+            that built it, so you can prove the artifact came from this source and not from
+            someone's laptop. <code>npm audit signatures</code> checks it. The two 0.1.x
+            releases predate the signed publish path and carry no attestation.</li>
           <li><strong>Every decision carries a signed receipt</strong>, hash-chained, with the
             key id inside the signed body so it cannot be repointed. Public keys stay published
             for ever at <code>/.well-known/ratchet-receipt-key</code>, so a receipt from last

@@ -1,5 +1,10 @@
 # ratchet-mcp
 
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14440/badge)](https://www.bestpractices.dev/projects/14440)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/thearchitect0x-glitch/ratchet/badge)](https://scorecard.dev/viewer/?uri=github.com/thearchitect0x-glitch/ratchet)
+[![CI](https://github.com/thearchitect0x-glitch/ratchet/actions/workflows/ci.yml/badge.svg)](https://github.com/thearchitect0x-glitch/ratchet/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/thearchitect0x-glitch/ratchet/blob/main/LICENSE)
+
 MCP server for [Ratchet](https://ratchetgate.com) — an effect gate for AI agents.
 
 Agents retry. LLM control flow is non-deterministic, network calls fail ambiguously, and processes
