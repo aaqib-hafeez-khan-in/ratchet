@@ -26,6 +26,11 @@ Put the key in `env`, never in `args` — arguments are visible in process listi
 
 Works with Claude Desktop, Claude Code, Cursor, and any MCP client that spawns a stdio server.
 
+**Runs on macOS, Linux, Windows and BSD** — anywhere Node 18+ runs. The bridge is a single
+dependency-free file with no native modules, no shell-outs and no platform-specific paths, so there
+is nothing to compile and nothing that behaves differently between operating systems. Ratchet
+itself is a hosted service, so the gate is never something you install or operate.
+
 ## Tools
 
 | Tool | What it does |

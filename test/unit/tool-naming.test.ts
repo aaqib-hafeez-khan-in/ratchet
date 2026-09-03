@@ -91,6 +91,41 @@ describe('tool naming', () => {
  * longer existed — a reader following it would have called a name the server
  * rejects. The rename tests above only ever looked at the source.
  */
+/**
+ * The bridge claims to run anywhere Node does, so it must not quietly acquire a
+ * reason not to. A single native module, shell-out or Windows path assumption
+ * would make the README's claim false on somebody's machine — and the person who
+ * finds out is a customer on the operating system nobody tested.
+ */
+describe('the bridge runs everywhere it says it does', () => {
+  const bin = readFileSync(
+    new URL('../../packages/ratchet-mcp/bin/ratchet-mcp.mjs', import.meta.url), 'utf8');
+
+  test('it branches on no platform and shells out to nothing', () => {
+    for (const smell of ['process.platform', 'child_process', 'node:os',
+                         'os.homedir', 'path.sep', 'execSync', 'spawnSync']) {
+      assert.equal(bin.includes(smell), false,
+        `the bridge uses ${smell}, so "runs on macOS, Linux, Windows and BSD" `
+        + 'is no longer something we know to be true');
+    }
+  });
+
+  test('it depends on nothing that has to be compiled', () => {
+    const imports = [...bin.matchAll(/^import .*?from\s+'([^']+)'/gm)].map((m) => m[1]!);
+    for (const i of imports) {
+      assert.ok(i.startsWith('node:'),
+        `${i} is a third-party import — the bridge ships as one dependency-free `
+        + 'file precisely so there is nothing to install and nothing to build');
+    }
+  });
+
+  test('the README says so, since that is what a directory reads', () => {
+    const readme = readFileSync(
+      new URL('../../packages/ratchet-mcp/README.md', import.meta.url), 'utf8');
+    assert.match(readme, /macOS, Linux, Windows and BSD/);
+  });
+});
+
 describe('documented names are real names', () => {
   const real = new Set(names);
 
