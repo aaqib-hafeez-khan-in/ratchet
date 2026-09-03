@@ -49,6 +49,13 @@ export interface Policy {
    */
   dimensionLimits: Record<string, { dailyMicros: number | null; dailyCount: number | null }>;
   /**
+   * A line to WATCH, never one to enforce. Nothing is refused for exceeding it
+   * and no ceiling is derived from it; the structuring analysis measures how
+   * closely declared amounts crowd it. Null falls back to maxCostMicros, since a
+   * ceiling that does refuse is also a line worth hugging.
+   */
+  structuringThresholdMicros: number | null;
+  /**
    * Surge containment. New effects of this type per hour above which the
    * breaker opens. NULL disables it, which is the default — an unrequested
    * ceiling that starts refusing work is worse than none.

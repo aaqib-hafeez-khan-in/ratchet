@@ -171,7 +171,9 @@ describe('the fraud page claims only what is built', () => {
 
   /** Things discussed as possible must not read as shipped. */
   test('unbuilt detection is named as unbuilt', () => {
-    for (const unbuilt of ['fan-in', 'structuring', 'scheduled reconciliation']) {
+    // 'structuring' came off this list when it shipped, which is the only way an
+    // item should ever leave it.
+    for (const unbuilt of ['fan-in', 'fan-out', 'scheduled reconciliation']) {
       if (!fraud.toLowerCase().includes(unbuilt)) continue;
       const at = fraud.toLowerCase().indexOf(unbuilt);
       const around = fraud.slice(Math.max(0, at - 400), at + 400).toLowerCase();
@@ -184,6 +186,16 @@ describe('the fraud page claims only what is built', () => {
     assert.match(fraud, /A control, not a detector/);
     assert.match(fraud, /never tell you a payment is fraudulent/);
     assert.match(fraud, /cannot score a transaction/i);
+  });
+
+  test('structuring is described as built, and as a hint', () => {
+    assert.match(fraud, /analysis\/structuring/, 'the endpoint has to be named');
+    assert.match(fraud, /structuring_threshold_micros/,
+      'and the way to point it at a line we do not enforce');
+    assert.match(fraud, /a cap produces this bunching all by itself/i,
+      'the false positive is the first thing a reader should be told about');
+    assert.match(fraud, /somewhere to\s*\n?\s*look/i,
+      'a bunching count is not a finding of fraud and the page must not imply it is');
   });
 
   test('it does not claim exactly-once anywhere', () => {

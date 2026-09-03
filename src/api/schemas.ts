@@ -49,7 +49,21 @@ export const beginBody = {
       description: 'The action being gated. Only a fingerprint is stored; the raw value is never persisted. Reusing a key with a different payload is rejected.',
     },
     estimated_cost_micros: {
-      type: 'integer', minimum: 0, maximum: 1_000_000_000, default: 0,
+      /**
+       * $10,000,000 per effect.
+       *
+       * This was 1e9 micro-USD — one thousand dollars — since the first commit,
+       * with no reason recorded. It is a sanity bound against a typo, not a
+       * product decision, and at $1,000 it quietly excluded every use case this
+       * service argues for on the fraud page: a payout batch, a wire, a treasury
+       * sweep. It also made the canonical structuring example — amounts pressed
+       * under a $10,000 line — impossible to express through the API at all.
+       *
+       * The new bound is still a bound. Spend accumulates into a BIGINT, whose
+       * range is about 9.2e18 micro-USD, so a single window would need something
+       * like nine hundred thousand maximum-value effects to approach it.
+       */
+      type: 'integer', minimum: 0, maximum: 10_000_000_000_000, default: 0,
       description: 'Declared external cost of this effect in micro-USD (1e-6 USD). '
         + 'SEND THIS. Budget ceilings are computed from it, and a ceiling with nothing '
         + 'declared against it never triggers — the spend limit you configured would be '
@@ -279,7 +293,9 @@ export const reportBody = {
     },
     result: { description: 'Recorded and replayed verbatim to future duplicate callers.' },
     failure_reason: { type: 'string', maxLength: 1024 },
-    actual_cost_micros: { type: 'integer', minimum: 0, maximum: 1_000_000_000 },
+    // Matches estimated_cost_micros: declaring an amount you then cannot report
+    // would leave the reservation permanently unreconciled.
+    actual_cost_micros: { type: 'integer', minimum: 0, maximum: 10_000_000_000_000 },
   },
 } as const;
 
@@ -318,6 +334,12 @@ export const policySchema = {
     daily_budget_micros: { type: ['integer', 'null'] },
     retention_days: { type: 'integer' },
     require_cost: { type: 'boolean' },
+    structuring_threshold_micros: {
+      type: ['integer', 'null'],
+      description:
+        'A line watched but never enforced. Nothing is refused for exceeding it; the '
+        + 'structuring analysis measures how closely declared amounts crowd it.',
+    },
     required_dimensions: {
       type: 'array', maxItems: 8,
       items: { type: 'string', pattern: '^[a-z][a-z0-9_]{0,31}$' },

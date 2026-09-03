@@ -26,6 +26,8 @@ export const DEFAULT_POLICY = {
    * countable later.
    */
   dimensionLimits: {} as Record<string, { dailyMicros: number | null; dailyCount: number | null }>,
+  /** Observation only; see the note on Policy. */
+  structuringThresholdMicros: null as number | null,
   // Surge containment is OFF unless a threshold is set. An unrequested ceiling
   // that starts refusing work is worse than no ceiling at all.
   surgePerHour: null as number | null,
@@ -54,6 +56,7 @@ interface PolicyRow {
   require_cost: boolean;
   required_dimensions: string[];
   dimension_limits: Record<string, { daily_micros?: number | null; daily_count?: number | null }>;
+  structuring_threshold_micros: number | null;
   surge_per_hour: number | null;
   surge_action: Policy['surgeAction'];
   surge_cooldown_seconds: number;
@@ -101,7 +104,7 @@ export async function getPolicy(
   const { rows } = await db.query<PolicyRow>(
     `SELECT effect_type, mode, on_indeterminate, lease_seconds, max_attempts,
             max_cost_micros, daily_budget_micros, retention_days, require_cost,
-            required_dimensions, dimension_limits,
+            required_dimensions, dimension_limits, structuring_threshold_micros,
             surge_per_hour, surge_action, surge_cooldown_seconds,
             surge_multiplier, surge_baseline_per_hour, surge_baseline_at
        FROM effect_policies
@@ -123,6 +126,7 @@ export async function getPolicy(
     requireCost: row.require_cost,
     requiredDimensions: row.required_dimensions ?? [],
     dimensionLimits: fromWire(row.dimension_limits),
+    structuringThresholdMicros: row.structuring_threshold_micros,
     surgePerHour: row.surge_per_hour,
     surgeAction: row.surge_action,
     surgeCooldownSeconds: row.surge_cooldown_seconds,
@@ -137,7 +141,7 @@ export async function listPolicies(db: Db, workspaceId: string): Promise<Policy[
   const { rows } = await db.query<PolicyRow>(
     `SELECT effect_type, mode, on_indeterminate, lease_seconds, max_attempts,
             max_cost_micros, daily_budget_micros, retention_days, require_cost,
-            required_dimensions, dimension_limits,
+            required_dimensions, dimension_limits, structuring_threshold_micros,
             surge_per_hour, surge_action, surge_cooldown_seconds,
             surge_multiplier, surge_baseline_per_hour, surge_baseline_at
        FROM effect_policies WHERE workspace_id = $1 ORDER BY effect_type`,
@@ -156,6 +160,7 @@ export async function listPolicies(db: Db, workspaceId: string): Promise<Policy[
     requireCost: row.require_cost,
     requiredDimensions: row.required_dimensions ?? [],
     dimensionLimits: fromWire(row.dimension_limits),
+    structuringThresholdMicros: row.structuring_threshold_micros,
     surgePerHour: row.surge_per_hour,
     surgeAction: row.surge_action,
     surgeCooldownSeconds: row.surge_cooldown_seconds,
@@ -178,6 +183,7 @@ export interface PolicyUpsert {
   requireCost?: boolean;
   requiredDimensions?: string[];
   dimensionLimits?: Record<string, { dailyMicros: number | null; dailyCount: number | null }>;
+  structuringThresholdMicros?: number | null;
   surgePerHour?: number | null;
   surgeAction?: Policy['surgeAction'];
   surgeCooldownSeconds?: number;
@@ -192,9 +198,9 @@ export async function upsertPolicy(
     `INSERT INTO effect_policies
        (workspace_id, effect_type, mode, on_indeterminate, lease_seconds,
         max_attempts, max_cost_micros, daily_budget_micros, retention_days, require_cost,
-        required_dimensions, dimension_limits,
+        required_dimensions, dimension_limits, structuring_threshold_micros,
         surge_per_hour, surge_action, surge_cooldown_seconds, surge_multiplier)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
      ON CONFLICT (workspace_id, effect_type) DO UPDATE SET
        mode                = EXCLUDED.mode,
        on_indeterminate    = EXCLUDED.on_indeterminate,
@@ -206,6 +212,7 @@ export async function upsertPolicy(
        require_cost        = EXCLUDED.require_cost,
        required_dimensions = EXCLUDED.required_dimensions,
        dimension_limits    = EXCLUDED.dimension_limits,
+       structuring_threshold_micros = EXCLUDED.structuring_threshold_micros,
        surge_per_hour      = EXCLUDED.surge_per_hour,
        surge_action        = EXCLUDED.surge_action,
        surge_cooldown_seconds = EXCLUDED.surge_cooldown_seconds,
@@ -223,6 +230,8 @@ export async function upsertPolicy(
       input.requireCost ?? d.requireCost,
       input.requiredDimensions ?? d.requiredDimensions,
       JSON.stringify(toWire(input.dimensionLimits ?? d.dimensionLimits)),
+      input.structuringThresholdMicros === undefined
+        ? d.structuringThresholdMicros : input.structuringThresholdMicros,
       input.surgePerHour === undefined ? d.surgePerHour : input.surgePerHour,
       input.surgeAction ?? d.surgeAction,
       input.surgeCooldownSeconds ?? d.surgeCooldownSeconds,

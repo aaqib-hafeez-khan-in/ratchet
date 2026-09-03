@@ -127,3 +127,37 @@ for (const id of ['walls', 'controls']) {
       setTimeout(() => el.classList.add('hit'), reduced() ? 0 : 260 + i * 380));
   });
 }
+
+/* ── structuring: the two bands counting up ──────────────────────────────
+   The numbers are the ones in the worked example beside it, and the point of
+   the animation is the contrast between them rather than either figure. */
+(() => {
+  const wrap = $('bands');
+  if (!wrap) return;
+  const hug = $('bandHug'), control = $('bandControl'), verdict = $('bandVerdict');
+  const HUG = 23, CONTROL = 2;
+
+  once(wrap, () => {
+    if (reduced()) {
+      hug.textContent = String(HUG); control.textContent = String(CONTROL);
+      verdict.textContent = `${(HUG / CONTROL).toFixed(1)}x as many pressed against the line.`;
+      return;
+    }
+    const t0 = Date.now(), dur = 1400;
+    const tick = setInterval(() => {
+      const k = Math.min(1, (Date.now() - t0) / dur);
+      const eased = 1 - (1 - k) ** 3;
+      hug.textContent = String(Math.round(HUG * eased));
+      control.textContent = String(Math.round(CONTROL * eased));
+      if (k >= 1) {
+        clearInterval(tick);
+        verdict.textContent = `${(HUG / CONTROL).toFixed(1)}x as many pressed against the line. `
+          + 'Amounts do not normally do that.';
+      }
+    }, 32);
+    setTimeout(() => {
+      clearInterval(tick);
+      hug.textContent = String(HUG); control.textContent = String(CONTROL);
+    }, dur + 400);
+  });
+})();

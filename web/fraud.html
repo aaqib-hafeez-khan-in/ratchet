@@ -357,6 +357,64 @@
   </div>
 </section>
 
+<section class="sunk" id="structuring">
+  <div class="wrap reading">
+    <p class="eyebrow">The pattern only we can see</p>
+    <h2>Twenty-three payments of $9,800 against a $10,000 line.</h2>
+    <p>
+      Structuring is keeping amounts just under a threshold so the threshold never fires. Every
+      one of those payments is well-formed, correctly authorised, under every limit, and entirely
+      unremarkable on its own. The pattern is only visible to something that knows
+      <em>what the line is</em> and can see every amount proposed against it.
+    </p>
+    <p>
+      Your vendor sees the amounts and not your thresholds. Your ledger sees both, afterwards.
+      The gate sees every amount an agent proposed, before it happened, beside the line it was
+      proposed against. That is a strange position to occupy and it is the one Ratchet is in.
+    </p>
+  </div>
+  <div class="wrap">
+    <div class="bands" id="bands" aria-label="Two equal bands below a ten thousand dollar threshold. The band nearest the line holds twenty-three payments; the band before it holds two.">
+      <div class="band-scale">
+        <span>$8,000</span><span>$9,000</span><span class="band-line">$10,000</span>
+      </div>
+      <div class="band-track">
+        <div class="band control"><b id="bandControl">0</b><span>the 10% before that</span></div>
+        <div class="band hug"><b id="bandHug">0</b><span>the last 10% before the line</span></div>
+      </div>
+      <p class="band-verdict" id="bandVerdict">&nbsp;</p>
+    </div>
+  </div>
+  <div class="wrap reading">
+    <p style="margin-top:1.5rem">
+      No model, and nothing to train. Two adjacent bands of equal width below the line are counted
+      and compared. Real amounts do not crowd the final stretch before a number somebody is trying
+      to stay under &mdash; an excess there is the whole signal, and the ratio is reported so you
+      can see its size rather than a score.
+    </p>
+    <pre><code>GET /v1/analysis/structuring?days=30
+
+→ { "findings": [ { "effect_type": "payment.payout",
+                    "just_below": 23, "control": 2, "excess_ratio": 11.5,
+                    "concentrated_in": [ { "dimension": "counterparty",
+                                           "blinded": "9eb4dace…", "count": 14 } ] } ] }</code></pre>
+    <p>
+      <strong>Point it at a line we do not enforce.</strong> The threshold that actually gets
+      hugged is usually not ours &mdash; a reporting limit, an internal review limit, a
+      counterparty's own rule. Set <code>structuring_threshold_micros</code> on a policy and
+      Ratchet measures against it while refusing nothing. Knowing the amounts is enough; owning
+      the threshold is not required.
+    </p>
+    <p class="small faint">
+      And the honest part: <strong>a cap produces this bunching all by itself.</strong> Told they
+      may spend up to $10,000, people spend $9,999. What separates that from structuring is
+      intent, which is not visible from here and never will be. So a finding is somewhere to
+      look, and the report says which blinded counterparty it concentrates on &mdash; because
+      bunching spread across many destinations is usually a cap, and bunching at one is not.
+    </p>
+  </div>
+</section>
+
 <section class="sunk">
   <div class="wrap reading">
     <p class="eyebrow">Evidence</p>
@@ -406,9 +464,9 @@
       </div>
     </div>
     <p class="dim" style="max-width:60ch;margin-top:1.5rem">
-      Fan-in and fan-out detection, structuring alerts, scheduled reconciliation and
-      value-triggered approval are not built. They are what the blinded ledger makes possible,
-      and they are not claimed until they exist.
+      Fan-in and fan-out detection, scheduled reconciliation and value-triggered approval are
+      not built. They are what the blinded ledger makes possible, and they are not claimed until
+      they exist.
     </p>
   </div>
 </section>

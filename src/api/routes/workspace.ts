@@ -460,6 +460,11 @@ export default async function workspaceRoutes(app: FastifyInstance) {
               + 'daily_count applies to effects that declare no cost at all, which is what '
               + 'makes it usable for outbound messaging. Only a keyed hash of the value is '
               + 'ever stored.' },
+          structuring_threshold_micros: { type: ['integer', 'null'], minimum: 1,
+            description: 'A line to WATCH, never one to enforce. Nothing is refused for '
+              + 'exceeding it. The structuring analysis measures how closely declared amounts '
+              + 'crowd it, which is how you point Ratchet at a threshold it does not own — a '
+              + 'reporting limit, an internal review limit. Null falls back to max_cost_micros.' },
           surge_per_hour: { type: ['integer', 'null'], minimum: 1,
             description: 'Surge containment. New effects of this type per hour above which '
               + 'the circuit breaker opens. Budget ceilings catch an agent spending too '
@@ -502,6 +507,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
       retentionDays: b.retention_days,
       requireCost: b.require_cost,
       requiredDimensions: b.required_dimensions,
+      structuringThresholdMicros: b.structuring_threshold_micros,
       // The schema has already refused anything but integers or null here; this
       // narrows the type rather than re-validating.
       dimensionLimits: b.dimension_limits && Object.fromEntries(

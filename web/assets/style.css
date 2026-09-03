@@ -1695,3 +1695,34 @@ table.grid td.good { color: var(--accent); }
   .wall { opacity: 1; }
   .wall-stamp { transform: none; opacity: 1; }
 }
+
+/* -- structuring: two bands below a line ----------------------------------
+   The whole method in one picture. Equal widths matter visually as much as
+   statistically: comparing a wide band to a narrow one would manufacture the
+   excess, and drawing them unequal would imply we had. */
+.bands { margin-top: 2rem; max-width: 44rem; }
+.band-scale {
+  display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.5rem;
+  font: 500 0.625rem/1 var(--mono); letter-spacing: 0.1em;
+  color: var(--text-faint); margin-bottom: 0.4rem;
+}
+.band-scale span:nth-child(2) { text-align: right; }
+.band-scale .band-line { color: var(--stop); padding-left: 0.5rem; }
+.band-track {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+  border-right: 2px solid var(--stop);
+}
+.band {
+  background: var(--bg-sunk); border: 1px solid var(--border); border-right: 0;
+  padding: 0.9rem 1rem; min-height: 5.5rem;
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 0.35rem;
+}
+.band b {
+  font: 600 clamp(1.6rem, 6vw, 2.6rem)/1 var(--mono); font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+.band span { font-size: 0.8125rem; color: var(--text-dim); line-height: 1.35; }
+.band.control b { color: var(--text-faint); }
+.band.hug { background: color-mix(in srgb, var(--stop) 10%, var(--bg-sunk)); }
+.band.hug b { color: var(--stop); }
+.band-verdict { margin-top: 0.9rem; min-height: 1.4em; font-size: 0.9375rem; color: var(--text-dim); }

@@ -35,7 +35,7 @@ The only metered call, and only when it creates a new effect record.
 | `effect_type` | string | yes | `^[a-z0-9]([a-z0-9._-]{0,62}[a-z0-9])?$`. Policy is per type |
 | `idempotency_key` | string ≤255 | yes | Deterministic, derived from the work itself |
 | `payload` | any | no | Only a SHA-256 fingerprint is stored |
-| `estimated_cost_micros` | int ≥0 | no | External cost. Enforced as a ceiling; never collected |
+| `estimated_cost_micros` | int 0–1e13 | no | External cost, micro-USD. Enforced as a ceiling; never collected. **Raised from 1e9 ($1,000) on 2 Sep 2026** — that bound predated any use case and excluded every payout, wire and sweep the product argues for |
 | `agent_id`, `run_id` | string ≤128 | no | Operator visibility |
 | `request_summary` | object | no | Small non-sensitive metadata shown in the console |
 | `lease_seconds` | int 5–3600 | no | Clamped to the policy maximum |
@@ -216,6 +216,47 @@ Money is reconciled to the reported actual, so under-declaring cannot walk past 
 
 `effects.reserved_dimension_scopes` records what a lease actually reserved against, so a release
 reverses exactly what was taken even if policy is edited in between.
+
+### Structuring analysis
+
+`GET /v1/analysis/structuring?days=30` — console session or admin key, never the agent key.
+
+**A read, not a gate.** Structuring is a property of a distribution, not of any one call: a
+single payment at $9,800 is ordinary and refusing it would be wrong. Twenty-three of them
+against a $10,000 line is not, and only something holding the thresholds can see the difference.
+
+**Method — a bunching comparison, not a model.** Two adjacent bands of equal width below the
+threshold:
+
+```
+   control band          hug band
+ [0.80T ......... 0.90T)[0.90T ......... T)
+```
+
+Real amounts do not spike in the final tenth before a number somebody is avoiding, so an excess
+in the hug band is the signal. Reported as `excess_ratio = just_below / max(control, 1)` — the
+control floored at one, so an empty control band is the strongest possible reading rather than a
+division by zero. Constants in `src/domain/structuring.ts`: `FLOOR = 10` in the hug band before
+any ratio is computed, `REPORT_AT = 3`, `SEVERE_AT = 6`. **Equal band widths are load-bearing** —
+comparing a wide band to a narrow one would manufacture an excess, and a test asserts it.
+
+**`effect_policies.structuring_threshold_micros` enforces nothing.** It is the line to measure
+against, and it exists because the line that actually gets hugged is usually not one Ratchet
+owns: a reporting threshold, an internal review limit. Knowing the amounts is enough; owning the
+threshold is not required. Null falls back to `max_cost_micros`, since a ceiling that does refuse
+is a line worth hugging too. A test asserts an effect far above the watch line is still
+permitted.
+
+**It is a hint, not a verdict**, and the wording in `detail` says so. A cap produces the same
+bunching honestly — told they may spend up to $10,000, people spend $9,999 — and what separates
+that from structuring is intent, which is not visible here. `concentrated_in` reports the blinded
+counterparties the bunching sits on, because spread across many destinations it is usually a cap
+and at one destination it is not. Never the raw value; a test asserts the account number cannot
+appear in the report.
+
+`without_threshold` lists effect types with no line configured. Reported rather than skipped:
+nothing-found and nothing-configured look identical in an empty response and are very different
+answers.
 
 ### Policies
 

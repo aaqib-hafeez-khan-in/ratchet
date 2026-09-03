@@ -15,6 +15,7 @@ import { getPool } from '../../db/pool.js';
 import { errors } from '../../lib/errors.js';
 import { wsOf } from '../plugins/auth.js';
 import { listAgents, agentReliability, type AgentReliability } from '../../domain/agent-quality.js';
+import { structuringReport } from '../../domain/structuring.js';
 import { agentListSchema, agentReliabilitySchema, errorResponses } from '../schemas.js';
 
 const TAG = ['Agents'];
@@ -66,6 +67,69 @@ const out = (r: AgentReliability) => ({
 });
 
 export default async function agentRoutes(app: FastifyInstance) {
+  /**
+   * Amounts that crowd a threshold.
+   *
+   * A read, not a gate. Structuring is a property of a distribution, not of any
+   * one call: a single payment at $9,800 is ordinary, and refusing it would be
+   * wrong. What is not ordinary is twenty-three of them against a $10,000 line.
+   * So this reports, and a human decides.
+   *
+   * Operator-only for the same reason the reliability profile is: an agent that
+   * can see how close it is to being noticed is an agent that can adjust.
+   */
+  app.get('/analysis/structuring', {
+    preHandler: app.requireConsole('workspace:read'),
+    schema: {
+      tags: TAG, operationId: 'structuringAnalysis',
+      summary: 'Declared amounts that cluster just below a threshold',
+      description:
+        'Compares two adjacent bands below each configured threshold — the last 10% before '
+        + 'it against the 10% before that. Real amounts do not crowd the final stretch before '
+        + 'a line; an excess there is the classic structuring shape. A cap produces the same '
+        + 'bunching honestly, so findings are somewhere to look rather than conclusions. '
+        + 'Set `structuring_threshold_micros` on a policy to measure against a line Ratchet '
+        + 'does NOT enforce — a reporting limit, an internal review limit — which is usually '
+        + 'the line that actually gets hugged.',
+      querystring: {
+        type: 'object', additionalProperties: false,
+        properties: { days: { type: 'integer', minimum: 1, maximum: MAX_DAYS, default: 30 } },
+      },
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => {
+    const days = windowDays((req.query as { days?: number }).days);
+    const r = await structuringReport(getPool(), wsOf(req), days);
+    return {
+      window: r.window,
+      findings: r.findings.map((f) => ({
+        effect_type: f.effectType,
+        threshold_micros: f.thresholdMicros,
+        threshold_source: f.thresholdSource,
+        examined: f.examined,
+        just_below: f.justBelow,
+        control: f.control,
+        excess_ratio: f.excessRatio,
+        severity: f.severity,
+        detail: f.detail,
+        concentrated_in: f.concentratedIn.map((c) => ({
+          dimension: c.dimension, blinded: c.blinded, count: c.count,
+        })),
+      })),
+      examined_types: r.examinedTypes.map((t) => ({
+        effect_type: t.effectType,
+        threshold_micros: t.thresholdMicros,
+        threshold_source: t.thresholdSource,
+        examined: t.examined,
+        just_below: t.justBelow,
+        control: t.control,
+      })),
+      // Named rather than omitted: nothing found and nothing configured look
+      // identical in an empty response, and they are very different answers.
+      without_threshold: r.withoutThreshold,
+    };
+  });
+
   app.get('/agents', {
     preHandler: app.requireConsole('workspace:read'),
     schema: {
