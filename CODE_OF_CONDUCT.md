@@ -1,124 +1,49 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Page not found</title>
-    <style>
-      :root {
-        --colorRgbFacetsTeal600: 2 128 125;
-        --colorTealAction: var(--colorRgbFacetsTeal600);
-        --colorRgbFacetsNeutralLight200: 233 235 237;
-        --colorHr: var(--colorRgbFacetsNeutralLight200);
-        --colorRgbFacetsNeutralLight700: 53 58 62;
-        --colorGrayDarkest: var(--colorRgbFacetsNeutralLight700);
-        --colorGrayLighter: var(--colorRgbFacetsNeutralLight200);
-        --colorText: var(--colorGrayDarkest);
-        --effectShadowLightShallow: 0 1px 10px 0 rgb(53 58 62 / 6%),
-          0 2px 4px 0 rgb(53 58 62 / 8%);
-        --colorRgbFacetsNeutralDark900: 6 11 16;
-      }
-      body {
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-          Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji",
-          "Segoe UI Emoji", "Segoe UI Symbol";
-        background: white;
-        overflow: hidden;
-        margin: 0;
-        padding: 0;
-        line-height: 1.5;
-        color: rgb(var(--colorText));
-      }
+# Code of conduct
 
-      @media (prefers-color-scheme: dark) {
-        body {
-          background: rgb(var(--colorRgbFacetsNeutralDark900));
-        }
-      }
+Ratchet is maintained by one person. This is short because a solo project
+adopting a document about committees and appeals processes it does not have
+would be pretending, and the point of a code of conduct is to tell you what will
+actually happen.
 
-      h1 {
-        margin: 0;
-        font-size: 1.375rem;
-        line-height: 1;
-      }
+## What is expected
 
-      h1 + p {
-        margin-top: 8px;
-      }
+Be straightforward and civil. Disagree about the work as much as you like —
+strong technical disagreement is welcome and often the most useful thing in a
+thread. Direct it at the code, the claim or the decision, never at the person.
 
-      .main {
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        height: 100vh;
-        width: 100vw;
-      }
+Specifically, not welcome here:
 
-      .card {
-        position: relative;
-        width: 75%;
-        max-width: 364px;
-        padding: 24px;
-        background: white;
-        border-radius: 8px;
-        box-shadow: var(--effectShadowLightShallow);
-        border: 1px solid rgb(var(--colorGrayLighter));
-      }
+- Personal attacks, insults, or demeaning comments.
+- Harassment of any kind, in the issue tracker or anywhere else this project
+  reaches. This includes unwelcome attention after being asked to stop.
+- Publishing anyone's private information without their explicit permission.
+- Sustained disruption of discussion.
 
-      a {
-        margin: 0;
-        font-weight: 600;
-        color: rgb(var(--colorTealAction));
-        text-decoration-skip-ink: all;
-        text-decoration-thickness: 1px;
-        text-underline-offset: 2px;
-        text-decoration-color: rgb(var(--colorTealAction) / 0.5);
-        transition: text-decoration-color 0.15s ease-in-out;
-      }
+## What applies where
 
-      a:hover,
-      a:focus-visible {
-        text-decoration-color: rgb(var(--colorTealAction));
-      }
+This applies in the GitHub repository — issues, pull requests, discussions,
+commit messages, code review — and to anyone representing the project in public.
 
-      p:last-of-type {
-        margin-bottom: 0;
-      }
+## Reporting
 
-      hr {
-        border: 0;
-        height: 1px;
-        background: rgb(var(--colorHr));
-        margin-top: 16px;
-        margin-bottom: 16px;
-      }
+Mail **conduct@ratchetgate.com**. It reaches the maintainer directly.
 
-      .your-site {
-        font-size: 0.875rem;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="main">
-      <div class="card">
-        <h1>Page not found</h1>
-        <p>
-          Looks like you’ve followed a broken link or entered a URL that doesn’t
-          exist on this site.
-        </p>
-        <hr />
-        <p class="your-site">
-          If this is your site, and you weren’t expecting a 404 for this path,
-          please visit Netlify’s
-          <a
-            href="https://answers.netlify.com/t/support-guide-i-ve-deployed-my-site-but-i-still-see-page-not-found/125?utm_source=404page&utm_campaign=community_tracking"
-            >“page not found” support guide</a
-          >
-          for troubleshooting tips.
-        </p>
-      </div>
-    </div>
-  </body>
-</html>
+Tell me what happened and roughly when. You do not need to have a formal case or
+to have been the target; if something looked wrong, say so.
+
+You will get an acknowledgement within **72 hours**. What follows depends on what
+happened: often a private word is enough, sometimes a comment gets removed, and
+in a serious or repeated case an account is blocked from the repository. I will
+tell you what I did.
+
+Reports are kept private. I will not share your identity with the person you
+reported without asking you first.
+
+**A security vulnerability is not a conduct issue** — see [SECURITY.md](SECURITY.md)
+and mail security@ratchetgate.com instead, so it reaches the right process.
+
+## The obvious limitation, stated plainly
+
+There is one maintainer, so a report about the maintainer has nowhere internal to
+go. If that is your situation, GitHub's own reporting is the escalation path, and
+using it is a reasonable thing to do rather than a hostile one.
