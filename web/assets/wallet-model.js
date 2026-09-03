@@ -72,9 +72,23 @@ export function drawWallet(ctx, w, h, t, colour, { compact = false } = {}) {
     }
   }
   ctx.setLineDash([]);
+
+  /**
+   * The day labels sit between the midnights, so on a narrow canvas the two sets
+   * close to within a few pixels and the axis reads as one run of words:
+   * "day 1 midnight day 2 midnight day 3". Measure before drawing them.
+   *
+   * When there is not room for both, the midnights win. They are the argument —
+   * the reset is why the lines diverge — and the day numbering is only ever
+   * orientation.
+   */
   if (!compact) {
-    ctx.fillStyle = colour.faint;
-    for (let d = 0; d < DAYS; d += 1) ctx.fillText(`day ${d + 1}`, X(d + 0.5), y1 + 15);
+    const perDay = (x1 - x0) / DAYS;
+    const need = ctx.measureText('midnight').width + ctx.measureText('day 1').width + 22;
+    if (perDay >= need) {
+      ctx.fillStyle = colour.faint;
+      for (let d = 0; d < DAYS; d += 1) ctx.fillText(`day ${d + 1}`, X(d + 0.5), y1 + 15);
+    }
   }
 
   const steps = 220;

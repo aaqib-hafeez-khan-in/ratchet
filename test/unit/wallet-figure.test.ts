@@ -96,6 +96,35 @@ describe('the argument the figure makes', () => {
   });
 });
 
+describe('the axis stays legible when the canvas is narrow', () => {
+  const model = readFileSync(
+    new URL('../../web/assets/wallet-model.js', import.meta.url), 'utf8');
+
+  /**
+   * The day labels sit BETWEEN the midnights, so on a phone the two sets close
+   * to within a few pixels and the axis reads as one run of words:
+   * "day 1 midnight day 2 midnight day 3". Found at 375px on a real device
+   * viewport, not in review.
+   */
+  test('the day labels are measured before they are drawn', () => {
+    const guarded = /measureText\(['"]midnight['"]\)[\s\S]{0,200}?day \$\{d \+ 1\}/;
+    assert.match(model, guarded,
+      'day labels must be drawn only when there is room for them beside the '
+      + 'midnight markers, or the axis collides on a narrow canvas');
+  });
+
+  test('when only one set fits, the midnights are the ones kept', () => {
+    // They are the argument — the reset is why the lines diverge. The day
+    // numbering is orientation, and orientation is what you drop first.
+    const midnightDraw = model.indexOf("fillText('midnight'");
+    const dayDraw = model.indexOf('fillText(`day ${d + 1}`');
+    assert.ok(midnightDraw > -1 && dayDraw > -1, 'both labels should still exist');
+    assert.ok(midnightDraw < dayDraw,
+      'the midnight labels are drawn unconditionally and first; the day labels '
+      + 'are the ones behind the width check');
+  });
+});
+
 describe('both pages tell the same story', () => {
   const home = readFileSync(new URL('../../web/index.html', import.meta.url), 'utf8');
   const fraud = readFileSync(new URL('../../web/fraud.html', import.meta.url), 'utf8');
