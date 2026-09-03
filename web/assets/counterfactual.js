@@ -221,7 +221,12 @@ export function drawContainment(ctx, w, h, p, colors) {
   const gateX = Math.round(w * 0.46) + 0.5;      // half pixel: a crisp 1px rule
   const destX = Math.min(w - 26, w * 0.88);
   const midY = h * 0.5;
-  const spread = Math.min(h * 0.38, 132);
+  // Reserve the label band before deciding how far the lanes may spread. Sizing
+  // the spread off raw height put the labels past the bottom edge of a short
+  // canvas — so on a phone, where the picture needs them most, they were the
+  // one thing not drawn.
+  const labelBand = 18;
+  const spread = Math.min((h - labelBand * 2) * 0.44, 132);
   const label = '500 11px ui-monospace, SFMono-Regular, Menlo, monospace';
 
   // The gate. Drawn first and drawn plainly: everything else is arranged around
@@ -288,13 +293,13 @@ export function drawContainment(ctx, w, h, p, colors) {
   ctx.fillStyle = colors.dim;
   ctx.textBaseline = 'top';
   ctx.textAlign = 'left';
-  ctx.fillText('your agent', originX - 2, midY + spread + 24);
+  ctx.fillText('your agent', originX - 2, midY + spread + 14);
   ctx.textAlign = 'center';
   ctx.fillStyle = colors.gate;
-  ctx.fillText('ratchet', gateX, midY + spread + 24);
+  ctx.fillText('ratchet', gateX, midY + spread + 14);
   ctx.fillStyle = colors.dim;
   ctx.textAlign = 'right';
-  ctx.fillText('one account', Math.min(w - 2, destX + barW + 7), midY + spread + 24);
+  ctx.fillText('one account', Math.min(w - 2, destX + barW + 7), midY + spread + 14);
   ctx.textAlign = 'left';
 
   return { tried, landed };
