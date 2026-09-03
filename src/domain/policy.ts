@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import type { Db } from '../db/pool.js';
 import type { Policy } from './types.js';
+import { ApiError } from '../lib/errors.js';
 
 /**
  * Applied when a workspace has not configured the effect type. Deliberately
@@ -16,6 +17,8 @@ export const DEFAULT_POLICY = {
   dailyBudgetMicros: null,
   retentionDays: 7,
   requireCost: false,
+  /** Value-triggered approval is OFF unless a threshold is set. */
+  approvalAboveMicros: null as number | null,
   /** Dimensions that must be declared, or begin is refused. */
   requiredDimensions: [] as string[],
   /**
@@ -54,6 +57,7 @@ interface PolicyRow {
   daily_budget_micros: number | null;
   retention_days: number;
   require_cost: boolean;
+  approval_above_micros: number | null;
   required_dimensions: string[];
   dimension_limits: Record<string, { daily_micros?: number | null; daily_count?: number | null }>;
   structuring_threshold_micros: number | null;
@@ -104,6 +108,7 @@ export async function getPolicy(
   const { rows } = await db.query<PolicyRow>(
     `SELECT effect_type, mode, on_indeterminate, lease_seconds, max_attempts,
             max_cost_micros, daily_budget_micros, retention_days, require_cost,
+            approval_above_micros,
             required_dimensions, dimension_limits, structuring_threshold_micros,
             surge_per_hour, surge_action, surge_cooldown_seconds,
             surge_multiplier, surge_baseline_per_hour, surge_baseline_at
@@ -124,6 +129,7 @@ export async function getPolicy(
     dailyBudgetMicros: row.daily_budget_micros,
     retentionDays: row.retention_days,
     requireCost: row.require_cost,
+    approvalAboveMicros: row.approval_above_micros,
     requiredDimensions: row.required_dimensions ?? [],
     dimensionLimits: fromWire(row.dimension_limits),
     structuringThresholdMicros: row.structuring_threshold_micros,
@@ -141,6 +147,7 @@ export async function listPolicies(db: Db, workspaceId: string): Promise<Policy[
   const { rows } = await db.query<PolicyRow>(
     `SELECT effect_type, mode, on_indeterminate, lease_seconds, max_attempts,
             max_cost_micros, daily_budget_micros, retention_days, require_cost,
+            approval_above_micros,
             required_dimensions, dimension_limits, structuring_threshold_micros,
             surge_per_hour, surge_action, surge_cooldown_seconds,
             surge_multiplier, surge_baseline_per_hour, surge_baseline_at
@@ -158,6 +165,7 @@ export async function listPolicies(db: Db, workspaceId: string): Promise<Policy[
     dailyBudgetMicros: row.daily_budget_micros,
     retentionDays: row.retention_days,
     requireCost: row.require_cost,
+    approvalAboveMicros: row.approval_above_micros,
     requiredDimensions: row.required_dimensions ?? [],
     dimensionLimits: fromWire(row.dimension_limits),
     structuringThresholdMicros: row.structuring_threshold_micros,
@@ -181,6 +189,7 @@ export interface PolicyUpsert {
   dailyBudgetMicros?: number | null;
   retentionDays?: number;
   requireCost?: boolean;
+  approvalAboveMicros?: number | null;
   requiredDimensions?: string[];
   dimensionLimits?: Record<string, { dailyMicros: number | null; dailyCount: number | null }>;
   structuringThresholdMicros?: number | null;
@@ -194,13 +203,34 @@ export async function upsertPolicy(
   db: PoolClient | Db, workspaceId: string, input: PolicyUpsert,
 ): Promise<Policy> {
   const d = DEFAULT_POLICY;
+
+  /**
+   * An approval line above the refusal ceiling can never fire: max_cost_micros
+   * has already refused anything that would have reached it. Storing it would
+   * leave an operator reading a policy that says "approve above $20,000" while
+   * every such request is rejected outright — a control that looks configured
+   * and does nothing. This is a PUT, so the ceiling to compare against is the
+   * one this call is establishing, not whatever happened to be there before.
+   */
+  const approvalAbove = input.approvalAboveMicros === undefined
+    ? d.approvalAboveMicros : input.approvalAboveMicros;
+  const maxCost = input.maxCostMicros ?? d.maxCostMicros;
+  if (approvalAbove !== null && maxCost !== null && approvalAbove > maxCost) {
+    throw new ApiError(400, 'approval_threshold_above_ceiling',
+      `approval_above_micros (${approvalAbove}) is above max_cost_micros (${maxCost}), `
+      + 'so it could never trigger — the ceiling refuses those requests first. '
+      + 'Set the approval threshold at or below the ceiling.',
+      { approvalAboveMicros: approvalAbove, maxCostMicros: maxCost });
+  }
+
   await db.query(
     `INSERT INTO effect_policies
        (workspace_id, effect_type, mode, on_indeterminate, lease_seconds,
         max_attempts, max_cost_micros, daily_budget_micros, retention_days, require_cost,
+            approval_above_micros,
         required_dimensions, dimension_limits, structuring_threshold_micros,
         surge_per_hour, surge_action, surge_cooldown_seconds, surge_multiplier)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      ON CONFLICT (workspace_id, effect_type) DO UPDATE SET
        mode                = EXCLUDED.mode,
        on_indeterminate    = EXCLUDED.on_indeterminate,
@@ -210,6 +240,7 @@ export async function upsertPolicy(
        daily_budget_micros = EXCLUDED.daily_budget_micros,
        retention_days      = EXCLUDED.retention_days,
        require_cost        = EXCLUDED.require_cost,
+       approval_above_micros = EXCLUDED.approval_above_micros,
        required_dimensions = EXCLUDED.required_dimensions,
        dimension_limits    = EXCLUDED.dimension_limits,
        structuring_threshold_micros = EXCLUDED.structuring_threshold_micros,
@@ -228,6 +259,7 @@ export async function upsertPolicy(
       input.dailyBudgetMicros ?? d.dailyBudgetMicros,
       input.retentionDays ?? d.retentionDays,
       input.requireCost ?? d.requireCost,
+      approvalAbove,
       input.requiredDimensions ?? d.requiredDimensions,
       JSON.stringify(toWire(input.dimensionLimits ?? d.dimensionLimits)),
       input.structuringThresholdMicros === undefined

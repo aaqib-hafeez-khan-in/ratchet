@@ -460,6 +460,15 @@ export default async function workspaceRoutes(app: FastifyInstance) {
               + 'daily_count applies to effects that declare no cost at all, which is what '
               + 'makes it usable for outbound messaging. Only a keyed hash of the value is '
               + 'ever stored.' },
+          approval_above_micros: { type: ['integer', 'null'], minimum: 1,
+            description: 'Hold an effect for a human when the declared cost reaches this '
+              + 'amount, in micro-USD. mode="require_approval" is all-or-nothing per '
+              + 'effect type, which is why it gets switched off; this is the rule people '
+              + 'actually have — "anything over $5,000 needs a second pair of eyes" — and '
+              + 'it leaves routine work flowing. Sits below max_cost_micros, which refuses '
+              + 'outright, and must not exceed it or it could never fire. Setting it makes '
+              + 'a declared cost mandatory, since an effect declaring nothing would '
+              + 'otherwise sail past it.' },
           structuring_threshold_micros: { type: ['integer', 'null'], minimum: 1,
             description: 'A line to WATCH, never one to enforce. Nothing is refused for '
               + 'exceeding it. The structuring analysis measures how closely declared amounts '
@@ -506,6 +515,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
       maxCostMicros: b.max_cost_micros, dailyBudgetMicros: b.daily_budget_micros,
       retentionDays: b.retention_days,
       requireCost: b.require_cost,
+      approvalAboveMicros: b.approval_above_micros,
       requiredDimensions: b.required_dimensions,
       structuringThresholdMicros: b.structuring_threshold_micros,
       // The schema has already refused anything but integers or null here; this

@@ -2,6 +2,11 @@ import type { PoolClient } from 'pg';
 import { withTx, type Db } from '../db/pool.js';
 import { newId, canonicalFingerprint, constantTimeEqual, normalizeText } from '../lib/ids.js';
 import { ApiError, errors } from '../lib/errors.js';
+
+/** Micro-USD as an operator reads it. Mirrors the formatter in structuring.ts. */
+const usd = (micros: number) =>
+  `$${(micros / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 2,
+                                                    maximumFractionDigits: 2 })}`;
 import { getPolicy } from './policy.js';
 import { countEffect, openBreakers, trip, applyBreaker, surgeBaseline,
          effectiveCeiling } from './circuit.js';
@@ -190,12 +195,24 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
      * entirely. An operator who has configured a limit and turned this on gets
      * a refusal instead of false confidence.
      */
-    if (policy.requireCost && input.estimatedCostMicros <= 0) {
+    // An approval line is a ceiling too, and the same reasoning applies: an
+    // effect that declares nothing is compared against nothing and sails past a
+    // threshold an operator believes is holding. So setting approval_above_micros
+    // makes a declared cost mandatory whether or not require_cost was asked for.
+    if (input.estimatedCostMicros <= 0
+        && (policy.requireCost || policy.approvalAboveMicros !== null)) {
       throw new ApiError(400, 'cost_required',
         `Effect type "${input.effectType}" requires a declared cost. Send `
-        + 'estimated_cost_micros (micro-USD, 1e-6 USD) so budget ceilings can count it. '
-        + 'Without it the ceiling on this effect type would never trigger.',
-        { effectType: input.effectType });
+        + 'estimated_cost_micros (micro-USD, 1e-6 USD) so '
+        + (policy.requireCost
+          ? 'budget ceilings can count it. '
+          : 'the approval threshold on this effect type can be applied. ')
+        + 'Without it the '
+        + (policy.requireCost ? 'ceiling' : 'threshold')
+        + ' on this effect type would never trigger.',
+        { effectType: input.effectType,
+          requireCost: policy.requireCost,
+          approvalAboveMicros: policy.approvalAboveMicros });
     }
 
     // A 400 rather than a `denied` decision, matching require_cost above. A
@@ -388,7 +405,29 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
       }
 
       // An open breaker raises the effective mode; it never lowers it.
-      const { mode: effectiveMode, breaker } = applyBreaker(policy, breakers);
+      const { mode: breakerMode, breaker } = applyBreaker(policy, breakers);
+
+      /**
+       * So does the amount at stake, and in the same direction only.
+       *
+       * `mode = 'require_approval'` is per effect type: every refund waits for a
+       * human or none does, which is why operators who try it turn it off again.
+       * A threshold is the rule they actually have — "anything over five
+       * thousand needs a second pair of eyes" — and it leaves the routine work
+       * flowing.
+       *
+       * Raising only is what keeps this safe to key on a caller-supplied number.
+       * A larger declared amount can turn `allow` into `require_approval`; no
+       * declared amount can turn `require_approval` or `deny` back into `allow`.
+       * A caller that under-declares to duck the threshold gets exactly what it
+       * would have got had the field never existed, and lands in a receipt that
+       * `POST /v1/reconcile` checks against the vendor's own record.
+       */
+      const overApprovalLine = policy.approvalAboveMicros !== null
+        && input.estimatedCostMicros >= policy.approvalAboveMicros;
+      const effectiveMode = breakerMode === 'allow' && overApprovalLine
+        ? ('require_approval' as const)
+        : breakerMode;
 
       if (effectiveMode === 'deny') {
         const why = breaker && breaker.action === 'deny'
@@ -402,10 +441,19 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
           `UPDATE effects SET state='awaiting_approval', approval_state='waiting',
                   updated_at=now() WHERE id=$1`, [effect!.id],
         );
+        // Why it is waiting, not merely that it is. An operator triaging an
+        // approval queue needs the amount and the line it crossed in the
+        // notification itself — having to go and look it up is how a queue
+        // stops being read.
+        const trigger = overApprovalLine ? 'value'
+          : breaker && breaker.action === 'require_approval' ? 'circuit'
+            : 'policy';
         await enqueueEvent(tx, input.workspaceId, 'effect.approval_required', {
           effectId: effect!.id, effectType: effect!.effect_type,
           idempotencyKey: effect!.idempotency_key,
           estimatedCostMicros: input.estimatedCostMicros,
+          trigger,
+          approvalAboveMicros: policy.approvalAboveMicros,
           agentId: input.agentId ?? null, runId: input.runId ?? null,
         });
         const metered = await meter(tx, input, effect!.id, now);
@@ -414,10 +462,15 @@ export async function beginEffect(input: BeginInput): Promise<BeginResult> {
           effectId: effect!.id, effectType: effect!.effect_type,
           idempotencyKey: effect!.idempotency_key,
           state: 'awaiting_approval', attempt: 0,
-          reason: breaker && breaker.action === 'require_approval'
-            ? `Circuit breaker open for "${breaker.effectType}": ${breaker.reason} `
-              + 'An operator must approve this effect before it may run.'
-            : 'An operator must approve this effect before it may run.',
+          reason: overApprovalLine
+            ? `Declared cost ${usd(input.estimatedCostMicros)} is at or above the `
+              + `${usd(policy.approvalAboveMicros!)} approval threshold for `
+              + `"${input.effectType}". An operator must approve this effect `
+              + 'before it may run.'
+            : breaker && breaker.action === 'require_approval'
+              ? `Circuit breaker open for "${breaker.effectType}": ${breaker.reason} `
+                + 'An operator must approve this effect before it may run.'
+              : 'An operator must approve this effect before it may run.',
           billing: metered,
         };
       }

@@ -295,7 +295,7 @@
 <section>
   <div class="wrap reading">
     <p class="eyebrow">Already built, rarely mentioned</p>
-    <h2>Three controls that do most of the containment.</h2>
+    <h2>Four controls that do most of the containment.</h2>
     <p>
       These are not on the front page and they should be. Each one is a different question about
       the same agent.
@@ -303,6 +303,18 @@
   </div>
   <div class="wrap">
     <ol class="walls" id="controls">
+      <li class="wall">
+        <code class="wall-try">"approval_above_micros": 5000000000</code>
+        <span class="wall-stamp warn">$5,000</span>
+        <p><strong>A second pair of eyes, above a number.</strong> Approval was
+          all-or-nothing per effect type &mdash; every refund waits for a human, or none
+          does &mdash; which is why operators turn it off. A threshold is the rule they
+          actually have, and beneath it routine work never slows down. It sits under the
+          ceiling that refuses outright, so the policy reads as the sentence you meant:
+          allow, hold, refuse. It measures what the agent <em>declared</em> &mdash; so
+          declaring becomes mandatory, and reconciliation checks that number against the
+          vendor's own record.</p>
+      </li>
       <li class="wall">
         <code class="wall-try">PUT /v1/runs/{run_id}/budget { "limit_micros": 50000000 }</code>
         <span class="wall-stamp warn">$50</span>
@@ -518,8 +530,9 @@
       </div>
     </div>
     <p class="dim" style="max-width:60ch;margin-top:1.5rem">
-      Scheduled reconciliation and value-triggered approval are not built. They are what the
-      blinded ledger makes possible next, and they are not claimed until they exist.
+      Scheduled reconciliation is not built &mdash; today <code>POST /v1/reconcile</code>
+      runs when you call it, not on a timer. It is what the blinded ledger makes possible
+      next, and it is not claimed until it exists.
     </p>
   </div>
 </section>

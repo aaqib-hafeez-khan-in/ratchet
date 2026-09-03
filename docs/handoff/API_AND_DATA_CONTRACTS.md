@@ -301,10 +301,38 @@ answers.
 | `lease_seconds` | 5–3600 | 60 | Time to report before going indeterminate |
 | `max_attempts` | 1–50 | 3 | Attempt ceiling per key |
 | `max_cost_micros` | int \| null | null | Per-effect cost ceiling |
+| `approval_above_micros` | int \| null | null | Declared cost at or above which begin returns `approval_required` |
 | `daily_budget_micros` | int \| null | null | Daily external-spend ceiling for this type |
 | `retention_days` | 1–400 | 7 | Bounded by plan |
 
 An unconfigured effect type returns the defaults with `is_default: true`.
+
+**Value-triggered approval.** `mode = 'require_approval'` is all-or-nothing per effect type —
+every refund waits for a human or none does — which is why operators who try it turn it off
+again. `approval_above_micros` is the rule they actually have: hold anything at or above a
+number, let the routine work through. The comparison is `>=`, because "approve above $5,000"
+is read by humans as including $5,000.
+
+**It raises the decision and never lowers it.** This keys on a caller-supplied number, which
+CLAUDE.md §6 otherwise forbids from reaching a decision. It is admissible for the same reason
+`dimensions` is: the influence runs one way. A larger declared amount can turn `allow` into
+`require_approval`; nothing declared can turn `require_approval` or `deny` back into `allow`.
+A caller that under-declares to duck the threshold lands exactly where it would have been had
+the field never existed — and on a receipt `POST /v1/reconcile` checks against the vendor's own
+record. Preserve that property or remove the feature.
+
+**Setting it makes a declared cost mandatory**, whether or not `require_cost` is on: an effect
+declaring nothing is compared against nothing and would sail past a line the operator believes
+is holding. Begin is refused with `cost_required` instead.
+
+**It sits below `max_cost_micros`**, which refuses outright — allow, hold, refuse. A threshold
+*above* the ceiling could never fire, since the ceiling has already refused those requests, so
+`upsertPolicy` rejects that configuration with `approval_threshold_above_ceiling` rather than
+storing a control that reads as configured and does nothing. Equal to the ceiling is legal and
+means a one-amount band, since the ceiling refuses only what is strictly above it.
+
+The `effect.approval_required` event carries `trigger` (`value` | `circuit` | `policy`) and
+`approval_above_micros`, so an approval queue can be triaged without looking anything up.
 
 ### Workspace, keys, webhooks, billing
 

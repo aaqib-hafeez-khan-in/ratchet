@@ -334,6 +334,13 @@ export const policySchema = {
     daily_budget_micros: { type: ['integer', 'null'] },
     retention_days: { type: 'integer' },
     require_cost: { type: 'boolean' },
+    approval_above_micros: {
+      type: ['integer', 'null'],
+      description:
+        'Declared cost at or above which begin returns approval_required instead of '
+        + 'execute. Raises the decision only — it never turns an approval or a denial '
+        + 'back into an allow. Null disables it.',
+    },
     structuring_threshold_micros: {
       type: ['integer', 'null'],
       description:
