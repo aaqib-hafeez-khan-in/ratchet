@@ -55,9 +55,9 @@ done
 echo "  readyz: $(curl -s --max-time 15 "${URL}/readyz")"
 
 # Prove the schema really rebuilt by driving a full workflow.
-K=$(curl -s --max-time 20 -X POST "${URL}/v1/workspaces" -H 'content-type: application/json' \
-     -d '{"name":"Swap Verify","email":"swap@example.test"}' \
-     | python3 -c 'import sys,json;print(json.load(sys.stdin)["api_key"])')
+W=$(curl -s --max-time 20 -X POST "${URL}/v1/workspaces" -H 'content-type: application/json' \
+     -d '{"name":"Swap Verify","email":"swap@example.test"}')
+K=$(printf '%s' "$W" | python3 -c 'import sys,json;print(json.load(sys.stdin)["api_key"])')
 R=$(curl -s --max-time 20 -X POST "${URL}/v1/effects/begin" \
      -H "authorization: Bearer ${K}" -H 'content-type: application/json' \
      -d '{"effect_type":"email.send","idempotency_key":"swap:1","payload":{}}')
