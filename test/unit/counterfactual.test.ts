@@ -111,6 +111,61 @@ describe('the containment picture is arithmetic, not a claim', () => {
   });
 });
 
+describe('the mechanism section says which half is hidden', () => {
+  const fraud = readFileSync(join(WEB, 'fraud.html'), 'utf8');
+
+  /**
+   * A reader of the first version concluded that Ratchet "never knows the amount
+   * it needs to stop at" — the opposite of true, and it made the whole thing
+   * sound like magic. The amount cannot be hidden; adding it up is the job. Only
+   * who is hidden. The page now has to keep saying so.
+   */
+  test('it states plainly that the amount is not hidden', () => {
+    assert.match(fraud, /always knows how much/i,
+      'the heading has to carry the correction, because that is what gets read');
+    assert.match(fraud, /amount<\/strong> is not\s*\n?\s*hidden|amount<\/strong> is not hidden/i,
+      'the body must say the amount is not hidden, in those words');
+  });
+
+  test('it says what IS hidden in plain language, not only as "destination"', () => {
+    assert.match(fraud, /who the money is going to/i,
+      '"destination" was the word a reader said they did not understand');
+    assert.match(fraud, /who it is going to/i, 'and the diagram must be labelled the same way');
+  });
+
+  test('the ledger shows both columns, so the contrast is the picture', () => {
+    const js = readFileSync(join(WEB, 'assets/fraud.js'), 'utf8');
+    assert.match(js, /ledger-who/, 'the redacted column');
+    assert.match(js, /ledger-amt/, 'the legible one');
+    assert.match(js, /const PAYMENT = 500, CEILING = 2000/,
+      'the amounts on screen are the ones the ceiling is stated in');
+  });
+});
+
+describe('the fraud page covers the controls that exist', () => {
+  const fraud = readFileSync(join(WEB, 'fraud.html'), 'utf8');
+
+  /** Each of these ships, and each was described nowhere on the site. */
+  for (const [what, probe] of [
+    ['run budgets', /runs\/\{run_id\}\/budget/],
+    ['surge containment', /surge_per_hour/],
+    ['agent reliability', /agents\/\{agent_id\}\/reliability/],
+    ['reconciliation', /v1\/reconcile/],
+    ['signed receipts', /Ed25519/],
+  ] as const) {
+    test(`${what} is on the page`, () => assert.match(fraud, probe));
+  }
+
+  test('it names who it is for, and who it is not for', () => {
+    assert.match(fraud, /refund and promo abuse/i, 'retail');
+    assert.match(fraud, /payouts, batches, sweeps/i, 'banking');
+    assert.match(fraud, /will not compete on inbound fraud/i,
+      'the boundary has to be as loud as the pitch');
+    assert.match(fraud, /no third-party audit/i);
+    assert.match(fraud, /one operator/i);
+  });
+});
+
 describe('the fraud page claims only what is built', () => {
   const fraud = readFileSync(join(WEB, 'fraud.html'), 'utf8');
 

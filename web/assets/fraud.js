@@ -10,56 +10,80 @@ revealSections({ skip: ['.stage'], stagger: 60 });
 
 const $ = (id) => document.getElementById(id);
 
-/* ── the mechanism: a value becomes an identifier, and the identifier counts ──
-   The real blinded value from the production check on 2 Sep 2026, so the hex
-   settling on screen is the identifier that actually held the $2,000 rather
-   than decorative noise. */
-const BLINDED = '9eb4dace24bf8589070244228d4a7ea4';
+/* ── the mechanism: a redacted statement ─────────────────────────────────
+   A reader read the old version of this and concluded Ratchet "never knows the
+   amount it needs to stop at", which is the opposite of true and made the whole
+   thing sound like magic. The amount is not hidden and cannot be — adding it up
+   is the job. Only WHO is hidden.
+
+   So the picture is a bank statement with the payee column redacted and the
+   amounts perfectly legible. Nobody needs that explained. */
+const BLINDED = '9eb4dace24bf8589070244228d4a7ea4';   // the real one, from the live check
 const HEX = '0123456789abcdef';
+const PAYMENT = 500, CEILING = 2000;
+const ROWS = 5;
 
 (() => {
-  const stage = $('mechanism');
-  if (!stage) return;
-  const out = $('blindOut'), fill = $('blindFill'), money = $('blindMoney');
-  const op = $('blindOp'), verdict = $('blindVerdict'), input = $('blindIn');
+  const stage = $('mechanism'), host = $('ledgerRows');
+  if (!stage || !host) return;
+  const total = $('ledgerTotal'), cap = $('ledgerCap'), verdict = $('blindVerdict');
 
-  /**
-   * Scramble that is a pure function of progress.
-   *
-   * Each character settles at its own point in the scroll; before that it cycles
-   * through hex on a coarse clock, which reads as computation without ever being
-   * random. Scrub backwards and you get the same frames — a chart that changes
-   * when you scroll up is a chart nobody trusts.
-   */
-  const scrambled = (p) => {
-    const tick = Math.floor(p * 60);
-    let s = '';
-    for (let i = 0; i < BLINDED.length; i += 1) {
-      const settles = 0.18 + (i / BLINDED.length) * 0.42;
-      if (p >= settles) { s += BLINDED[i]; continue; }
-      if (p < settles - 0.16) { s += '·'; continue; }
-      s += HEX[(i * 7 + tick * 3 + Math.floor(p * 997)) % 16];
+  host.innerHTML = Array.from({ length: ROWS }, (_, i) => `
+    <div class="ledger-row" data-i="${i}">
+      <code class="ledger-who"></code>
+      <span class="ledger-amt">$${PAYMENT.toLocaleString('en-US')}</span>
+      <span class="ledger-mark"></span>
+    </div>`).join('');
+  const rows = [...host.children];
+
+  /** Hex that is a pure function of progress, so scrubbing back gives the same frames. */
+  const redacted = (p, i) => {
+    const settle = Math.max(0, Math.min(1, (p - 0.1 - i * 0.055) / 0.12));
+    if (settle <= 0) return '';
+    const tick = Math.floor(p * 90);
+    let out = '';
+    for (let c = 0; c < BLINDED.length; c += 1) {
+      out += c / BLINDED.length <= settle
+        ? BLINDED[c]
+        : HEX[(c * 7 + tick * 3 + i * 11) % 16];
     }
-    return s;
+    return out;
   };
 
   onScroll(() => {
     const p = scrollProgress(stage);
-    out.textContent = scrambled(p);
-    out.classList.toggle('settled', p >= 0.62);
-    op.classList.toggle('live', p > 0.14 && p < 0.66);
-    input.classList.toggle('faded', p > 0.7);
+    let shown = 0;
 
-    // Only once the identifier exists does anything accumulate against it.
-    const counting = Math.max(0, Math.min(1, (p - 0.62) / 0.3));
-    fill.style.width = `${counting * 100}%`;
-    money.textContent = `$${Math.round(counting * 2000).toLocaleString('en-US')}`;
-    fill.classList.toggle('full', counting >= 1);
-    verdict.textContent = counting >= 1
-      ? 'The ceiling is reached. Ratchet still cannot say where the money went.'
-      : p >= 0.62
-        ? 'Counting against a $2,000 daily ceiling.'
-        : p > 0.14 ? 'Keyed hash. Not reversible, and not comparable across workspaces.' : ' ';
+    rows.forEach((row, i) => {
+      // Each row arrives, its payee redacts, and only then does it count.
+      const arrive = Math.max(0, Math.min(1, (p - i * 0.055) / 0.09));
+      row.classList.toggle('in', arrive > 0);
+      row.style.opacity = String(arrive);
+      const who = row.querySelector('.ledger-who');
+      who.textContent = redacted(p, i);
+      who.classList.toggle('sealed', p > 0.1 + i * 0.055 + 0.12);
+
+      if (arrive >= 1) shown += 1;
+    });
+
+    const permitted = Math.min(shown, Math.floor(CEILING / PAYMENT));
+    rows.forEach((row, i) => {
+      const over = i >= Math.floor(CEILING / PAYMENT) && row.style.opacity === '1';
+      row.classList.toggle('refused', over);
+      const mark = row.querySelector('.ledger-mark');
+      mark.textContent = over ? 'refused' : (row.style.opacity === '1' ? 'ok' : '');
+    });
+
+    const sum = permitted * PAYMENT;
+    total.textContent = `$${sum.toLocaleString('en-US')}`;
+    total.classList.toggle('at-cap', sum >= CEILING);
+    cap.textContent = sum >= CEILING ? 'ceiling reached' : `ceiling $${CEILING.toLocaleString('en-US')}`;
+
+    verdict.textContent = shown > Math.floor(CEILING / PAYMENT)
+      ? 'Ratchet added those up without ever being able to read the left-hand column.'
+      : shown > 0
+        ? 'The amounts are in the clear. The account is a keyed hash and cannot be reversed.'
+        : ' ';
   });
 })();
 
@@ -94,12 +118,12 @@ const HEX = '0123456789abcdef';
 })();
 
 /* ── the walls a compromised agent hits ──────────────────────────────────── */
-(() => {
-  const list = $('walls');
-  if (!list) return;
+for (const id of ['walls', 'controls']) {
+  const list = $(id);
+  if (!list) continue;
   const items = [...list.children];
   once(list, () => {
     items.forEach((el, i) =>
       setTimeout(() => el.classList.add('hit'), reduced() ? 0 : 260 + i * 380));
   });
-})();
+}

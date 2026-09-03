@@ -88,37 +88,28 @@
   </div>
 </section>
 
-<!-- ── the mechanism: blinding ─────────────────────────────────────────── -->
-<section class="stage" id="mechanism" aria-label="How a destination is counted without being read">
+<!-- ── the mechanism: a redacted statement ─────────────────────────────── -->
+<section class="stage" id="mechanism" aria-label="What Ratchet can and cannot see">
   <div class="stage-pin">
     <div class="wrap blind-wrap">
       <p class="eyebrow">The mechanism</p>
-      <h2>Counting a destination without ever seeing it.</h2>
-      <p class="dim" style="max-width:56ch">
-        Ratchet does not store payloads. A destination lives in the payload. So for a long time
-        there was no way to say <em>&ldquo;no more than $2,000 to any one account per day&rdquo;</em>
-        &mdash; the one ceiling a risk team actually asks for.
+      <h2>It never learns who. It always knows how much.</h2>
+      <p class="dim" style="max-width:54ch">
+        A reader told us they had this backwards, so plainly: the <strong>amount</strong> is not
+        hidden from Ratchet. It cannot be &mdash; adding it up is the entire job. What is hidden is
+        <strong>who the money is going to</strong>.
       </p>
 
-      <div class="blind-rail">
-        <div class="blind-step">
-          <span class="k">what you send</span>
-          <code class="blind-in" id="blindIn">acct_9f3ab21c</code>
+      <div class="ledger" role="img" id="ledger"
+        aria-label="A statement with the payee column redacted and the amounts perfectly legible. Four payments of five hundred dollars reach a two thousand dollar ceiling; the fifth is refused.">
+        <div class="ledger-head">
+          <span>who it is going to</span><span>how much</span><span></span>
         </div>
-        <div class="blind-arrow" aria-hidden="true">
-          <span class="blind-op" id="blindOp">HMAC</span>
-        </div>
-        <div class="blind-step">
-          <span class="k">what is stored</span>
-          <code class="blind-out" id="blindOut">································</code>
-        </div>
-        <div class="blind-arrow" aria-hidden="true">
-          <span class="blind-op">count</span>
-        </div>
-        <div class="blind-step">
-          <span class="k">what can be enforced</span>
-          <div class="blind-meter"><div class="blind-fill" id="blindFill"></div></div>
-          <span class="blind-money" id="blindMoney">$0</span>
+        <div id="ledgerRows"></div>
+        <div class="ledger-total">
+          <span>running total</span>
+          <strong id="ledgerTotal">$0</strong>
+          <span class="ledger-cap" id="ledgerCap">ceiling $2,000</span>
         </div>
       </div>
 
@@ -205,6 +196,52 @@
   </div>
 </section>
 
+<section class="sunk" id="sectors">
+  <div class="wrap reading">
+    <p class="eyebrow">Where this wins, and where it does not</p>
+    <h2>Repetition-shaped loss, in two industries that have a lot of it.</h2>
+    <p>
+      The controls above catch a specific shape: <strong>the same thing happening more times
+      than it should, to the same place</strong>. That shape is not all fraud. It is a great deal
+      of the fraud that automation causes.
+    </p>
+  </div>
+  <div class="wrap">
+    <div class="threats">
+      <div class="threat">
+        <h3>Retail &mdash; refund and promo abuse</h3>
+        <p>Abuse here is repetition by nature. Declare the customer as a dimension and
+          &ldquo;<strong>same customer, fourteen refunds across fourteen orders</strong>&rdquo;
+          hits a velocity ceiling on the fifth &mdash; without you ever handing us a customer id,
+          because only a keyed hash of it is stored. The same shape catches a promo code
+          redeemed past its limit by an agent that does not know it is being farmed.</p>
+      </div>
+      <div class="threat">
+        <h3>Banking &mdash; payouts, batches, sweeps</h3>
+        <p>Payment initiation, payout batches and treasury sweeps are exactly where an
+          authorised-but-wrong action costs the most and is hardest to reverse. A per-counterparty
+          ceiling bounds the destination; a run budget bounds the job; and the signed receipt
+          chain is the tamper-evident record of what was authorised and why &mdash; something a
+          risk function has to produce anyway.</p>
+      </div>
+      <div class="threat">
+        <h3>What it will not do</h3>
+        <p>It will not compete on inbound fraud. Card-not-present, account takeover at login,
+          synthetic identity &mdash; those are detection problems on traffic that never reaches
+          us, against companies with data we do not have. Anyone telling you an effect gate
+          replaces a fraud engine is selling something.</p>
+      </div>
+      <div class="threat">
+        <h3>What would block you today</h3>
+        <p>Two things, and neither is technical: <strong>no third-party audit</strong> and
+          <strong>one operator</strong>. For a regulated buyer those are real, and you should
+          hear them here rather than in procurement. The honest sequence is agent platforms and
+          fintech-adjacent first. <a href="/security">The full posture</a>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ── containment ─────────────────────────────────────────────────────── -->
 <section class="sunk">
   <div class="wrap reading">
@@ -250,6 +287,49 @@
         <p>Three attempts at one payment is one payment against a velocity ceiling. And an
           attempt that crashed mid-flight keeps its count &mdash; otherwise killing the agent
           would be the cheapest way past the limit.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reading">
+    <p class="eyebrow">Already built, rarely mentioned</p>
+    <h2>Three controls that do most of the containment.</h2>
+    <p>
+      These are not on the front page and they should be. Each one is a different question about
+      the same agent.
+    </p>
+  </div>
+  <div class="wrap">
+    <ol class="walls" id="controls">
+      <li class="wall">
+        <code class="wall-try">PUT /v1/runs/{run_id}/budget { "limit_micros": 50000000 }</code>
+        <span class="wall-stamp warn">$50</span>
+        <p><strong>A wallet for one job.</strong> &ldquo;This task may spend fifty dollars in
+          total&rdquo; is a sentence nobody could say before. Daily ceilings reset at midnight;
+          a run budget does not reset at all, so a loop cannot wait it out. The agent may
+          <em>read</em> what it has left &mdash; that is what lets it choose a cheaper path or
+          stop cleanly &mdash; but raising it needs <code>policies:write</code>, which the agent
+          key does not have.</p>
+      </li>
+      <li class="wall">
+        <code class="wall-try">"surge_per_hour": 200, "surge_action": "require_approval"</code>
+        <span class="wall-stamp warn">held</span>
+        <p><strong>Too much, rather than too costly.</strong> Budgets catch an agent spending more
+          than it should. This catches one <em>doing</em> more than it should &mdash; a retry loop
+          sending five thousand emails instead of three, where each one is free. The default
+          action holds the work for a human rather than killing the agent, so nothing
+          irreversible happens and no context is lost.</p>
+      </li>
+      <li class="wall">
+        <code class="wall-try">GET /v1/agents/{agent_id}/reliability</code>
+        <span class="wall-stamp warn">profile</span>
+        <p><strong>Is this agent behaving like it used to?</strong> Reporting rate, decision mix,
+          idempotency-key hygiene, declared-versus-actual cost, how long it holds a lease. A
+          compromised agent behaves differently before anyone notices what it is doing, and
+          deviation from its own baseline needs no payload to see. Operator-only, deliberately:
+          an agent that can read its own grade can work out which signal to stop sending.</p>
       </li>
     </ol>
   </div>
