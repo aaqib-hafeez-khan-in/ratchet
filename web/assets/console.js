@@ -127,6 +127,37 @@ const STATE_PILL = {
 };
 const pill = (state) => `<span class="pill ${STATE_PILL[state] ?? 'flat'}">${esc(state)}</span>`;
 
+/**
+ * Spend against a ceiling.
+ *
+ * A run with no ceiling gets no bar. An empty track would read as "nothing
+ * spent", which is the opposite of what is true — nothing is BOUNDING it — and a
+ * meter that lies in the reassuring direction is worse than no meter.
+ */
+const spendCell = (r) => {
+  if (r.limit_micros == null) {
+    return `<span class="mono">${usd(r.spent_micros)}</span>`
+      + ` <span class="spend-none" title="Summed from estimated_cost_micros on this run's`
+      + ` effects. The gate did not enforce against it, because no ceiling was set.">declared</span>`;
+  }
+  const pct = r.limit_micros === 0 ? 100
+    : Math.min(100, Math.round((r.spent_micros / r.limit_micros) * 100));
+  const tone = pct >= 100 ? 'full' : pct >= 80 ? 'near' : '';
+  // A ceiling opened part-way through a run starts its ledger at zero, so the
+  // wallet can read $0.00 on a run that has already spent hundreds. Saying only
+  // the enforced number would reassure in the one direction this page must never
+  // reassure, so the earlier spend is named where it cannot be missed.
+  const before = r.declared_micros - r.spent_micros;
+  const earlier = before > 0
+    ? ` <span class="spend-none" title="Declared on this run before the ceiling existed.` +
+      ` The wallet did not count it, because it was not open yet.">+${usd(before)} before</span>`
+    : '';
+  return `<div class="spend"><span class="mono">${usd(r.spent_micros)}</span>
+    <span class="spend-track" role="img"
+      aria-label="${pct}% of ceiling spent"><span class="spend-fill ${tone}"
+      style="width:${pct}%"></span></span></div>${earlier}`;
+};
+
 const empty = (msg, hint) =>
   `<div class="empty"><p style="margin:0 0 0.3rem">${esc(msg)}</p>${
     hint ? `<p class="small" style="margin:0">${hint}</p>` : ''}</div>`;
@@ -571,6 +602,83 @@ const PANELS = {
 
   reliability,
 
+  /**
+   * Run budgets.
+   *
+   * Unbudgeted runs are listed alongside budgeted ones, and that is the whole
+   * point of the page: the job quietly spending with nothing bounding it is the
+   * row you came here to find, and a list filtered to wallets would never show
+   * it. Their spend is summed from what callers declared rather than counted by
+   * the gate, so it is labelled as an estimate — showing the two as one number
+   * would be a small lie on a page about honesty.
+   */
+  async runs() {
+    loading();
+    try {
+      const { runs } = await api('/runs?days=7&limit=100');
+      const head = `<div style="padding:1.25rem 1.25rem 0">
+        <p class="small dim" style="max-width:72ch">A wallet for one unit of work. Daily
+        ceilings reset at midnight and a task is not a day, so a run budget never resets:
+        a loop cannot wait it out. The agent may <em>read</em> what it has left, which is
+        what lets it take a cheaper path or stop cleanly, but raising it needs
+        <code>policies:write</code> &mdash; an agent key does not have it.</p>
+        <p class="small faint" style="max-width:72ch">Counts what callers declare in
+        <code>estimated_cost_micros</code>, so it is only ever as good as what they declare.
+        Runs with no ceiling are listed too; their spend is what was declared, not something
+        the gate enforced.</p></div>`;
+
+      if (!runs.length) {
+        return panel(head + empty('No runs in the last 7 days.',
+          'Send <code>run_id</code> on <code>POST /v1/effects/begin</code> and each unit of '
+          + 'work will appear here, whether or not you have capped it.'));
+      }
+
+      panel(head + table(
+        ['Run', 'Agent', 'Effects', 'Spent', 'Ceiling', 'Left', 'Last seen', ''],
+        runs.map((r) => `<tr>
+          <td class="mono" title="${esc(r.run_id)}">${esc(r.run_id.slice(0, 28))}</td>
+          <td class="small faint">${esc(r.agent_ids[0] ?? '—')}${
+            r.agent_ids.length > 1 ? ` <span class="faint">+${r.agent_ids.length - 1}</span>` : ''}</td>
+          <td>${num(r.effects)}</td>
+          <td>${spendCell(r)}</td>
+          <td class="mono">${r.limit_micros == null
+            ? '<span class="spend-none">no ceiling</span>' : usd(r.limit_micros)}</td>
+          <td class="mono">${r.remaining_micros == null ? '—'
+            : r.exhausted ? '<span class="pill stop">spent</span>' : usd(r.remaining_micros)}</td>
+          <td class="small faint">${when(r.last_activity_at)}</td>
+          <td style="white-space:nowrap"><button class="btn small secondary"
+            data-run="${esc(r.run_id)}"
+            data-limit="${r.limit_micros == null ? '' : r.limit_micros}">${
+              r.limit_micros == null ? 'Set a ceiling' : 'Adjust'}</button></td>
+        </tr>`)));
+
+      for (const btn of $('panel').querySelectorAll('[data-run]')) {
+        btn.addEventListener('click', async () => {
+          const current = btn.dataset.limit
+            ? (Number(btn.dataset.limit) / 1_000_000).toFixed(2) : '50.00';
+          const answer = prompt(
+            `Total this run may spend at vendors, in dollars.\n\n`
+            + 'Lowering it below what is already spent claws nothing back — it means '
+            + 'nothing further may be spent.',
+            current);
+          if (answer === null) return;
+          const dollars = Number(answer.replace(/[$,\s]/g, ''));
+          if (!Number.isFinite(dollars) || dollars < 0) {
+            return failed(new Error(`"${answer}" is not an amount. Enter dollars, e.g. 50`));
+          }
+          btn.disabled = true;
+          try {
+            await api(`/runs/${encodeURIComponent(btn.dataset.run)}/budget`, {
+              method: 'PUT',
+              body: { limit_micros: Math.round(dollars * 1_000_000) },
+            });
+            await PANELS.runs();
+          } catch (err) { failed(err); }
+        });
+      }
+    } catch (err) { failed(err); }
+  },
+
   async attention() {
     loading();
     try {
@@ -792,7 +900,7 @@ const PANELS = {
         safe defaults: allowed, 60-second lease, 3 attempts, and <code>block</code> on an unknown
         outcome. Edit with <code>PUT /v1/policies/{effect_type}</code>.</p></div>`;
       panel(head + (data.length
-        ? table(['Effect type', 'Mode', 'On unknown outcome', 'Lease', 'Tries', 'Max cost', 'Daily budget', 'Retention'],
+        ? table(['Effect type', 'Mode', 'On unknown outcome', 'Lease', 'Tries', 'Max cost', 'Daily budget', 'Surge ceiling', 'Retention'],
             data.map((p) => `<tr>
               <td class="mono">${esc(p.effect_type)}</td>
               <td><span class="pill ${p.mode === 'deny' ? 'stop' : p.mode === 'require_approval' ? 'wait' : 'go'}">${esc(p.mode)}</span></td>

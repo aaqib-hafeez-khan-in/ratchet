@@ -322,6 +322,39 @@ export const effectView = {
   },
 } as const;
 
+export const runListSchema = {
+  type: 'object',
+  properties: {
+    runs: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          run_id: { type: 'string' },
+          limit_micros: { type: ['integer', 'null'],
+            description: 'Null when no wallet was opened — an unbudgeted run is not capped.' },
+          spent_micros: { type: 'integer' },
+          remaining_micros: { type: ['integer', 'null'] },
+          exhausted: { type: 'boolean' },
+          spend_source: { type: 'string', enum: ['wallet', 'declared'],
+            description:
+              '"wallet" is what the gate counted and enforced against. "declared" is summed '
+              + 'from what callers declared on an unbudgeted run — an estimate, not a ledger.' },
+          declared_micros: { type: 'integer',
+            description:
+              'Everything declared on this run in the window. Reported alongside spent, not '
+              + 'instead of it: a ceiling opened part-way through a run starts its ledger at '
+              + 'zero, so spent alone would read as "plenty of room" on a run that has '
+              + 'already spent heavily.' },
+          effects: { type: 'integer' },
+          last_activity_at: { type: ['string', 'null'], format: 'date-time' },
+          agent_ids: { type: 'array', items: { type: 'string' } },
+        },
+      },
+    },
+  },
+} as const;
+
 export const reconciliationStatusSchema = {
   type: 'object',
   properties: {

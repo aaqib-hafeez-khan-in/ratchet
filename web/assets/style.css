@@ -1450,6 +1450,19 @@ ul.checks li::before {
 .bar-fill span { padding-left: 0.7rem; font: 500 0.8125rem/1 var(--mono); font-variant-numeric: tabular-nums; color: #fff; white-space: nowrap; }
 .bar-fill.quiet span { color: var(--text); }
 
+/* -- run wallets, in a table cell ---------------------------------------- */
+.spend { display: flex; align-items: center; gap: 0.5rem; min-width: 9rem; }
+.spend-track {
+  flex: 1; height: 0.45rem; min-width: 4.5rem; border-radius: 999px;
+  background: var(--bg-sunk); border: 1px solid var(--border); overflow: hidden;
+}
+.spend-fill { display: block; height: 100%; border-radius: 999px; background: var(--ok); }
+.spend-fill.near { background: var(--warn); }
+.spend-fill.full { background: var(--stop); }
+/* No ceiling is not zero spend — it is an unanswered question, and a bar that
+   reads empty would say the opposite of what is true. */
+.spend-none { color: var(--text-faint); font-size: 0.78rem; letter-spacing: 0.01em; }
+
 /* -- caveats ------------------------------------------------------------- */
 .caveats {
   display: grid; gap: 1px; margin-top: 2rem; grid-template-columns: 1fr;

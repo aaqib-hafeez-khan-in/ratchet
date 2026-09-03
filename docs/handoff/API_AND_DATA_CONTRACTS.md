@@ -332,6 +332,33 @@ is holding. Begin is refused with `cost_required` instead.
 storing a control that reads as configured and does nothing. Equal to the ceiling is legal and
 means a one-amount band, since the ceiling refuses only what is strictly above it.
 
+**Run budgets in the console.** `GET /v1/runs` · the Run budgets tab.
+
+`PUT /v1/runs/{run_id}/budget` moved from `requireKey` to **`requireConsole('policies:write')`**,
+so the person dispatching work can set a wallet from the browser instead of needing to hold an
+API key for the one thing the page exists for. The asymmetry the control rests on is untouched:
+a bearer token still needs `policies:write`, which `DEFAULT_AGENT_SCOPES` does not grant, and an
+agent has no session cookie. An e2e test asserts an agent key gets `403`. There is still
+deliberately no MCP tool for it.
+
+**Unbudgeted runs are listed.** Filtering to runs that have a wallet would hide the row the page
+exists to surface — the job spending steadily with nothing bounding it. Their spend is summed
+from what callers declared; `spend_source` distinguishes that from what the gate counted and
+enforced against, because those are not the same kind of number.
+
+**A cross-tenant leak was found here by a test, and is worth remembering.** The first version
+joined `run_budgets` with the workspace test in the `ON` clause of a `FULL OUTER JOIN`. An `ON`
+predicate decides what *matches*; it does not filter the unmatched rows the join still emits from
+each side, so every other tenant's wallets came through as unmatched rows — an unscoped read
+path, which §3 forbids outright. Both sides are now narrowed to the workspace in CTEs before they
+meet. **Never put a tenant predicate in the ON clause of an outer join.**
+
+**`declared_micros` is reported next to `spent_micros`.** A ceiling opened part-way through a run
+starts its ledger at zero, because the effects gated before it existed were never counted against
+it. That is the honest accounting and it is also, alone, badly misleading: the console showed
+`$0.00 spent, $250.00 left` for a run that had already declared `$405`. Both numbers travel
+together so the page cannot reassure in the one direction it must never reassure.
+
 **Scheduled reconciliation.** `GET /v1/reconcile/status` · the `reconciliation-due` worker loop.
 
 What is scheduled is the **remembering, not a fetch.** Ratchet has no vendor credentials and no
