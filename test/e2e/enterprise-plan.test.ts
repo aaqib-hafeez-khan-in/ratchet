@@ -9,6 +9,7 @@
  */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 process.env.RATE_LIMIT_OVERRIDE = '100000';
 
@@ -102,6 +103,48 @@ describe('what it is, and is not', () => {
     for (const p of plans.filter((x: { id: string }) => x.id !== 'enterprise')) {
       assert.equal(p.self_serve, true);
     }
+  });
+});
+
+describe('the pricing copy cannot drift from the plan', () => {
+  /**
+   * The cards are generated from PLANS; the prose beside them is typed out. That
+   * is the arrangement this page's own comment warns about — "a tier table that
+   * drifts from the code is the one kind of marketing copy that is also a broken
+   * promise" — so the prose is checked against the same object the guards use.
+   */
+  const html = readFileSync(new URL('../../web/pricing.html', import.meta.url), 'utf8');
+  const e = PLANS.enterprise;
+
+  test('every figure in the Enterprise section is the enforced one', () => {
+    const section = html.slice(html.indexOf('id="enterprise"'), html.indexOf('Billing status'));
+    const expected: [string, string][] = [
+      ['included effects', e.includedEffects.toLocaleString('en-US')],
+      ['overage per 1,000', `$${(e.overageMicrosPerEffect / 1000).toFixed(2)}`],
+      ['rate limit', e.rateLimitPerMinute.toLocaleString('en-US')],
+      ['retention days', String(e.maxRetentionDays)],
+      ['api keys', String(e.maxApiKeys)],
+      ['webhook endpoints', String(e.maxWebhookEndpoints)],
+    ];
+    for (const [what, value] of expected) {
+      assert.ok(section.includes(value),
+        `the copy does not mention ${what} as "${value}" — the prose has drifted from PLANS`);
+    }
+  });
+
+  test('it compares itself to Scale honestly', () => {
+    const section = html.slice(html.indexOf('id="enterprise"'), html.indexOf('Billing status'));
+    assert.ok(section.includes(String(PLANS.scale.maxRetentionDays)),
+      'the copy claims a comparison with Scale, so Scale\'s number has to be Scale\'s number');
+    assert.ok(e.overageMicrosPerEffect < PLANS.scale.overageMicrosPerEffect,
+      'the copy says the rate is below Scale\'s; it must actually be');
+  });
+
+  test('the page says the controls are not gated, because they are not', () => {
+    assert.match(html, /withholds no control/i);
+    assert.match(html, /ships on every plan/i);
+    // And the claim is true, which the capability test above already asserts.
+    assert.deepEqual(e.capabilities, PLANS.scale.capabilities);
   });
 });
 

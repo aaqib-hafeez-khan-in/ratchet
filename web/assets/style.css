@@ -227,6 +227,12 @@ p  { margin: 0 0 1rem; max-width: var(--measure); }
 .grid { display: grid; gap: 1rem; }
 .grid.two   { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 .grid.three { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+/* Explicit rather than auto-fit: with four cards, auto-fit lands on three across
+   plus a lone fourth at common laptop widths, and an orphaned pricing card reads
+   as a layout fault. Two-by-two is a fine shape for four. */
+.grid.four { grid-template-columns: 1fr; }
+@media (min-width: 34rem) { .grid.four { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 70rem) { .grid.four { grid-template-columns: repeat(4, 1fr); } }
 
 /* --------------------------------------------------------------------- code */
 pre {

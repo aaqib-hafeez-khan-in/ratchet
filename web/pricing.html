@@ -50,10 +50,12 @@
 
 <section>
   <div class="wrap">
-    <div id="plans" class="grid three"><p class="loading">Loading plans…</p></div>
+    <div id="plans" class="grid four"><p class="loading">Loading plans…</p></div>
     <p class="small faint" style="margin-top:1.5rem">
       Overage is drawn from prepaid credit at the rate shown, so a runaway agent stops at your
       balance rather than generating an invoice. Credit is sold at parity: $10 paid is $10 of credit.
+      Enterprise is the exception on both counts &mdash; it is invoiced, and it is
+      <a href="#enterprise">arranged directly</a>.
     </p>
   </div>
 </section>
@@ -133,11 +135,59 @@
         At zero, new effects are refused with a <code>402</code> — existing ones still replay.</li>
       <li><strong>Daily external-spend ceilings</strong> per API key, per effect type, and per
         workspace. These bound your spend at <em>third parties</em>, not with us.</li>
+      <li><strong>Per-destination ceilings.</strong> &ldquo;No more than $2,000 to any one
+        counterparty a day,&rdquo; and a count limit for effects that cost nothing at all. Ratchet
+        counts the destination without ever seeing it &mdash; only a keyed hash of what you
+        declare is stored. <a href="/fraud">How that works</a>.</li>
       <li><strong>Per-effect cost ceilings.</strong> An effect declaring more than the configured
         maximum is refused before it runs.</li>
       <li><strong>Rate limits per key</strong>, so one misbehaving agent cannot exhaust the
         throughput of another.</li>
     </ul>
+  </div>
+</section>
+
+<section class="sunk" id="enterprise">
+  <div class="wrap reading">
+    <h2>Enterprise, and what it deliberately leaves out</h2>
+    <p>
+      Enterprise exists because the risk controls above brought a different <em>buyer</em>, not a
+      different feature. A payments or compliance function needs things a developer does not:
+      retention long enough to name in a policy, headroom it will not trip over, and an invoice
+      against a contract rather than a card.
+    </p>
+    <p>
+      <strong>It withholds no control.</strong> Every ceiling on this page &mdash; at-most-once
+      initiation, per-destination and velocity limits, required dimensions, surge containment, the
+      gate-only agent key that cannot rewrite its own policy &mdash; ships on every plan,
+      including the free one. That is deliberate, and it is the one line we will not move:
+      &ldquo;the ceiling exists, you were on the wrong plan&rdquo; is not a sentence a safety
+      product gets to say. A test asserts Enterprise and Scale have identical capabilities, so it
+      cannot quietly stop being true.
+    </p>
+    <p>What it is instead is room and terms:</p>
+    <ul class="checks">
+      <li><strong>2,500,000 gated effects</strong> included, at <strong>$0.70 per 1,000</strong>
+        beyond &mdash; below the Scale rate, because a tier charging more per effect than the one
+        beneath it would be a penalty for growing.</li>
+      <li><strong>30,000 requests a minute</strong>, ten times Scale.</li>
+      <li><strong>400 days of retention</strong> against Scale&rsquo;s 90. That is the ceiling the
+        database itself will accept; we do not publish a number the service cannot honour.</li>
+      <li><strong>500 API keys and 100 webhook endpoints</strong>, for an organisation with more
+        than one team pointing at this.</li>
+      <li><strong>Invoiced, not charged.</strong> There is no list price because the number
+        depends on what you are protecting, so it is a conversation rather than a button.</li>
+    </ul>
+    <p class="small faint">
+      Two things worth knowing before that conversation rather than during it: Ratchet has
+      <strong>no third-party audit</strong> and is <strong>operated by one person</strong>. For a
+      regulated buyer those are real blockers, and you should hear them here.
+      <a href="/security">The full security posture</a>.
+    </p>
+    <div class="actions">
+      <a class="btn" href="mailto:hello@ratchetgate.com?subject=Ratchet%20Enterprise">Talk to us</a>
+      <a class="btn secondary" href="/fraud">See the risk controls</a>
+    </div>
   </div>
 </section>
 
