@@ -96,7 +96,20 @@ header.site .wrap {
 }
 .brand:hover { text-decoration: none; }
 .brand svg { display: block; }
-nav.site { margin-left: auto; display: flex; gap: 1.35rem; align-items: center; }
+/* Always a scroller, at every width.
+   It used to become one only below 640px, which was a guess about how many
+   links fit — and the guess expired the moment a ninth link was added: at 667px
+   the strip pushed the whole document 53px wide and every page scrolled
+   sideways. When the links do fit there is nothing to scroll and the fade logic
+   already suppresses itself, so this costs nothing and stops the bug returning
+   the next time the nav grows. */
+nav.site {
+  margin-left: auto; display: flex; gap: 1.35rem; align-items: center;
+  min-width: 0; overflow-x: auto; overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+nav.site::-webkit-scrollbar { display: none; }
+nav.site a { white-space: nowrap; }
 nav.site a { color: var(--text-dim); font-size: 0.92rem; }
 nav.site a:hover, nav.site a[aria-current="page"] { color: var(--text); text-decoration: none; }
 
@@ -318,7 +331,14 @@ ul.checks li::before {
 
 .stage-pin {
   position: sticky; top: 58px;
-  height: calc(100vh - 58px); min-height: 600px;
+  /* dvh, not vh. On a phone 100vh is the viewport WITHOUT browser chrome, so a
+     pin sized in vh is taller than what you can actually see — and being sticky,
+     the bottom of it never comes into view no matter how far you scroll. That is
+     what was cutting the animations off. dvh tracks the visible area; the vh
+     line above stays as the fallback. */
+  height: calc(100vh - 58px);
+  height: calc(100dvh - 58px);
+  min-height: 600px;
   display: grid; place-items: center; overflow: hidden;
   background:
     radial-gradient(1100px 520px at 50% 18%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%),
@@ -762,16 +782,27 @@ ul.checks li::before {
 .entry { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem 2rem;
          padding: 1.25rem 1.4rem; border: 1px solid var(--border);
          border-radius: 12px; max-width: 62rem; }
+/* A grid item defaults to min-width:auto, so it refuses to shrink below the
+   min-content width of what is inside it. The <pre> in here scrolls perfectly
+   well on its own — but the column around it was resolving to 533px inside a
+   333px phone, which is what made the whole page slide sideways. */
+.entry > * { min-width: 0; }
 .entry > div > p:last-child { margin: 0; font-size: 0.95rem; color: var(--text-dim); max-width: 42ch; }
 .entry .eyebrow { margin-bottom: 0.35rem; }
 .entry-join { grid-column: 1 / -1; margin: 0; padding-top: 0.9rem;
               border-top: 1px solid var(--border); max-width: none; }
 @media (max-width: 640px) { .entry { grid-template-columns: 1fr; } }
 
+/* Same reason as .entry above: any track that can contain code, a table or a
+   canvas needs permission to be narrower than its contents. */
+.params > div, .tallies > div, .figs > div, .caveats > div, .threats > div,
+.walls > li, .bar-row > *, .race-lane > *, .blind-step,
+.cf-read > div, .ct-read > div, .lanes-key > span { min-width: 0; }
+
 /* ── Copy buttons ────────────────────────────────────────────────────────────
    The button sits on a wrapper rather than inside the <pre>, because the pre
    scrolls horizontally and a button inside it slides away with the code. */
-.copywrap { position: relative; }
+.copywrap { position: relative; min-width: 0; max-width: 100%; }
 /* Announced to assistive tech, never painted. Clip rather than display:none,
    which would take it out of the accessibility tree and silence it. */
 .sr-only {
@@ -1550,6 +1581,38 @@ table.grid td.good { color: var(--accent); }
 .ct-read .v.good { color: var(--accent); }
 .ct-read .ct-cta { margin-left: auto; }
 .ct-line { margin-top: 0.9rem; min-height: 1.4em; font-size: 0.9375rem; color: var(--text-dim); }
+
+/* ── short and narrow viewports ────────────────────────────────────────────
+   A pinned beat has to FIT. Everything here trades size for that, because a
+   chart whose totals sit below the fold is worse than a smaller chart. The
+   height query matters as much as the width one: a phone in landscape is wide
+   and very short. */
+@media (max-width: 44rem), (max-height: 44rem) {
+  /* 600px of minimum in a 560px window is the whole bug in one line. */
+  .stage-pin { min-height: 0; }
+  .beat { padding-bottom: 2rem; }
+  .scene { height: 150px; margin-top: 1.4rem; }
+  .lanes { height: clamp(6rem, 22dvh, 11rem); }
+  .cf-lanes, .ct-canvas, .ceil-canvas { height: clamp(5.5rem, 20dvh, 10rem); }
+  .tallies { margin-top: 0.75rem; }
+  .tallies > div { padding: 0.55rem 0.7rem; }
+  .lanes-key { margin: 0.6rem 0 0.4rem; gap: 1rem; }
+  .cf-read, .ct-read { margin-top: 0.9rem; gap: 0.75rem 1.4rem; }
+  .ct-line { margin-top: 0.6rem; }
+  .run-head, .ceiling-head, .ct-head { gap: 0.3rem 1rem; }
+  .blind-rail { margin-top: 0.9rem; gap: 0.4rem; }
+  .blind-verdict { margin-top: 0.6rem; }
+  .blind-money { font-size: 0.95rem; margin-top: 0.35rem; }
+  .blind-step .k { margin-bottom: 0.3rem; }
+  /* The paragraph under each pinned heading is context, not the point. It is
+     the first thing to go when the beat will not otherwise fit. */
+  .cf-wrap > p.dim, .ct-wrap > p.dim, .ceiling-wrap > p.dim, .blind-wrap > p.dim {
+    font-size: 0.875rem; line-height: 1.45; margin-bottom: 0;
+  }
+}
+@media (max-height: 34rem) {
+  .cf-wrap > p.dim, .ct-wrap > p.dim, .ceiling-wrap > p.dim { display: none; }
+}
 
 /* The scroll hint is an affordance, not information. On a narrow screen it
    wraps under the headline and reads as a stray label, so it goes. */

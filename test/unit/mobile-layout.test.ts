@@ -1,0 +1,85 @@
+/**
+ * Three mobile regressions, pinned as rules rather than as pixels.
+ *
+ * A stylesheet test cannot measure a layout, so this does not try. What it does
+ * is assert the specific properties whose absence caused each bug, because each
+ * one was reintroduced by an ordinary, reasonable-looking edit:
+ *
+ *   The page scrolled sideways because a flex item wrapping a <pre> defaulted to
+ *   min-width:auto and refused to be narrower than the code inside it. The pre
+ *   scrolled perfectly well; nothing was ever going to notice that its wrapper
+ *   did not.
+ *
+ *   It scrolled sideways again after a ninth link was added to a nav that only
+ *   became a scroller below 640px — a media query that was really a guess about
+ *   how many links fit, and the guess expired.
+ *
+ *   The pinned scroll animations were cut off because 100vh on a phone is the
+ *   viewport WITHOUT browser chrome. A sticky element sized in vh is taller than
+ *   what you can see, so its bottom never comes into view however far you scroll.
+ */
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const css = readFileSync(join(import.meta.dirname, '../../web/assets/style.css'), 'utf8');
+
+/** The declaration block for a selector, at the top level of the sheet. */
+function topLevelRule(selector: string): string {
+  // Strip every @media block first, so a rule that only exists inside one is
+  // not mistaken for an unconditional one.
+  let flat = '', depth = 0, inMedia = 0;
+  for (let i = 0; i < css.length; i += 1) {
+    if (css.startsWith('@media', i) && depth === 0) { inMedia = 1; }
+    if (css[i] === '{') depth += 1;
+    if (css[i] === '}') { depth -= 1; if (inMedia && depth === 0) { inMedia = 0; continue; } }
+    if (!inMedia) flat += css[i];
+  }
+  const at = flat.indexOf(selector + ' {');
+  if (at < 0) return '';
+  return flat.slice(at, flat.indexOf('}', at));
+}
+
+describe('the page must not scroll sideways', () => {
+  test('the nav is a scroller at every width, not only on phones', () => {
+    const rule = topLevelRule('nav.site');
+    assert.match(rule, /overflow-x:\s*auto/,
+      'a nav that only scrolls below a breakpoint overflows the moment a link is added');
+    assert.match(rule, /min-width:\s*0/,
+      'and it must be allowed to be narrower than its links inside the header flex row');
+  });
+
+  test('the code wrapper may be narrower than the code', () => {
+    const rule = topLevelRule('.copywrap');
+    assert.match(rule, /min-width:\s*0/,
+      'the <pre> scrolls; its wrapper was what refused to shrink');
+  });
+
+  test('containers that can hold code or tables may shrink', () => {
+    assert.match(css, /\.entry\s*>\s*\*\s*\{[^}]*min-width:\s*0/,
+      'a grid item defaults to min-width:auto and will not go below its content');
+  });
+});
+
+describe('a pinned beat must fit the visible viewport', () => {
+  const pin = topLevelRule('.stage-pin');
+
+  test('it is sized in dvh, with vh only as the fallback', () => {
+    assert.match(pin, /height:\s*calc\(100dvh/,
+      '100vh on a phone excludes the browser chrome, so a vh-sized sticky pin '
+      + 'is taller than the window and its bottom is unreachable');
+    const vhAt = pin.indexOf('calc(100vh');
+    const dvhAt = pin.indexOf('calc(100dvh');
+    assert.ok(vhAt >= 0 && vhAt < dvhAt,
+      'the vh line must come first, or it would override the dvh one');
+  });
+
+  test('the 600px minimum is lifted where the window is smaller than that', () => {
+    assert.match(css, /@media\s*\(max-width:\s*44rem\),\s*\(max-height:\s*44rem\)/,
+      'a short landscape phone needs the same treatment as a narrow portrait one');
+    const short = css.slice(css.indexOf('@media (max-width: 44rem), (max-height: 44rem)'));
+    assert.match(short.slice(0, 900), /\.stage-pin\s*\{\s*min-height:\s*0/,
+      '600px of minimum inside a 560px window is the entire bug');
+  });
+});

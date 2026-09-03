@@ -22,6 +22,9 @@ const NAV = [
   ['/vendors', 'Vendors'],
   ['/notes', 'Notes'],
   ['/pricing', 'Pricing'],
+  // Fraud sits next to Security on purpose: they are the two pages a risk
+  // reader looks for, and one is useless to them without the other.
+  ['/fraud', 'Fraud'],
   ['/security', 'Security'],
   ['/console', 'Console'],
 ];
