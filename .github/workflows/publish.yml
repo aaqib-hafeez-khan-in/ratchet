@@ -1,0 +1,59 @@
+# Publish ratchet-mcp to npm, with provenance.
+#
+# Triggered by publishing a GitHub release, so the tag, the release notes and
+# the package version are one event rather than three manual steps that can
+# disagree. --provenance signs the package with a verifiable statement of which
+# workflow, at which commit, produced it: npm shows the badge, and OpenSSF
+# Scorecard reads it for both Packaging and Signed-Releases.
+#
+# Needs an NPM_TOKEN secret (an automation token, not a publish-with-2FA one) or
+# the job is skipped rather than failed — a missing credential is a setup step,
+# not a broken build.
+name: publish
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write        # what lets npm attach provenance
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444  # v5
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # The bin is a single dependency-free file, so there is nothing to build
+      # and nothing to install. It is still checked before it is published.
+      - name: The server must speak MCP before it is published
+        working-directory: packages/ratchet-mcp
+        run: |
+          node --check bin/ratchet-mcp.mjs
+          printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' \
+            | node bin/ratchet-mcp.mjs 2>/dev/null \
+            | grep -q '"result"' || { echo "initialize did not return a result"; exit 1; }
+
+      - name: Publish
+        if: ${{ env.NPM_TOKEN != '' }}
+        working-directory: packages/ratchet-mcp
+        run: npm publish --provenance --access public
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Say why nothing was published
+        if: ${{ env.NPM_TOKEN == '' }}
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "NPM_TOKEN is not set, so nothing was published."
+          echo "Add an automation token: gh secret set NPM_TOKEN"
