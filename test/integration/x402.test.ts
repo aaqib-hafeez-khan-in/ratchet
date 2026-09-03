@@ -118,7 +118,7 @@ describe('x402 settlement', () => {
     await assert.rejects(
       () => settlePayment({ workspaceId: w.workspaceId, payload: payload(),
                             resourceUrl: 'https://x.test/r' }),
-      (e: PaymentError) => e.code === 'settlement_failed');
+      (e: InstanceType<typeof PaymentError>) => e.code === 'settlement_failed');
 
     const { rows } = await getPool().query<{ c: string }>(
       'SELECT credit_micros::text AS c FROM workspaces WHERE id=$1', [w.workspaceId]);
@@ -132,7 +132,7 @@ describe('x402 settlement', () => {
     await assert.rejects(
       () => settlePayment({ workspaceId: w.workspaceId, payload: payload(),
                             resourceUrl: 'https://x.test/r' }),
-      (e: PaymentError) => e.code === 'payment_invalid');
+      (e: InstanceType<typeof PaymentError>) => e.code === 'payment_invalid');
     assert.deepEqual(calls, ['/verify'], 'settle must not be attempted');
     mock.restoreAll();
   });
@@ -148,7 +148,7 @@ describe('x402 settlement', () => {
     await assert.rejects(
       () => settlePayment({ workspaceId: w.workspaceId, payload: p,
                             resourceUrl: 'https://x.test/r' }),
-      (e: PaymentError) => e.code === 'payment_replayed');
+      (e: InstanceType<typeof PaymentError>) => e.code === 'payment_replayed');
     mock.restoreAll();
   });
 
@@ -161,7 +161,7 @@ describe('x402 settlement', () => {
     await assert.rejects(
       () => settlePayment({ workspaceId: b.workspaceId, payload: p,
                             resourceUrl: 'https://x.test/r' }),
-      (e: PaymentError) => e.code === 'payment_replayed');
+      (e: InstanceType<typeof PaymentError>) => e.code === 'payment_replayed');
     mock.restoreAll();
   });
 
@@ -173,7 +173,7 @@ describe('x402 settlement', () => {
         workspaceId: w.workspaceId,
         payload: payload({ authorization: { value: '1' } }),
         resourceUrl: 'https://x.test/r' }),
-      (e: PaymentError) => e.code === 'insufficient_payment');
+      (e: InstanceType<typeof PaymentError>) => e.code === 'insufficient_payment');
     // The client picks the amount it signs, so this can never be taken on trust.
     assert.deepEqual(calls, [], 'no facilitator call should be spent on an underpayment');
     mock.restoreAll();
@@ -187,7 +187,7 @@ describe('x402 settlement', () => {
         workspaceId: w.workspaceId,
         payload: payload({ authorization: { to: '0x0000000000000000000000000000000000000001' } }),
         resourceUrl: 'https://x.test/r' }),
-      (e: PaymentError) => e.code === 'wrong_recipient');
+      (e: InstanceType<typeof PaymentError>) => e.code === 'wrong_recipient');
     mock.restoreAll();
   });
 
@@ -197,7 +197,7 @@ describe('x402 settlement', () => {
     await assert.rejects(
       () => settlePayment({ workspaceId: w.workspaceId, payload: payload(),
                             resourceUrl: 'https://x.test/r' }),
-      (e: PaymentError) => e.code === 'facilitator_error');
+      (e: InstanceType<typeof PaymentError>) => e.code === 'facilitator_error');
     const { rows } = await getPool().query<{ c: string }>(
       'SELECT credit_micros::text AS c FROM workspaces WHERE id=$1', [w.workspaceId]);
     assert.equal(Number(rows[0]!.c), 0, 'an outage must not grant free credit');
@@ -221,7 +221,7 @@ describe('x402 settlement', () => {
     await assert.rejects(
       () => settlePayment({ workspaceId: w.workspaceId, payload: p,
                             resourceUrl: 'https://x.test/r' }),
-      (e: PaymentError) => e.code === 'payment_replayed');
+      (e: InstanceType<typeof PaymentError>) => e.code === 'payment_replayed');
     mock.restoreAll();
   });
 

@@ -16,7 +16,8 @@ console.log('  1st begin      :', first.decision, 'attempt', first.attempt);
 
 const rep = await reportEffect({
   workspaceId: ws.workspaceId, effectId: first.effectId,
-  leaseToken: first.leaseToken!, outcome: 'failed', error: 'smtp timeout',
+  leaseToken: first.leaseToken!, outcome: 'failed', failureReason: 'smtp timeout',
+  apiKeyId: ws.key.id, apiKeyPrefix: ws.key.prefix,
 });
 console.log('  report failed  :', rep.state);
 

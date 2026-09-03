@@ -207,7 +207,8 @@ describe('the whole way through', () => {
     assert.ok(second.leaseToken);
 
     const done = await reportEffect({
-      workspaceId: ws, effectId: second.effectId, leaseToken: second.leaseToken!,
+      workspaceId: ws, apiKeyId: keyId, apiKeyPrefix: 'test',
+      effectId: second.effectId, leaseToken: second.leaseToken!,
       outcome: 'succeeded', result: { ok: true },
     });
     assert.equal(done.state, 'succeeded');

@@ -10,10 +10,13 @@ let ws: Awaited<ReturnType<typeof freshWorkspace>>;
 before(async () => { ws = await freshWorkspace(false); });
 after(async () => { await closePool(); });
 
+// The spread is the point of this helper — each caller overrides a different
+// field — and a spread of Record<string, any> cannot prove to the compiler
+// that effect_type and idempotency_key survived it.
 const begin = (o: Record<string, any>) => beginEffect({
   workspaceId: ws.workspaceId, apiKeyId: ws.key.id, apiKeyPrefix: ws.key.prefix,
   keyDailyBudgetMicros: null, payload: o.payload ?? {}, estimatedCostMicros: 0, ...o,
-});
+} as Parameters<typeof beginEffect>[0]);
 const report = (r: any, outcome: 'succeeded' | 'failed' = 'succeeded', result: any = {}) =>
   reportEffect({
     workspaceId: ws.workspaceId, apiKeyId: ws.key.id, apiKeyPrefix: ws.key.prefix,

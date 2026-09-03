@@ -6,6 +6,7 @@ import { freshWorkspace, closePool, getPool } from '../helpers.js';
 
 const { deliverDue, signPayload } = await import('../../src/worker/webhooks.js');
 const { enqueueEvent } = await import('../../src/domain/events.js');
+type EventType = Parameters<typeof enqueueEvent>[2];
 const { withTx } = await import('../../src/db/pool.js');
 const { newId } = await import('../../src/lib/ids.js');
 
@@ -53,7 +54,8 @@ async function endpoint(url: string, events = ['effect.succeeded']) {
   return { id, secret };
 }
 
-async function emit(payload: Record<string, unknown>, type = 'effect.succeeded') {
+async function emit(payload: Record<string, unknown>,
+                    type: EventType = 'effect.succeeded') {
   await withTx((tx) => enqueueEvent(tx, ws.workspaceId, type, payload));
 }
 

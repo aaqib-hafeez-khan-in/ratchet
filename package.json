@@ -4,7 +4,7 @@
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
-  "description": "Ratchet \u2014 the effect gate for AI agents. At-most-once side effects, budget enforcement, and an auditable execution record.",
+  "description": "Ratchet — the effect gate for AI agents. At-most-once side effects, budget enforcement, and an auditable execution record.",
   "engines": {
     "node": ">=20.11"
   },
@@ -19,8 +19,8 @@
     "mcp:stdio": "tsx src/mcp/stdio.ts",
     "migrate": "tsx src/db/migrate.ts up",
     "seed": "tsx scripts/seed.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "lint": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "test": "bash scripts/test.sh",
     "test:unit": "node --test --import tsx test/unit/*.test.ts",
     "test:integration": "node --test --test-concurrency=1 --import tsx test/integration/*.test.ts",
