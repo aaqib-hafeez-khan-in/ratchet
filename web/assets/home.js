@@ -132,8 +132,8 @@ await ratchet(\`/effects/\${gate.effect_id}/report\`, {
 //   Authorization: Bearer rk_live_...
 //
 // Tools: ratchet_begin_effect, ratchet_report_effect,
-//        ratchet_check_effect, ratchet_resolve_effect,
-//        ratchet_list_effects, ratchet_get_policy, ratchet_usage`,
+//        ratchet_get_effect, ratchet_resolve_effect,
+//        ratchet_list_effects, ratchet_get_policy, ratchet_get_usage`,
 };
 
 tabs(document.getElementById('int-tabs'), (name) => {

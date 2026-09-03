@@ -4,6 +4,7 @@
 [![CodeQL](https://github.com/thearchitect0x-glitch/ratchet/actions/workflows/codeql.yml/badge.svg)](https://github.com/thearchitect0x-glitch/ratchet/actions/workflows/codeql.yml)
 [![npm](https://img.shields.io/npm/v/ratchet-mcp?label=ratchet-mcp)](https://www.npmjs.com/package/ratchet-mcp)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/thearchitect0x-glitch/ratchet/badge)](https://scorecard.dev/viewer/?uri=github.com/thearchitect0x-glitch/ratchet)
 
 **An effect gate for AI agents.** Your agent asks before it does anything it cannot take back —
 charge a card, ship a deploy, publish a package, send the email — and gets a durable decision, so
@@ -250,8 +251,8 @@ default or shorter than 32 characters, if `CORS_ORIGINS` contains `*`, or if
 | MCP (Streamable HTTP) | `POST /mcp` with `Authorization: Bearer <key>` |
 | MCP (stdio) | `npx -y ratchet-mcp` with `RATCHET_API_KEY` — see [`packages/ratchet-mcp`](packages/ratchet-mcp) |
 
-Seven MCP tools: `ratchet_begin_effect`, `ratchet_report_effect`, `ratchet_check_effect`,
-`ratchet_resolve_effect`, `ratchet_list_effects`, `ratchet_get_policy`, `ratchet_usage`.
+Seven MCP tools: `ratchet_begin_effect`, `ratchet_report_effect`, `ratchet_get_effect`,
+`ratchet_resolve_effect`, `ratchet_list_effects`, `ratchet_get_policy`, `ratchet_get_usage`.
 
 Ready-to-use configs and code: [`examples/`](examples/) — Python, TypeScript, curl, Claude Desktop,
 Cursor, and generic MCP over HTTP.

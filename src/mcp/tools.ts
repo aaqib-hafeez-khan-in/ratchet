@@ -29,7 +29,7 @@ const effectTypeProp = {
 
 export const MCP_TOOLS: McpToolDef[] = [
   {
-    name: 'ratchet_circuit_status',
+    name: 'ratchet_get_circuit',
     title: 'Check whether surge containment is holding your work',
     scope: 'policies:read',
     readOnly: true,
@@ -162,7 +162,7 @@ export const MCP_TOOLS: McpToolDef[] = [
     },
   },
   {
-    name: 'ratchet_heartbeat_effect',
+    name: 'ratchet_extend_lease',
     title: 'Say you are still working on an effect',
     scope: 'effects:report',
     readOnly: false,
@@ -188,7 +188,7 @@ export const MCP_TOOLS: McpToolDef[] = [
     },
   },
   {
-    name: 'ratchet_check_effect',
+    name: 'ratchet_get_effect',
     title: 'Check whether an action has already been done',
     scope: 'effects:read',
     readOnly: true,
@@ -228,7 +228,7 @@ export const MCP_TOOLS: McpToolDef[] = [
     },
   },
   {
-    name: 'ratchet_recall',
+    name: 'ratchet_get_run',
     title: 'What have I already done in this run?',
     scope: 'effects:read',
     readOnly: true,
@@ -313,7 +313,7 @@ export const MCP_TOOLS: McpToolDef[] = [
     },
   },
   {
-    name: 'ratchet_group_status',
+    name: 'ratchet_get_group',
     title: 'Inspect a unit of work',
     scope: 'effects:read',
     readOnly: true,
@@ -329,7 +329,7 @@ export const MCP_TOOLS: McpToolDef[] = [
     },
   },
   {
-    name: 'ratchet_usage',
+    name: 'ratchet_get_usage',
     title: 'Check plan, credit balance, and spend',
     scope: 'workspace:read',
     readOnly: true,
@@ -340,7 +340,7 @@ export const MCP_TOOLS: McpToolDef[] = [
     inputSchema: { type: 'object', properties: {} },
   },
   {
-    name: 'ratchet_effect_receipts',
+    name: 'ratchet_list_receipts',
     title: 'Get signed proof of the decisions on an effect',
     scope: 'effects:read',
     readOnly: true,
@@ -359,7 +359,7 @@ export const MCP_TOOLS: McpToolDef[] = [
     },
   },
   {
-    name: 'ratchet_reconcile',
+    name: 'ratchet_reconcile_effects',
     title: 'Find real-world actions that bypassed the gate',
     scope: 'effects:read',
     readOnly: true,
@@ -381,7 +381,7 @@ export const MCP_TOOLS: McpToolDef[] = [
     },
   },
   {
-    name: 'ratchet_prevented_loss',
+    name: 'ratchet_get_prevented_loss',
     title: 'What the gate has actually saved',
     scope: 'effects:read',
     readOnly: true,

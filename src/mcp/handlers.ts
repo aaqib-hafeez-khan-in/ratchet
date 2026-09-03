@@ -26,7 +26,7 @@ export async function callTool(
   requireScope(ctx, def.scope as Scope);
 
   switch (name) {
-    case 'ratchet_circuit_status': {
+    case 'ratchet_get_circuit': {
       const [circuits, rates] = await Promise.all([
         listCircuits(getPool(), ctx.workspaceId),
         currentRates(getPool(), ctx.workspaceId),
@@ -82,7 +82,7 @@ export async function callTool(
         actualCostMicros: args.actual_cost_micros ?? null,
       }));
 
-    case 'ratchet_heartbeat_effect': {
+    case 'ratchet_extend_lease': {
       const r = await extendLease({
         workspaceId: ctx.workspaceId, effectId: args.effect_id,
         leaseToken: args.lease_token, extendSeconds: args.extend_seconds ?? null,
@@ -93,7 +93,7 @@ export async function callTool(
       };
     }
 
-    case 'ratchet_check_effect': {
+    case 'ratchet_get_effect': {
       const e = await lookupEffect(getPool(), ctx.workspaceId, args.effect_type, args.idempotency_key);
       if (!e) {
         return {
@@ -115,7 +115,7 @@ export async function callTool(
         result: args.result,
       }));
 
-    case 'ratchet_recall': {
+    case 'ratchet_get_run': {
       // The same serializer the HTTP route uses, so an agent reading the
       // OpenAPI and one reading the tool see one shape.
       return recallOnWire(await recallRun(ctx.workspaceId, String(args.run_id)));
@@ -139,13 +139,13 @@ export async function callTool(
       return planOut(plan);
     }
 
-    case 'ratchet_group_status': {
+    case 'ratchet_get_group': {
       const plan = await getGroup(getPool(), ctx.workspaceId, args.group_key);
       if (!plan) throw errors.notFound('No such group in this workspace.');
       return planOut(plan);
     }
 
-    case 'ratchet_effect_receipts': {
+    case 'ratchet_list_receipts': {
       const rows = await receiptsFor(getPool(), ctx.workspaceId, args.effect_id);
       if (!rows.length) {
         return {
@@ -166,7 +166,7 @@ export async function callTool(
       };
     }
 
-    case 'ratchet_reconcile': {
+    case 'ratchet_reconcile_effects': {
       const keys: string[] = [...new Set((args.keys as string[]).map(normalizeText))];
       const { rows } = await getPool().query<{ idempotency_key: string }>(
         `SELECT idempotency_key FROM effects
@@ -187,7 +187,7 @@ export async function callTool(
       };
     }
 
-    case 'ratchet_prevented_loss': {
+    case 'ratchet_get_prevented_loss': {
       const { rows } = await getPool().query<{ decision: string; n: string; micros: string }>(
         `SELECT r.decision, count(*)::text AS n,
                 COALESCE(sum(r.cost_micros),0)::text AS micros
@@ -211,7 +211,7 @@ export async function callTool(
       };
     }
 
-    case 'ratchet_usage': {
+    case 'ratchet_get_usage': {
       const ws = await getWorkspace(getPool(), ctx.workspaceId);
       if (!ws) throw errors.notFound('Workspace not found.');
       const spend = await getSpendSummary(getPool(), ctx.workspaceId);

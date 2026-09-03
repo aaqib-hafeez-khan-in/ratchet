@@ -121,7 +121,7 @@ POST /v1/circuits/:effectType/close    fresh allowance, breaker still armed
 PUT  /v1/policies/:effectType          {surge_per_hour, surge_action, surge_cooldown_seconds}
 ```
 
-MCP: `ratchet_circuit_status` (read-only). Its description tells the model to
+MCP: `ratchet_get_circuit` (read-only). Its description tells the model to
 stop rather than work around a breaker — not to rename the effect type, split
 across keys, or vary the idempotency key.
 

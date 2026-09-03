@@ -387,11 +387,11 @@ Redirects are never followed.
 |---|---|---|
 | `ratchet_begin_effect` | `effects:begin` | no |
 | `ratchet_report_effect` | `effects:report` | no |
-| `ratchet_check_effect` | `effects:read` | yes |
+| `ratchet_get_effect` | `effects:read` | yes |
 | `ratchet_resolve_effect` | `effects:admin` | no |
 | `ratchet_list_effects` | `effects:read` | yes |
 | `ratchet_get_policy` | `policies:read` | yes |
-| `ratchet_usage` | `workspace:read` | yes |
+| `ratchet_get_usage` | `workspace:read` | yes |
 
 Live schemas: `GET /mcp/info`. Every `ratchet_begin_effect` result carries `next_step`, which
 begins with `STOP` for every decision other than `execute`.

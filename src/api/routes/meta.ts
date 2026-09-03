@@ -477,7 +477,7 @@ default response is to hold the work for a human rather than kill you. If a begi
 returns approval_required or denied citing a circuit breaker: STOP creating that
 effect type. Retrying will not help. Do not rename the effect type, split the work
 across keys, or vary the idempotency key to get around it — that defeats a control
-protecting the people your actions reach. Call ratchet_circuit_status (MCP) or
+protecting the people your actions reach. Call ratchet_get_circuit (MCP) or
 GET /v1/circuits to see when it clears.
 
 ## The important part

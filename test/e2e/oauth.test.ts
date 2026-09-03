@@ -61,7 +61,7 @@ async function fullFlow(opts: { resource?: string; key?: string } = {}) {
  * accepted token from a refused one, and every one of these passed or failed
  * for the wrong reason.
  *
- * ratchet_usage is the probe now: read-only, no required arguments, no side
+ * ratchet_get_usage is the probe now: read-only, no required arguments, no side
  * effect, and it needs a credential like any other tool call. The properties
  * being pinned — audience binding, revocation, replay defence — are unchanged.
  */
@@ -84,7 +84,7 @@ describe('OAuth — registration', () => {
     const r = await app.inject({ method: 'POST', url: '/mcp',
       headers: { authorization: `Bearer ${body.client_id}` },
       payload: { jsonrpc: '2.0', id: 1, method: 'tools/call',
-        params: { name: 'ratchet_usage', arguments: {} } } });
+        params: { name: 'ratchet_get_usage', arguments: {} } } });
     assert.equal(r.statusCode, 401);
   });
 });
@@ -160,7 +160,7 @@ describe('OAuth — authorization codes', () => {
     const before = await app.inject({ method: 'POST', url: '/mcp',
       headers: { authorization: `Bearer ${access}` },
       payload: { jsonrpc: '2.0', id: 1, method: 'tools/call',
-        params: { name: 'ratchet_usage', arguments: {} } } });
+        params: { name: 'ratchet_get_usage', arguments: {} } } });
     assert.ok(before.json().result, 'token should work before the replay');
 
     const replay = await app.inject({ method: 'POST', url: '/oauth/token', headers: FORM,
@@ -172,7 +172,7 @@ describe('OAuth — authorization codes', () => {
     const after = await app.inject({ method: 'POST', url: '/mcp',
       headers: { authorization: `Bearer ${access}` },
       payload: { jsonrpc: '2.0', id: 1, method: 'tools/call',
-        params: { name: 'ratchet_usage', arguments: {} } } });
+        params: { name: 'ratchet_get_usage', arguments: {} } } });
     assert.equal(after.statusCode, 401, 'tokens from a replayed code must be revoked');
   });
 
@@ -227,7 +227,7 @@ describe('OAuth — tokens are audience-bound', () => {
     const r = await app.inject({ method: 'POST', url: '/mcp',
       headers: { authorization: `Bearer ${f.tokens.access_token}` },
       payload: { jsonrpc: '2.0', id: 1, method: 'tools/call',
-        params: { name: 'ratchet_usage', arguments: {} } } });
+        params: { name: 'ratchet_get_usage', arguments: {} } } });
     assert.equal(r.statusCode, 401, 'a token for another audience was accepted');
   });
 
@@ -255,7 +255,7 @@ describe('OAuth — tokens are audience-bound', () => {
     const after = await app.inject({ method: 'POST', url: '/mcp',
       headers: { authorization: `Bearer ${f.tokens.access_token}` },
       payload: { jsonrpc: '2.0', id: 1, method: 'tools/call',
-        params: { name: 'ratchet_usage', arguments: {} } } });
+        params: { name: 'ratchet_get_usage', arguments: {} } } });
     assert.equal(after.statusCode, 401);
 
     // A garbage token gets the same 200, so this cannot be used as an oracle.
@@ -299,7 +299,7 @@ describe('OAuth — an operator can see and stop a grant', () => {
     const ok = await app.inject({ method: 'POST', url: '/mcp',
       headers: { authorization: `Bearer ${f.tokens.access_token}` },
       payload: { jsonrpc: '2.0', id: 1, method: 'tools/call',
-        params: { name: 'ratchet_usage', arguments: {} } } });
+        params: { name: 'ratchet_get_usage', arguments: {} } } });
     assert.ok(ok.json().result, 'token should work before revocation');
 
     await getPool().query(
@@ -310,7 +310,7 @@ describe('OAuth — an operator can see and stop a grant', () => {
     const after = await app.inject({ method: 'POST', url: '/mcp',
       headers: { authorization: `Bearer ${f.tokens.access_token}` },
       payload: { jsonrpc: '2.0', id: 1, method: 'tools/call',
-        params: { name: 'ratchet_usage', arguments: {} } } });
+        params: { name: 'ratchet_get_usage', arguments: {} } } });
     assert.equal(after.statusCode, 401, 'revoking the key must stop the OAuth grant');
   });
 });

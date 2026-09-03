@@ -64,7 +64,7 @@ because signatures are checked against stored bytes verbatim.
 
 ## Reconciliation
 
-`POST /v1/reconcile` and `ratchet_reconcile` address the failure we cannot see:
+`POST /v1/reconcile` and `ratchet_reconcile_effects` address the failure we cannot see:
 a path in the customer's own system that never called us. They send references,
 never credentials — we still hold no vendor access.
 

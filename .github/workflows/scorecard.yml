@@ -1,0 +1,42 @@
+# OpenSSF Scorecard.
+#
+# Publishes an automated supply-chain score and, with publish_results, a badge
+# that reflects what the repository actually does rather than what it claims:
+# branch protection, code review, pinned actions, SAST, a dependency updater, a
+# security policy, signed releases. Most of those already exist here; this is the
+# thing that reads them.
+#
+# Weekly rather than per-push. The score moves on repository *settings* and
+# release practice, not on a commit, so running it on every push would be noise
+# and would spend Actions minutes to tell you the same number.
+name: scorecard
+on:
+  branch_protection_rule:
+  schedule:
+    - cron: '41 5 * * 1'
+  push:
+    branches: [main]
+permissions: read-all
+
+jobs:
+  analysis:
+    name: analyse
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # upload the SARIF so findings show in the Security tab
+      id-token: write          # publish the result so the badge can resolve
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+
+      - uses: ossf/scorecard-action@v2.4.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif

@@ -171,13 +171,13 @@ describe('MCP core loop', () => {
   });
 
   test('check_effect never authorises an action', async () => {
-    const miss = await call('ratchet_check_effect',
+    const miss = await call('ratchet_get_effect',
       { effect_type: 'email.send', idempotency_key: 'never-seen' });
     assert.equal(miss.data.found, false);
     assert.match(miss.data.note, /does NOT authorise/);
     assert.equal('lease_token' in miss.data, false);
 
-    const hit = await call('ratchet_check_effect',
+    const hit = await call('ratchet_get_effect',
       { effect_type: 'email.send', idempotency_key: 'mcp:1' });
     assert.equal(hit.data.found, true);
     assert.equal(hit.data.state, 'succeeded');
@@ -220,7 +220,7 @@ describe('MCP core loop', () => {
     assert.equal(unknown.data.on_indeterminate, 'block',
       'an unconfigured effect type must default to the safe behaviour');
 
-    const u = await call('ratchet_usage');
+    const u = await call('ratchet_get_usage');
     assert.equal(u.data.plan, 'free');
     assert.ok(u.data.effects_used_this_period > 0);
     assert.equal(typeof u.data.included_remaining, 'number');
@@ -318,7 +318,7 @@ describe('proof and reconciliation tools over MCP', () => {
     });
     assert.equal(begun.data.decision, 'execute');
 
-    const r = await call('ratchet_effect_receipts', { effect_id: begun.data.effect_id });
+    const r = await call('ratchet_list_receipts', { effect_id: begun.data.effect_id });
     assert.equal(r.isError, false);
     assert.ok(r.data.receipts.length >= 1, 'a decision must leave a receipt');
     assert.ok(r.data.public_key, 'without the key the receipt cannot be checked');
@@ -330,7 +330,7 @@ describe('proof and reconciliation tools over MCP', () => {
   });
 
   test('an unknown effect says so rather than implying nothing happened', async () => {
-    const r = await call('ratchet_effect_receipts', { effect_id: 'eff_does_not_exist' });
+    const r = await call('ratchet_list_receipts', { effect_id: 'eff_does_not_exist' });
     assert.equal(r.isError, false);
     assert.deepEqual(r.data.receipts, []);
     // A model must not read an empty list as proof of absence.
@@ -342,7 +342,7 @@ describe('proof and reconciliation tools over MCP', () => {
     await call('ratchet_begin_effect', {
       effect_type: 'email.send', idempotency_key: gated, payload: {},
     });
-    const r = await call('ratchet_reconcile', {
+    const r = await call('ratchet_reconcile_effects', {
       effect_type: 'email.send',
       keys: [gated, 'never-asked-1', 'never-asked-2'],
     });
@@ -360,7 +360,7 @@ describe('proof and reconciliation tools over MCP', () => {
       effect_type: 'email.send', idempotency_key: mine, payload: {},
     });
     const other = await createWorkspace('Other Co', `other-${Date.now()}@example.test`);
-    const r = await call('ratchet_reconcile',
+    const r = await call('ratchet_reconcile_effects',
       { effect_type: 'email.send', keys: [mine] }, other.key.plaintext);
     // Another tenant must not learn that this key was gated by someone else.
     assert.equal(r.data.gated, 0);
@@ -376,7 +376,7 @@ describe('proof and reconciliation tools over MCP', () => {
     await call('ratchet_begin_effect', args);
     await call('ratchet_begin_effect', args);   // refused
 
-    const r = await call('ratchet_prevented_loss');
+    const r = await call('ratchet_get_prevented_loss');
     assert.equal(r.isError, false);
     assert.ok(r.data.duplicate_actions_refused >= 1);
     assert.ok(Number(r.data.would_have_cost_micros) >= 2_500_000,
@@ -390,7 +390,7 @@ describe('proof and reconciliation tools over MCP', () => {
       assert.ok(listed.includes(t.name), `${t.name} is defined but not listed`);
     }
     // A tool that is advertised but throws on every call is worse than absent.
-    for (const name of ['ratchet_prevented_loss', 'ratchet_usage']) {
+    for (const name of ['ratchet_get_prevented_loss', 'ratchet_get_usage']) {
       const r = await call(name);
       assert.notEqual(r.isError, true, `${name} errored on a plain call`);
     }
@@ -514,7 +514,7 @@ describe('a run has a memory and a wallet', () => {
     });
     assert.equal(begun.isError, false, 'begin should succeed');
 
-    const r = await call('ratchet_recall', { run_id: run });
+    const r = await call('ratchet_get_run', { run_id: run });
     assert.equal(r.isError, false);
     assert.equal(r.data?.run_id, run);
     assert.equal(r.data?.steps, 1);
@@ -552,7 +552,7 @@ describe('a run has a memory and a wallet', () => {
     const agent = (await keyWithScopes(workspaceId,
       ['effects:begin', 'effects:report', 'effects:read'])).plaintext;
     const r = await rpc('tools/call',
-      { name: 'ratchet_recall', arguments: { run_id: run } }, agent);
+      { name: 'ratchet_get_run', arguments: { run_id: run } }, agent);
     const data = r.body.result?.structuredContent;
     assert.equal(data?.budget?.limit_micros, 250_000);
     assert.equal(data?.budget?.remaining_micros, 250_000);
