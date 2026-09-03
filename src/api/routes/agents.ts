@@ -16,6 +16,7 @@ import { errors } from '../../lib/errors.js';
 import { wsOf } from '../plugins/auth.js';
 import { listAgents, agentReliability, type AgentReliability } from '../../domain/agent-quality.js';
 import { structuringReport } from '../../domain/structuring.js';
+import { fanReport } from '../../domain/fan.js';
 import { agentListSchema, agentReliabilitySchema, errorResponses } from '../schemas.js';
 
 const TAG = ['Agents'];
@@ -127,6 +128,66 @@ export default async function agentRoutes(app: FastifyInstance) {
       // Named rather than omitted: nothing found and nothing configured look
       // identical in an empty response, and they are very different answers.
       without_threshold: r.withoutThreshold,
+    };
+  });
+
+  /**
+   * How work spreads, and where it collects.
+   *
+   * A read like the structuring analysis, and operator-only for the same reason.
+   * `dimension` is a caller-supplied name and travels as a bound parameter; the
+   * grouping column is chosen from a fixed pair inside the domain and is never
+   * built from anything a caller sent.
+   */
+  app.get('/analysis/fan', {
+    preHandler: app.requireConsole('workspace:read'),
+    schema: {
+      tags: TAG, operationId: 'fanAnalysis',
+      summary: 'Work spreading across destinations, and destinations collecting work',
+      description:
+        'Fan-out: one run or agent reaching many distinct counterparties, reported only when '
+        + 'most of them are NEW — a payroll run reaches five hundred people every month and is '
+        + 'the healthiest thing in the system, so cardinality alone says nothing and novelty is '
+        + 'the measure. Fan-in: one counterparty collecting from several separate agents, which '
+        + 'no per-agent ceiling can see. Neither is a verdict: a first run of anything is one '
+        + 'hundred per cent new counterparties and looks identical to the thing this finds.',
+      querystring: {
+        type: 'object', additionalProperties: false,
+        properties: {
+          days: { type: 'integer', minimum: 1, maximum: MAX_DAYS, default: 30 },
+          dimension: {
+            type: 'string', pattern: '^[a-z][a-z0-9_]{0,31}$', default: 'counterparty',
+            description: 'Which declared dimension to count across.',
+          },
+        },
+      },
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => {
+    const q = req.query as { days?: number; dimension?: string };
+    const days = windowDays(q.days);
+    const r = await fanReport(getPool(), wsOf(req), q.dimension ?? 'counterparty', days);
+    return {
+      window: r.window,
+      dimension: r.dimension,
+      counterparties_in_window: r.counterpartiesInWindow,
+      fan_out: r.fanOut.map((f) => ({
+        grouping: f.grouping, id: f.id,
+        distinct_counterparties: f.distinctCounterparties,
+        first_seen: f.firstSeen,
+        new_share: f.newShare,
+        effects: f.effects,
+        severity: f.severity,
+        detail: f.detail,
+      })),
+      fan_in: r.fanIn.map((f) => ({
+        blinded: f.blinded,
+        distinct_agents: f.distinctAgents,
+        distinct_runs: f.distinctRuns,
+        effects: f.effects,
+        severity: f.severity,
+        detail: f.detail,
+      })),
     };
   });
 

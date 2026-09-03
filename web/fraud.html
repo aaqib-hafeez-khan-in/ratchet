@@ -357,6 +357,60 @@
   </div>
 </section>
 
+<section id="fan">
+  <div class="wrap reading">
+    <p class="eyebrow">Shape, not volume</p>
+    <h2>Reaching five hundred accounts is not suspicious. Reaching five hundred <em>new</em> ones is.</h2>
+    <p>
+      Fan-out is one job paying many counterparties, and on its own it means nothing. Payroll does
+      it every month and is the healthiest thing in the system. Treating width as guilt would
+      bury you in alerts about your own operations.
+    </p>
+    <p>
+      What separates payroll from a disbursement into fresh accounts is not how many. It is
+      <strong>how many of them are new</strong>. Payroll pays the same people; laundering pays
+      accounts nobody has paid before. So novelty is the measure and width is only the floor
+      beneath it &mdash; and Ratchet can ask &ldquo;have I seen this one before?&rdquo; without
+      ever having been able to read it.
+    </p>
+  </div>
+  <div class="wrap">
+    <div class="fan-pair">
+      <div class="fan-case quiet">
+        <span class="fan-tag">silent</span>
+        <strong>40 counterparties, 0 new</strong>
+        <p>The same people as last month. This is payroll, and nothing is reported.</p>
+      </div>
+      <div class="fan-case loud">
+        <span class="fan-tag">reported</span>
+        <strong>40 counterparties, 40 new</strong>
+        <p>Same width, no familiar face among them. Reported &mdash; as a question, because a
+          first run of anything looks exactly like this too.</p>
+      </div>
+    </div>
+  </div>
+  <div class="wrap reading">
+    <p style="margin-top:1.5rem">
+      <strong>Fan-in is the mirror, and it is the one nothing else can see.</strong> One
+      counterparty collecting from several separate agents: a refund bot and a payout bot both
+      paying the same account. Each agent is inside every limit it has, because
+      <em>no per-agent ceiling can look across agents</em>. Only something sitting in front of
+      all of them can.
+    </p>
+    <pre><code>GET /v1/analysis/fan?days=30
+
+→ { "fan_out": [ { "grouping": "run", "id": "disbursement",
+                   "distinct_counterparties": 40, "first_seen": 40, "new_share": 1 } ],
+    "fan_in":  [ { "blinded": "9eb4dace…", "distinct_agents": 3, "effects": 12 } ] }</code></pre>
+    <p class="small faint">
+      Same posture as everything else here: a question, not a verdict. A first payroll run is one
+      hundred per cent new counterparties and is indistinguishable from the thing this finds.
+      &ldquo;Seen before&rdquo; looks back four windows rather than for ever, so the check does
+      not get slower every day the service runs.
+    </p>
+  </div>
+</section>
+
 <section class="sunk" id="structuring">
   <div class="wrap reading">
     <p class="eyebrow">The pattern only we can see</p>
@@ -464,9 +518,8 @@
       </div>
     </div>
     <p class="dim" style="max-width:60ch;margin-top:1.5rem">
-      Fan-in and fan-out detection, scheduled reconciliation and value-triggered approval are
-      not built. They are what the blinded ledger makes possible, and they are not claimed until
-      they exist.
+      Scheduled reconciliation and value-triggered approval are not built. They are what the
+      blinded ledger makes possible next, and they are not claimed until they exist.
     </p>
   </div>
 </section>

@@ -171,9 +171,9 @@ describe('the fraud page claims only what is built', () => {
 
   /** Things discussed as possible must not read as shipped. */
   test('unbuilt detection is named as unbuilt', () => {
-    // 'structuring' came off this list when it shipped, which is the only way an
-    // item should ever leave it.
-    for (const unbuilt of ['fan-in', 'fan-out', 'scheduled reconciliation']) {
+    // Items leave this list only by shipping. 'structuring' went first, then
+    // 'fan-in' and 'fan-out'; this test is what noticed each time.
+    for (const unbuilt of ['scheduled reconciliation', 'value-triggered approval']) {
       if (!fraud.toLowerCase().includes(unbuilt)) continue;
       const at = fraud.toLowerCase().indexOf(unbuilt);
       const around = fraud.slice(Math.max(0, at - 400), at + 400).toLowerCase();
@@ -196,6 +196,17 @@ describe('the fraud page claims only what is built', () => {
       'the false positive is the first thing a reader should be told about');
     assert.match(fraud, /somewhere to\s*\n?\s*look/i,
       'a bunching count is not a finding of fraud and the page must not imply it is');
+  });
+
+  test('fan analysis is described as shape rather than volume', () => {
+    assert.match(fraud, /analysis\/fan/, 'the endpoint has to be named');
+    assert.match(fraud, /Reaching five hundred accounts is not suspicious/i,
+      'the legitimate case has to lead, or a reader takes width for guilt');
+    assert.match(fraud, /payroll/i);
+    assert.match(fraud, /no per-agent ceiling can look across agents/i,
+      'fan-in is the half nothing else can see, and the page should say why');
+    assert.match(fraud, /first payroll run is one\s*\n?\s*hundred per cent new/i,
+      'the false positive must be named as plainly as the finding');
   });
 
   test('it does not claim exactly-once anywhere', () => {

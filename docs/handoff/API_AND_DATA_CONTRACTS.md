@@ -217,6 +217,38 @@ Money is reconciled to the reported actual, so under-declaring cannot walk past 
 `effects.reserved_dimension_scopes` records what a lease actually reserved against, so a release
 reverses exactly what was taken even if policy is edited in between.
 
+### Fan-out and fan-in
+
+`GET /v1/analysis/fan?days=30&dimension=counterparty` — console session or admin key.
+
+**Fan-out is measured by novelty, not width.** A payroll run reaches five hundred counterparties
+every month and is the healthiest thing in the system, so cardinality alone is useless as a
+signal and reporting on it would bury an operator in alerts about their own operations. What
+separates payroll from a disbursement into fresh accounts is how many destinations are **new**.
+Reported per `run_id` and per `agent_id`, only when the group cleared `FANOUT_FLOOR = 20` distinct
+counterparties **and** at least `NEW_SHARE_AT = 0.8` of them were unseen. `high` needs ≥95% new
+and ≥40 of them.
+
+**"Seen before" looks back `PRIOR_WINDOWS = 4` windows, not for ever.** Unbounded history means a
+check that gets slower every day the service runs, and a counterparty last paid three years ago
+is new for this purpose anyway.
+
+**Fan-in is the half nothing else can see.** One counterparty collecting from `FANIN_FLOOR = 3` or
+more distinct agents. Each agent is inside every limit it has, because no per-agent ceiling can
+look across agents — only something in front of all of them can.
+
+Both work entirely over the blinded dimension: the analysis counts how many distinct
+counterparties there are and whether they have been seen, without being able to name one. A test
+asserts no raw value can appear in the response.
+
+**Neither is a verdict.** A first payroll run is 100% new counterparties and is indistinguishable
+from the thing this finds. The `detail` text says so, and the OpenAPI description does too — a
+test asserts both.
+
+The `dimension` parameter is a bound query parameter constrained by pattern; the grouping column
+is chosen from a fixed pair inside the domain and never built from caller input. A test posts SQL
+through `dimension` and asserts a 400 with the table intact.
+
 ### Structuring analysis
 
 `GET /v1/analysis/structuring?days=30` — console session or admin key, never the agent key.
