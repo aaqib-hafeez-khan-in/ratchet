@@ -20,7 +20,7 @@
  * are never penalised for the retry behaviour the product exists to absorb.
  */
 
-export type PlanId = 'free' | 'pro' | 'scale';
+export type PlanId = 'free' | 'pro' | 'scale' | 'enterprise';
 
 export interface Plan {
   id: PlanId;
@@ -54,6 +54,15 @@ export interface Plan {
    * things that stop the bad outcome.
    */
   capabilities: PlanCapabilities;
+  /**
+   * Whether a customer can put themselves on this plan.
+   *
+   * A flag rather than a list of plan ids somewhere else, because the guard has
+   * to be structural: `startSubscription` refuses anything false here, so a new
+   * contract tier cannot become self-serve by someone forgetting to update an
+   * enum in a route.
+   */
+  selfServe: boolean;
 }
 
 export interface PlanCapabilities {
@@ -111,6 +120,7 @@ export const PLANS: Record<PlanId, Plan> = {
       signedReceipts: false,
       reconciliation: false,
     },
+    selfServe: true,
   },
   pro: {
     id: 'pro',
@@ -133,6 +143,7 @@ export const PLANS: Record<PlanId, Plan> = {
       signedReceipts: true,
       reconciliation: false,
     },
+    selfServe: true,
   },
   scale: {
     id: 'scale',
@@ -151,8 +162,52 @@ export const PLANS: Record<PlanId, Plan> = {
       signedReceipts: true,
       reconciliation: true,
     },
+    selfServe: true,
+  },
+
+  /**
+   * Sold, not bought.
+   *
+   * The fraud and risk work brought a different buyer rather than a different
+   * feature. Every control stays on every plan — a per-destination ceiling is a
+   * safety property, and a postmortem that reads "the ceiling exists, you were
+   * on the wrong plan" would cost more than this tier could ever earn. So
+   * nothing below is a capability Scale lacks. What is here is what a risk
+   * function actually asks for and what this service can actually enforce:
+   * retention long enough to name in a policy, headroom it will not trip over,
+   * and a price that is a conversation.
+   *
+   * monthlyPriceMicros is 0 because there is no list price, not because it is
+   * free. `selfServe: false` is what makes that safe: checkout refuses it, so
+   * the zero can never be charged to anyone.
+   */
+  enterprise: {
+    id: 'enterprise',
+    name: 'Enterprise',
+    monthlyPriceMicros: 0,
+    includedEffects: 2_500_000,
+    // $0.70 per 1,000. Below Scale's rate for the same reason Scale is below
+    // Pro's: the volume is the discount, and a tier that collected MORE per
+    // effect than the one beneath it would be a penalty for growing.
+    overageMicrosPerEffect: 700,
+    rateLimitPerMinute: 30_000,
+    // 400 is the ceiling the effects table's own CHECK constraint allows, and a
+    // year plus a quarter is what a retention policy is usually written against.
+    maxRetentionDays: 400,
+    maxApiKeys: 500,
+    maxWebhookEndpoints: 100,
+    capabilities: {
+      reversibleGroups: true,
+      signedReceipts: true,
+      reconciliation: true,
+    },
+    selfServe: false,
   },
 };
+
+/** Plans a customer may put themselves on. The route schema is built from this. */
+export const SELF_SERVE_PLAN_IDS = (Object.keys(PLANS) as PlanId[])
+  .filter((id) => PLANS[id].selfServe && PLANS[id].monthlyPriceMicros > 0);
 
 export function planFor(id: string): Plan {
   return PLANS[id as PlanId] ?? PLANS.free;

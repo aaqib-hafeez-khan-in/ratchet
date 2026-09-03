@@ -176,3 +176,40 @@ a workspace with no card, a disabled setting, or a spent daily cap claims nothin
 charge path is `payment_intents` with `off_session` and `confirm`, and it has never taken
 real money. Enabling it on a production workspace is deliberately a human action.
 
+## Enterprise — sold, not bought (2 Sep 2026)
+
+A fourth plan, added because the fraud and risk controls brought a different
+**buyer**, not a different feature.
+
+**It withholds no control.** Every capability Scale has, Enterprise has, and
+nothing about per-destination ceilings, velocity limits, required dimensions or
+the two-key separation is gated by plan at all. That is deliberate and it is the
+line `plans.ts` already drew: a postmortem reading *"the ceiling exists, you were
+on the wrong plan"* would cost more than this tier could ever earn.
+
+What it is instead is limits and terms:
+
+| | Scale | Enterprise |
+|---|---|---|
+| Included effects | 250,000 | 2,500,000 |
+| Overage per 1,000 | $1.00 | $0.70 |
+| Rate limit | 3,000/min | 30,000/min |
+| Retention | 90 days | 400 days |
+| API keys | 100 | 500 |
+| Webhooks | 25 | 100 |
+
+400 days is the ceiling `effect_policies.retention_days` will accept — offering
+more would be a limit the service cannot honour.
+
+**`monthlyPriceMicros` is 0 because there is no list price, not because it is
+free.** What makes that safe is `selfServe: false`. `startSubscription` refuses
+any plan with that flag, so a checkout at zero per month with ten times Scale's
+limits cannot be created. The route's enum is *derived* from
+`SELF_SERVE_PLAN_IDS` rather than typed out, so a future tier cannot become
+purchasable because someone forgot a route.
+
+**Granting it is a script, not an endpoint:** `npm run set-plan <ws> enterprise`.
+A new authenticated write path that raises a customer's limits is a new way in,
+and the operator already has database access. The script writes an audit event
+and warns if the workspace has a live Stripe subscription that would overwrite
+the change on the next webhook.

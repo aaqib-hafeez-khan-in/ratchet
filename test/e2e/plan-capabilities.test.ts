@@ -171,9 +171,12 @@ describe('the pricing table cannot drift from the gates', () => {
     const r = await app.inject({ method: 'GET', url: '/v1/billing/plans' });
     assert.equal(r.statusCode, 200);
     const { plans } = JSON.parse(r.payload) as {
-      plans: { id: 'free' | 'pro' | 'scale'; capabilities: Record<string, boolean> }[];
+      plans: { id: keyof typeof PLANS; capabilities: Record<string, boolean> }[];
     };
-    assert.equal(plans.length, 3);
+    // Derived rather than a literal: adding a tier should not require editing
+    // this test, only passing it. Every plan the code knows about must be
+    // published, or a tier exists that nobody can see.
+    assert.deepEqual(plans.map((p) => p.id).sort(), Object.keys(PLANS).sort());
 
     for (const published of plans) {
       const code = PLANS[published.id].capabilities;

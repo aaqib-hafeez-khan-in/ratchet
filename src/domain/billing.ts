@@ -285,8 +285,28 @@ export async function chargeSavedCard(args: {
  * success URL is not proof that payment succeeded.
  */
 export async function startSubscription(
-  workspaceId: string, planId: 'pro' | 'scale',
+  workspaceId: string, planId: PlanId,
 ): Promise<CheckoutSession> {
+  /**
+   * The guard for a sold tier, and it is here rather than in the route.
+   *
+   * Enterprise has no list price — monthlyPriceMicros is 0 because there is no
+   * public number, not because it is free — so a checkout for it would create a
+   * subscription at nothing per month with ten times Scale's limits. The route's
+   * schema also constrains the enum, but a schema is a copy of this fact and
+   * copies drift. This is the one that has to hold.
+   */
+  const plan = PLANS[planId];
+  if (!plan) {
+    throw new BillingUnavailable(`Unknown plan "${planId}".`);
+  }
+  if (!plan.selfServe) {
+    throw new BillingUnavailable(
+      `${plan.name} is not sold through checkout. It is priced against what you are `
+      + 'protecting rather than a list rate, so it is arranged directly — write to '
+      + 'hello@ratchetgate.com.');
+  }
+
   const gap = stripeSetupGap();
   if (gap) {
     throw new BillingUnavailable(
@@ -297,7 +317,6 @@ export async function startSubscription(
       'No payment provider is configured, so plans cannot be purchased on this instance.');
   }
 
-  const plan = PLANS[planId];
   const base = config.publicUrl.replace(/\/$/, '');
   const session = await stripePost('/checkout/sessions', {
     mode: 'subscription',

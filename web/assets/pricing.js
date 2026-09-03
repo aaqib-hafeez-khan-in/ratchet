@@ -35,7 +35,7 @@ const capabilityList = (p) => `
         <span class="visually-hidden">${on ? 'included' : 'not included'}</span>
       </li>`;
     }).join('')}
-  </ul>
+  </ul>`;
 
 try {
   const res = await fetch('/v1/billing/plans');
@@ -45,7 +45,9 @@ try {
     <div class="card">
       <h3>${esc(p.name)}</h3>
       <p style="font-size:1.9rem;font-weight:640;letter-spacing:-0.03em;margin:0.2rem 0 0.1rem">
-        ${usd(p.monthly_price_micros)}<span class="faint" style="font-size:0.95rem;font-weight:400">${p.monthly_price_micros ? '/mo' : ''}</span>
+        ${p.self_serve
+          ? `${usd(p.monthly_price_micros)}<span class="faint" style="font-size:0.95rem;font-weight:400">${p.monthly_price_micros ? '/mo' : ''}</span>`
+          : 'Custom'}
       </p>
       <p class="small faint" style="margin-bottom:1rem">
         ${p.included_effects.toLocaleString()} gated effects included
@@ -59,13 +61,19 @@ try {
       </dl>
       ${capabilityList(p)}
       <div class="actions">
-        <a class="btn ${p.id === 'free' ? 'secondary' : ''}"
-           href="/console${p.id === 'free' ? '' : `?plan=${encodeURIComponent(p.id)}`}">
-          ${p.id === 'free' ? 'Start free' : 'Subscribe to ' + esc(p.name)}</a>
+        ${p.self_serve
+          ? `<a class="btn ${p.id === 'free' ? 'secondary' : ''}"
+               href="/console${p.id === 'free' ? '' : `?plan=${encodeURIComponent(p.id)}`}">
+              ${p.id === 'free' ? 'Start free' : 'Subscribe to ' + esc(p.name)}</a>`
+          : '<a class="btn secondary" href="mailto:hello@ratchetgate.com'
+            + '?subject=Ratchet%20Enterprise">Talk to us</a>'}
       </div>
-      ${p.id === 'free' ? '' :
-        '<p class="small faint" style="margin:0.6rem 0 0">Billed monthly, cancel anytime. '
-        + 'Overage draws from prepaid credit, so it can never exceed what you loaded.</p>'}
+      ${p.id === 'free' ? '' : p.self_serve
+        ? '<p class="small faint" style="margin:0.6rem 0 0">Billed monthly, cancel anytime. '
+          + 'Overage draws from prepaid credit, so it can never exceed what you loaded.</p>'
+        : '<p class="small faint" style="margin:0.6rem 0 0">Priced against what you are '
+          + 'protecting rather than a list rate, so it is arranged directly. Every control '
+          + 'above ships on every plan &mdash; this tier is limits and terms, never safety.</p>'}
     </div>`).join('');
 
   const pr = data.provider;

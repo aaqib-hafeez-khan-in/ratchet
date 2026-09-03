@@ -11,7 +11,7 @@ import { CREDIT_PACKS, packById, startCheckout, settleTestCheckout,
          stripeIsTestKey, stripeSetupGap, reverseCredit, startSubscription,
          applySubscriptionEvent,
          BillingUnavailable, StripeError } from '../../domain/billing.js';
-import { PLANS } from '../../domain/plans.js';
+import { PLANS, SELF_SERVE_PLAN_IDS, type PlanId } from '../../domain/plans.js';
 import { cryptoEnabled, listAssets, createIntent, listIntents, submitTransaction,
          destinationFor, CryptoUnavailable } from '../../domain/crypto.js';
 import { verifyTransfer } from '../../worker/verify.js';
@@ -83,7 +83,11 @@ export default async function billingRoutes(app: FastifyInstance) {
       rate_limit_per_minute: p.rateLimitPerMinute,
       max_retention_days: p.maxRetentionDays,
       max_api_keys: p.maxApiKeys,
-      max_webhook_endpoints: p.maxWebhookEndpoints,
+        max_webhook_endpoints: p.maxWebhookEndpoints,
+        // Whether a customer can put themselves on it. The pricing page renders
+        // a checkout button or a conversation from this, rather than from a
+        // hardcoded plan id that would go stale the next time a tier is added.
+        self_serve: p.selfServe,
       // Published so the pricing page is generated from what is enforced rather
       // than written beside it. A tier table that drifts from the code is the
       // one kind of marketing copy that is also a broken promise.
@@ -290,7 +294,11 @@ export default async function billingRoutes(app: FastifyInstance) {
         + 'confirms the subscription — never on the browser returning to the success URL.',
       body: {
         type: 'object', required: ['plan_id'], additionalProperties: false,
-        properties: { plan_id: { type: 'string', enum: ['pro', 'scale'] } },
+        // Derived, not written out: a plan that is not self-serve must never
+        // become purchasable because someone added it to PLANS and forgot a
+        // route. The domain refuses it too; this makes the OpenAPI document
+        // tell the truth about which plans a caller may actually buy.
+        properties: { plan_id: { type: 'string', enum: SELF_SERVE_PLAN_IDS } },
       },
       response: {
         200: { type: 'object', additionalProperties: true },
@@ -300,7 +308,7 @@ export default async function billingRoutes(app: FastifyInstance) {
     },
   }, async (req, reply) => {
     try {
-      const s = await startSubscription(wsOf(req), (req.body as { plan_id: 'pro' | 'scale' }).plan_id);
+      const s = await startSubscription(wsOf(req), (req.body as { plan_id: PlanId }).plan_id);
       return { provider: s.provider, session_id: s.sessionId, url: s.url, test_mode: s.testMode };
     } catch (err) {
       if (err instanceof BillingUnavailable) {
