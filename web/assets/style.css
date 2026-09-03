@@ -45,7 +45,17 @@
 
 * { box-sizing: border-box; }
 
-html { -webkit-text-size-adjust: 100%; }
+html {
+  -webkit-text-size-adjust: 100%;
+  /* The header is sticky, so an in-page anchor lands underneath it: following
+     a link to a heading put 32px of that heading behind the bar. Every #anchor
+     on the site was doing this — the footer's /docs#groups, the explainer's
+     #how — it simply had not been followed on a narrow screen and measured.
+     58px is the header's own height; the rest is breathing room. */
+  scroll-padding-top: calc(58px + 1.25rem);
+}
+/* The strip wraps to two rows below 640px, where the header measures ~81px. */
+@media (max-width: 640px) { html { scroll-padding-top: 6.25rem; } }
 
 body {
   margin: 0;

@@ -62,6 +62,33 @@ describe('the page must not scroll sideways', () => {
   });
 });
 
+describe('an in-page anchor must clear the sticky header', () => {
+  /**
+   * Found by following the pricing page's own "arranged directly" link on a
+   * phone: the heading landed 32px behind the header. Every #anchor on the site
+   * had the same problem — the footer's /docs#groups, the explainer's #how — it
+   * had simply never been followed on a narrow screen and measured.
+   */
+  test('scroll-padding-top is set, and accounts for the header', () => {
+    const rule = topLevelRule('html');
+    assert.match(rule, /scroll-padding-top/,
+      'without this a sticky header covers whatever an anchor scrolls to');
+    assert.match(rule, /58px/,
+      'the offset should be derived from the header height, not a guessed number');
+  });
+
+  test('the taller wrapped header on a phone gets a larger offset', () => {
+    assert.match(css, /@media \(max-width: 640px\) \{ html \{ scroll-padding-top/,
+      'the nav strip wraps to two rows below 640px, so the header is ~81px there');
+  });
+
+  test('the header height the offset assumes is the header height', () => {
+    const header = topLevelRule('header.site .wrap');
+    assert.match(header, /height:\s*58px/,
+      'if the header height changes, the anchor offset has to change with it');
+  });
+});
+
 describe('a pinned beat must fit the visible viewport', () => {
   const pin = topLevelRule('.stage-pin');
 
