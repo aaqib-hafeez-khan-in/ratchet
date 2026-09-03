@@ -32,11 +32,11 @@ Works with Claude Desktop, Claude Code, Cursor, and any MCP client that spawns a
 |---|---|
 | `ratchet_begin_effect` | Ask permission before a side effect. Returns `execute`, `duplicate`, `in_flight`, `blocked`, `approval_required`, or `denied` |
 | `ratchet_report_effect` | Report the outcome after acting |
-| `ratchet_check_effect` | Ask "did I already do this?" without reserving anything |
+| `ratchet_get_effect` | Ask "did I already do this?" without reserving anything |
 | `ratchet_resolve_effect` | Settle an effect whose outcome was unknown, after verifying |
 | `ratchet_list_effects` | Review recent effects; filter by `indeterminate` to find unresolved work |
 | `ratchet_get_policy` | Read the retry and budget policy for an effect type |
-| `ratchet_usage` | Plan, allowance, credit balance, and today's spend |
+| `ratchet_get_usage` | Plan, allowance, credit balance, and today's spend |
 
 Only `execute` authorises the model to act. Every other decision returns a `next_step` beginning
 with `STOP`.

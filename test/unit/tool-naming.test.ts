@@ -14,6 +14,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { MCP_TOOLS as TOOLS } from '../../src/mcp/tools.js';
 
 /** Every verb a tool may start with. Adding one here should be a decision. */
@@ -77,6 +78,63 @@ describe('tool naming', () => {
     for (const t of TOOLS) {
       assert.ok(t.description && t.description.length > 60,
         `${t.name} has no usable description`);
+    }
+  });
+});
+
+/**
+ * The published README is a contract surface too.
+ *
+ * `packages/ratchet-mcp/README.md` ships inside the npm tarball, so it is the
+ * first thing anyone reads on the package page. When the tools were renamed it
+ * was not renamed with them, and 0.2.0 went out documenting two tools that no
+ * longer existed — a reader following it would have called a name the server
+ * rejects. The rename tests above only ever looked at the source.
+ */
+describe('documented names are real names', () => {
+  const real = new Set(names);
+
+  /** Every surface a user reads a tool name from, published or on the site. */
+  const surfaces = [
+    'README.md',
+    'packages/ratchet-mcp/README.md',
+    'web',
+    'examples',
+  ];
+
+  const root = new URL('../../', import.meta.url);
+
+  function filesUnder(rel: string): string[] {
+    const path = new URL(rel, root);
+    if (!existsSync(path)) return [];
+    if (!statSync(path).isDirectory()) return [rel];
+    return readdirSync(path, { recursive: true, encoding: 'utf8' })
+      .map((f) => `${rel}/${f}`)
+      .filter((f) => statSync(new URL(f, root)).isFile())
+      .filter((f) => /\.(md|html|js|ts|py|json|sh)$/.test(f));
+  }
+
+  test('no user-facing file names a tool that does not exist', () => {
+    const bad: string[] = [];
+    for (const surface of surfaces) {
+      for (const file of filesUnder(surface)) {
+        const text = readFileSync(new URL(file, root), 'utf8');
+        for (const m of text.matchAll(/ratchet_[a-z_]+/g)) {
+          if (!real.has(m[0])) bad.push(`${file} names ${m[0]}`);
+        }
+      }
+    }
+    assert.deepEqual(bad, [],
+      'a reader following these would call a name the server rejects');
+  });
+
+  test('the published README documents only current names', () => {
+    const readme = readFileSync(
+      new URL('packages/ratchet-mcp/README.md', root), 'utf8');
+    const documented = [...readme.matchAll(/`(ratchet_[a-z_]+)`/g)].map((m) => m[1]!);
+    assert.ok(documented.length >= 5, 'the tool table should still be there');
+    for (const n of documented) {
+      assert.ok(real.has(n), `the npm package page documents ${n}, which does not exist`);
     }
   });
 });
