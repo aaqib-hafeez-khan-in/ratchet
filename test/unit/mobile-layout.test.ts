@@ -125,6 +125,34 @@ describe('a select is drawn by us, not by the operating system', () => {
   });
 });
 
+/**
+ * The API has always accepted daily_budget_micros when minting a key; the
+ * console form only ever sent name and scopes. So the advice "give that key a
+ * small daily budget" — correct advice, for a key you are handing to someone
+ * else's infrastructure — described a field that did not exist.
+ */
+describe('a key can be given a budget where keys are made', () => {
+  const js = readFileSync(new URL('../../web/assets/console.js', import.meta.url), 'utf8');
+
+  test('the form has the field', () => {
+    assert.match(js, /id="key-budget"/,
+      'the ceiling is settable over the API and was not settable in the console');
+  });
+
+  test('it is sent, and empty means no ceiling rather than a ceiling of zero', () => {
+    assert.match(js, /daily_budget_micros:/);
+    assert.match(js, /\? null : Math\.round/,
+      'a budget of zero would refuse every declared spend the key ever made');
+  });
+
+  test('the table shows which keys have one', () => {
+    assert.match(js, /'Daily budget'/,
+      'a key with no ceiling should be visibly a key with no ceiling');
+    assert.match(js, /k\.dailyBudgetMicros/,
+      '/v1/keys returns the domain object directly, so its wire shape is camelCase');
+  });
+});
+
 describe('an in-page anchor must clear the sticky header', () => {
   /**
    * Found by following the pricing page's own "arranged directly" link on a

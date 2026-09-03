@@ -939,13 +939,24 @@ const PANELS = {
               <option value="effects:read,workspace:read">Read only</option>
             </select>
           </div>
+          <div style="flex:1;min-width:190px">
+            <label for="key-budget">Daily budget (USD)</label>
+            <input id="key-budget" type="number" min="0" step="0.01" placeholder="no limit">
+          </div>
           <button class="btn" type="submit">Create key</button>
         </form>
-      </div>` + table(['Name', 'Prefix', 'Scopes', 'Last used', 'Status', ''],
+        <p class="small faint" style="margin:0.7rem 0 0;max-width:64ch">A hard ceiling on
+          external spend this key may declare per UTC day, on top of any per-effect-type
+          policy. Leave it empty for no limit. Worth setting on any key that leaves your own
+          infrastructure &mdash; a key you hand to a hosted sandbox should not be able to
+          declare more than you would miss.</p>
+      </div>` + table(['Name', 'Prefix', 'Scopes', 'Daily budget', 'Last used', 'Status', ''],
         data.map((k) => `<tr>
           <td>${esc(k.name)}</td>
           <td class="mono">${esc(k.prefix)}</td>
           <td class="small faint">${k.scopes.map(esc).join(', ')}</td>
+          <td class="mono">${k.dailyBudgetMicros == null
+            ? '<span class="faint">none</span>' : usd(k.dailyBudgetMicros)}</td>
           <td class="small faint">${when(k.lastUsedAt)}</td>
           <td>${k.revoked ? '<span class="pill stop">revoked</span>' : '<span class="pill go">active</span>'}</td>
           <td>${k.revoked ? '' : `<button class="btn small danger" data-revoke="${esc(k.id)}">Revoke</button>`}</td>
@@ -956,13 +967,24 @@ const PANELS = {
         try {
           const made = await api('/keys', {
             method: 'POST',
-            body: { name: $('key-name').value.trim(), scopes: $('key-scopes').value.split(',') },
+            body: {
+            name: $('key-name').value.trim(),
+            scopes: $('key-scopes').value.split(','),
+            // Empty means no ceiling, which is not the same as a ceiling of zero
+            // — that would refuse every declared spend the key ever made.
+            daily_budget_micros: $('key-budget').value.trim() === ''
+              ? null : Math.round(Number($('key-budget').value) * 1_000_000),
+          },
           });
           $('key-result').innerHTML =
             `<div class="notice good">Copy this now — it will not be shown again.</div>
              <div class="secret">${esc(made.api_key)}</div>`;
-          const rows = await api('/keys');
-          void rows;
+          // Re-render so the new key appears in the table with its budget. The
+          // secret is re-injected afterwards because the redraw clears it, and
+          // it is shown exactly once.
+          const secret = $('key-result').innerHTML;
+          await PANELS.keys();
+          $('key-result').innerHTML = secret;
         } catch (err) {
           $('key-result').innerHTML = `<div class="notice bad">${esc(err.message)}</div>`;
         }
