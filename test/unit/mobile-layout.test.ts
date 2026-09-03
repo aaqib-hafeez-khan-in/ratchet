@@ -75,6 +75,56 @@ describe('the page must not scroll sideways', () => {
   });
 });
 
+/**
+ * A select that keeps the native appearance is drawn by the OS, which honours
+ * background-color inconsistently and draws the option popup in system colours.
+ * On a dark theme that can leave the control looking like the page behind it —
+ * present, focusable, operable, and invisible. Reported from the console's API
+ * keys form, where the surrounding inputs rendered and the dropdown did not.
+ */
+describe('a select is drawn by us, not by the operating system', () => {
+  /**
+   * topLevelRule('select') finds `input, select {` first — the substring is in
+   * it — and that block is not the one under test. Anchor to a line start.
+   */
+  const selectRule = (() => {
+    const m = /\nselect \{([\s\S]*?)\}/.exec(css);
+    return m ? m[1]! : '';
+  })();
+
+  test('the native appearance is removed', () => {
+    const rule = selectRule;
+    assert.match(rule, /appearance:\s*none/,
+      'with menulist appearance the browser may ignore our background entirely');
+    assert.match(rule, /-webkit-appearance:\s*none/, 'Safari needs the prefix');
+  });
+
+  test('it does not sit on the same colour as the page', () => {
+    const rule = selectRule;
+    assert.match(rule, /background-color:\s*var\(--bg-sunk\)/,
+      'var(--bg) is the page itself, so the control would read as empty space');
+  });
+
+  test('having taken the chevron away, we draw one', () => {
+    const rule = selectRule;
+    assert.match(rule, /background-image:\s*url\("data:image\/svg/,
+      'appearance:none removes the arrow — without replacing it, nothing says '
+      + 'this field opens');
+    assert.match(rule, /padding-right/, 'and the text must not run under it');
+  });
+
+  test('the option popup is given colours too', () => {
+    assert.match(css, /select option \{[^}]*background:[^}]*color:/,
+      'the popup is an OS surface and falls back to system colours otherwise');
+  });
+
+  test('forced-colours users get their own control back', () => {
+    assert.match(css, /@media \(forced-colors: active\)[\s\S]{0,200}appearance:\s*auto/,
+      'overriding a high-contrast or forced-colour mode is how you break a '
+      + 'control for the people who most need it drawn their way');
+  });
+});
+
 describe('an in-page anchor must clear the sticky header', () => {
   /**
    * Found by following the pricing page's own "arranged directly" link on a

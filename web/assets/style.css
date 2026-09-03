@@ -291,6 +291,30 @@ input, select {
   background: var(--bg); color: var(--text);
   border: 1px solid var(--border-strong); border-radius: 8px;
 }
+/*
+ * A select kept the native `menulist` appearance, which several browsers honour
+ * by ignoring background-color outright and drawing the OS control instead. On a
+ * dark theme that can render as very nearly the page itself — the field is
+ * there, focusable and operable, and looks like empty space. Taking the
+ * appearance away means we draw all of it, so it looks the same everywhere.
+ */
+select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  background-color: var(--bg-sunk);
+  /* The chevron the native control was providing, now that we have removed it. */
+  background-image:
+    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23868d99' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2.2rem;
+  cursor: pointer;
+}
+/* The popup is drawn by the OS, which does not read our tokens unless told. */
+select option { background: var(--bg-raised); color: var(--text); }
+/* Forced-colours users get the system's own control back, intact. */
+@media (forced-colors: active) {
+  select { appearance: auto; -webkit-appearance: auto; background-image: none; padding-right: 0.7rem; }
+}
 fieldset { border: none; margin: 0; padding: 0; }
 .field { margin-bottom: 0.9rem; }
 .hint { font-size: 0.82rem; color: var(--text-faint); margin-top: 0.3rem; }
