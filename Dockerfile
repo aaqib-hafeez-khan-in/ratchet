@@ -6,7 +6,7 @@
 # The worker must NOT be deployed as a serverless function: it expires leases and
 # delivers webhooks on a timer, whether or not a request is in flight.
 
-FROM node:22-alpine AS build
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -14,12 +14,12 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
 
-FROM node:22-alpine AS deps
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-FROM node:22-alpine
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
 WORKDIR /app
 
 # Which commit this image was built from.

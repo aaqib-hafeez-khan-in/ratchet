@@ -13,7 +13,7 @@
 #   docker build -f packages/ratchet-mcp/Dockerfile -t ratchet-mcp .
 #   docker run --rm -i -e RATCHET_API_KEY=rk_live_... ratchet-mcp
 
-FROM node:22-alpine
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
 
 # Nothing here needs root, and an MCP server is handed untrusted text by design.
 RUN addgroup -S mcp && adduser -S mcp -G mcp
