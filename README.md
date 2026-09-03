@@ -27,6 +27,20 @@ Only `execute` authorises the caller to act.
 
 ---
 
+
+## Project documents
+
+| | |
+|---|---|
+| [Architecture](docs/handoff/ARCHITECTURE.md) | High-level design — what the gate is and what it deliberately is not |
+| [Assurance case](ASSURANCE_CASE.md) | Threat model, trust boundaries, and the argument for each security requirement — including what is *not* defended |
+| [Roadmap](ROADMAP.md) | What the next year holds, and what will never be built |
+| [Governance](GOVERNANCE.md) | Who decides, and what happens if they stop |
+| [Contributing](CONTRIBUTING.md) | How to report a bug or propose a change |
+| [Security policy](SECURITY.md) | How to report a vulnerability, and how fast you hear back |
+| [Code of conduct](CODE_OF_CONDUCT.md) | What is expected, and who to tell |
+| [Known limitations](docs/handoff/KNOWN_LIMITATIONS.md) | Everything that is not true yet, stated plainly |
+
 ## The part that matters
 
 If your process dies between "go" and "done", most systems quietly let the next caller retry.

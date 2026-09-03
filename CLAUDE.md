@@ -203,7 +203,9 @@ A change to any of these **must** come with a test:
 state transitions · authorization · tenant isolation · idempotency and replay · rate limits ·
 billing idempotency · SSRF · webhook signing · lease fencing.
 
-Do not claim coverage percentages — no coverage tool is configured. Do not claim measured
+Coverage IS measured now: `npm run coverage` runs c8 over the unit and integration
+suites and fails below 80% statements or 75% branches. Quote the number it prints, never
+one you remember — it moves. Do not claim measured
 performance without running `scripts/bench.ts` and quoting the actual output.
 
 ---
