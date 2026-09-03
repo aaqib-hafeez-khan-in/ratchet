@@ -13,7 +13,7 @@
     "dev:worker": "tsx watch src/worker/main.ts",
     "dev:db": "bash scripts/dev-db.sh up",
     "dev:db:down": "bash scripts/dev-db.sh down",
-    "build": "tsc -p tsconfig.json && cp -r src/db/migrations dist/db/migrations",
+    "build": "tsc -p tsconfig.json && rm -rf dist/db/migrations && mkdir -p dist/db && cp -r src/db/migrations dist/db/migrations",
     "start": "node dist/api/server.js",
     "start:worker": "node dist/worker/main.js",
     "mcp:stdio": "tsx src/mcp/stdio.ts",

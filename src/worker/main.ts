@@ -8,6 +8,7 @@
  *
  * Multiple replicas are safe — every claim uses FOR UPDATE SKIP LOCKED.
  */
+import { readdir } from 'node:fs/promises';
 import { config, assertProductionSafety } from '../lib/config.js';
 import { closePool, getPool } from '../db/pool.js';
 import { drainExpiredLeases, collectExpiredEffects, collectStaleRecords } from './reaper.js';
@@ -112,8 +113,61 @@ function startWatchdog() {
   timers.push(timer);
 }
 
+/**
+ * Wait until the database has the schema this image expects.
+ *
+ * The worker sets MIGRATE_ON_BOOT=false and defers to the API, which means that
+ * on any deploy introducing a table, the worker can start its loops BEFORE the
+ * migration lands. A loop that then queries the new table fails, and because a
+ * failure leaves last_ok_at NULL it stays visible as "stalled" until the loop's
+ * next tick — an hour, for the hourly ones. Staging caught exactly that:
+ *
+ *   18:42:30  worker: reconciliation-due failed — relation ... does not exist
+ *   18:42:50  api:    migrated 037_scheduled_reconciliation.sql
+ *
+ * Twenty seconds, and an hour of false alarm behind it. So: compare the
+ * migrations on disk — the ones THIS image was built with — against the ones
+ * recorded as applied, and hold the loops until they match.
+ *
+ * Bounded, and it starts anyway on timeout. A worker that refuses to expire
+ * leases because it is waiting for a migration that is never coming has turned
+ * a deploy-ordering nuisance into an outage.
+ */
+async function awaitSchema(timeoutMs = 120_000): Promise<void> {
+  const dir = new URL('../db/migrations/', import.meta.url);
+  const wanted = (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort();
+  if (wanted.length === 0) return;
+  const newest = wanted[wanted.length - 1]!;
+  const deadline = Date.now() + timeoutMs;
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const { rows } = await getPool().query<{ present: boolean }>(
+        `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE name = $1) AS present`,
+        [newest]);
+      if (rows[0]?.present) {
+        if (attempt > 0) log('info', 'schema ready', { waitedMs: timeoutMs - (deadline - Date.now()) });
+        return;
+      }
+    } catch {
+      // schema_migrations itself may not exist yet on a first-ever boot.
+    }
+    if (Date.now() >= deadline) {
+      log('error', 'starting without the expected schema', {
+        expected: newest,
+        detail: 'the API has not applied it within the wait window; loops that '
+          + 'need it will fail and say so',
+      });
+      return;
+    }
+    if (attempt === 0) log('info', 'waiting for the API to apply migrations', { expected: newest });
+    await new Promise((r) => setTimeout(r, 2_000));
+  }
+}
+
 async function main() {
   await getPool().query('SELECT 1');
+  await awaitSchema();
   log('info', 'worker started', {
     leaseSweepIntervalMs: config.worker.leaseSweepIntervalMs,
     webhookPollIntervalMs: config.worker.webhookPollIntervalMs,
