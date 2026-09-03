@@ -332,6 +332,14 @@ is holding. Begin is refused with `cost_required` instead.
 storing a control that reads as configured and does nothing. Equal to the ceiling is legal and
 means a one-amount band, since the ceiling refuses only what is strictly above it.
 
+**The run-budget figure on /fraud** (`#wallet`) makes an argument, so its arithmetic lives in
+`web/assets/wallet-model.js` and is asserted by `test/unit/wallet-figure.test.ts` rather than
+eyeballed. The claim is narrow: a daily ceiling hands the allowance back every midnight, a run
+budget never does, so `dailyOut(t) >= runOut(t)` at every instant. If that ever inverted the page
+would be an advert for daily ceilings drawn in Ratchet's own colours — and the last time a figure
+here taught the opposite of the truth, the only reason anyone found out was that a reader said
+so. The test fails if the invariant breaks.
+
 **Run budgets in the console.** `GET /v1/runs` · the Run budgets tab.
 
 `PUT /v1/runs/{run_id}/budget` moved from `requireKey` to **`requireConsole('policies:write')`**,

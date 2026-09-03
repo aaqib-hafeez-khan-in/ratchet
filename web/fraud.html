@@ -347,6 +347,67 @@
   </div>
 </section>
 
+<!-- ── the wallet that never refills ───────────────────────────────────── -->
+<section class="stage sunk" id="wallet"
+         aria-label="A daily ceiling resetting at midnight, against a run budget that never resets">
+  <div class="stage-pin">
+    <div class="wrap ceiling-wrap">
+      <div class="ceiling-head">
+        <div>
+          <p class="eyebrow">Why a wallet, and not a daily limit</p>
+          <h2>A loop cannot wait out a budget that never refills.</h2>
+        </div>
+        <span class="run-hint" id="walHint">scroll</span>
+      </div>
+      <p class="dim" style="max-width:58ch">
+        The same stuck agent, running for three days, trying to spend far more than either
+        limit allows. On the left it is bounded by a $200 <em>daily</em> ceiling. On the
+        right by a $200 <em>run</em> budget. Both refuse. Only one of them keeps refusing.
+      </p>
+      <canvas id="walCanvas" class="ceil-canvas" role="img"
+        aria-label="Cumulative money leaving, over three days. Under a daily ceiling the line climbs to two hundred dollars, flattens when the ceiling refuses, then climbs again after each midnight reset, reaching six hundred dollars. Under a run budget the line climbs to two hundred dollars once and stays flat, because the wallet never refills."></canvas>
+      <div class="tallies">
+        <div><span class="k">Day</span><span class="v" id="walDay">1</span></div>
+        <div><span class="k">Daily ceiling, out</span><span class="v bad" id="walDaily">$0</span></div>
+        <div><span class="k">Run budget, out</span><span class="v good" id="walRun">$0</span></div>
+        <div><span class="k">Difference</span><span class="v bad" id="walGap">$0</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap reading">
+    <p class="eyebrow">The same rule, said plainly</p>
+    <h2>A day is not a task.</h2>
+    <p>
+      A daily ceiling is a promise about calendar time, and a stuck agent has all the calendar
+      time in the world. It waits. At midnight the allowance returns and it spends the same
+      $200 again, and the loop that was supposed to be contained bleeds at exactly the rate
+      the ceiling permits &mdash; indefinitely.
+    </p>
+    <p>
+      A run budget is a promise about <em>one unit of work</em>. It never resets, so there is
+      nothing to wait for. Set it when you dispatch the job:
+      <code>PUT /v1/runs/{run_id}/budget</code>, and the gate refuses anything that would
+      carry that run past the total &mdash; before the money moves, which is the only moment
+      refusing is still cheap.
+    </p>
+    <p>
+      Lowering a limit below what a run has already spent claws nothing back. The money is
+      gone and the number does not pretend otherwise; it means nothing further may be spent.
+      And like every ceiling here, it counts what callers declare in
+      <code>estimated_cost_micros</code> &mdash; it is only ever as good as what they declare.
+      Both lines above are the arithmetic of those two rules, not a measurement of anything.
+    </p>
+    <p class="dim">
+      Every run, capped or not, is listed in <a href="/console">the console</a> &mdash;
+      including the ones with no ceiling at all, which are the ones worth looking at.
+    </p>
+  </div>
+</section>
+
+
 <section>
   <div class="wrap reading">
     <p class="eyebrow">The one thing that detects</p>
