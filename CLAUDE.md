@@ -214,9 +214,17 @@ billing idempotency · SSRF · webhook signing · lease fencing.
 Coverage IS measured: `npm run coverage` runs c8 over the unit and integration suites
 **through the same disposable-database harness as `npm test`** and fails below 80%
 statements, 75% branches, 80% lines or 80% functions. All four are set explicitly —
-c8 defaults `lines` to 90, which silently gated the command for weeks while the
-documented thresholds said otherwise. Quote the number it prints, never one you
-remember — it moves. Do not claim measured
+c8 defaults `lines` to 90, which silently gated the command while the documented
+thresholds said otherwise.
+
+It measures `src/**` and nothing else, which it did not always do: c8 counted every
+file it loaded, so 69 test files were in the denominator. Tests run themselves and
+scored 99.79%, lifting the reported figure to 85.68% while the code they exist to
+cover sat at 79.02%. If that number ever jumps without tests being written, check
+what is in the denominator before believing it.
+
+Quote the number it prints, never one you remember — it moves, and it currently sits
+within a hundredth of a point of the floor. Do not claim measured
 performance without running `scripts/bench.ts` and quoting the actual output.
 
 ---

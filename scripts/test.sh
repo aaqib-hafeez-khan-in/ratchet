@@ -49,8 +49,14 @@ npx tsc -p tsconfig.test.json
 
 if [ "$COVERAGE" = "1" ]; then
   echo "→ unit + integration, measured"
-  exec npx c8 --reporter=text-summary --reporter=lcov --src src --all \
-    --exclude "src/db/migrations/**" --check-coverage \
+  # --include, not just --src: c8 was measuring every file it loaded, which
+  # meant 69 test files were in the denominator. Tests run themselves, so they
+  # scored 99.79% and dragged the reported figure up to 85.68% while the code
+  # they exist to cover sat at 79.02%. The number was measuring the wrong thing.
+  exec npx c8 --reporter=text-summary --reporter=lcov --all \
+    --include "src/**" \
+    --exclude "src/db/migrations/**" --exclude "src/**/types.ts" \
+    --check-coverage \
     --statements 80 --branches 75 --lines 80 --functions 80 \
     node --test --test-concurrency=1 --import tsx \
       "test/unit/"*.test.ts "test/integration/"*.test.ts
