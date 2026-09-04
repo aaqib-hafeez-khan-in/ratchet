@@ -7,7 +7,7 @@ import { freshWorkspace, closePool, expireLease, getPool } from '../helpers.js';
 const { beginEffect, reportEffect, resolveEffect, cancelEffect, getEffect } =
   await import('../../src/domain/effects.js');
 const { upsertPolicy } = await import('../../src/domain/policy.js');
-const { sweepExpiredLeases } = await import('../../src/worker/reaper.js');
+const { sweepExpiredLeases, drainExpiredLeases } = await import('../../src/worker/reaper.js');
 
 let ws: Awaited<ReturnType<typeof freshWorkspace>>;
 
@@ -150,7 +150,12 @@ describe('the indeterminate path', () => {
   test('the worker reaper produces the same transition as the inline path', async () => {
     const a = await begin({ idempotencyKey: 'reap-1' });
     await expireLease(a.effectId);
-    const swept = await sweepExpiredLeases();
+    // drain, not one sweep: sweepExpiredLeases takes a batch of 50 ordered by
+    // expiry, so in a database holding more than that this effect — the newest —
+    // falls outside the batch and the assertion below reads 'pending'. The
+    // single sweep happened to be enough only while the database was nearly
+    // empty, which is a property of the test run, not of the reaper.
+    const swept = await drainExpiredLeases();
     assert.ok(swept >= 1);
     const e = await getEffect(getPool(), ws.workspaceId, a.effectId);
     assert.equal(e?.state, 'indeterminate');
@@ -265,7 +270,7 @@ describe('cancellation', () => {
   test('an indeterminate effect can be cancelled and then stays denied', async () => {
     const a = await begin({ idempotencyKey: 'cancel-3' });
     await expireLease(a.effectId);
-    await sweepExpiredLeases();
+    await drainExpiredLeases();
     await cancelEffect({ workspaceId: ws.workspaceId, effectId: a.effectId,
       actor: 'test', reason: 'abandoned' });
     const b = await begin({ idempotencyKey: 'cancel-3' });

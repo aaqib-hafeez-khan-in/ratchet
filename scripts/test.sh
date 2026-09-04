@@ -48,18 +48,31 @@ npx tsc -p tsconfig.json --noEmit
 npx tsc -p tsconfig.test.json
 
 if [ "$COVERAGE" = "1" ]; then
-  echo "→ unit + integration, measured"
-  # --include, not just --src: c8 was measuring every file it loaded, which
-  # meant 69 test files were in the denominator. Tests run themselves, so they
-  # scored 99.79% and dragged the reported figure up to 85.68% while the code
-  # they exist to cover sat at 79.02%. The number was measuring the wrong thing.
+  # All three suites, not just unit and integration. Files like mcp/handlers.ts
+  # and api/routes/oauth.ts are exercised almost entirely by e2e, so leaving it
+  # out reported them at 9% and 23.7% and understated the whole figure by ten
+  # points — the mirror of the earlier bug, where test files were in the
+  # denominator and overstated it by six.
+  #
+  # --include, not --src: c8 counts every file it loads, so `--src src` alone
+  # left all 69 test files being measured. They run themselves, scored 99.79%,
+  # and pulled the number up while the code they cover sat lower.
+  #
+  # Thresholds: 90 on statements and lines because the OpenSSF gold answer
+  # claims 90%, and a floor beneath a published claim lets the claim quietly
+  # become false. Branches jitter by a few hundredths between runs, so 78
+  # leaves room for that and not for a regression.
+  #
+  # Comments cannot go inside the continued command below; they become
+  # arguments and c8 prints its help instead of running.
+  echo "→ unit + integration + e2e, measured"
   exec npx c8 --reporter=text-summary --reporter=lcov --all \
     --include "src/**" \
     --exclude "src/db/migrations/**" --exclude "src/**/types.ts" \
     --check-coverage \
-    --statements 80 --branches 75 --lines 80 --functions 80 \
+    --statements 90 --branches 78 --lines 90 --functions 88 \
     node --test --test-concurrency=1 --import tsx \
-      "test/unit/"*.test.ts "test/integration/"*.test.ts
+      "test/unit/"*.test.ts "test/integration/"*.test.ts "test/e2e/"*.test.ts
 fi
 
 echo "→ unit"

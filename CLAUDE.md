@@ -211,20 +211,26 @@ A change to any of these **must** come with a test:
 state transitions · authorization · tenant isolation · idempotency and replay · rate limits ·
 billing idempotency · SSRF · webhook signing · lease fencing.
 
-Coverage IS measured: `npm run coverage` runs c8 over the unit and integration suites
-**through the same disposable-database harness as `npm test`** and fails below 80%
-statements, 75% branches, 80% lines or 80% functions. All four are set explicitly —
-c8 defaults `lines` to 90, which silently gated the command while the documented
-thresholds said otherwise.
+Coverage IS measured: `npm run coverage` runs c8 over **all three suites** through the
+same disposable-database harness as `npm test`, and fails below 90% statements,
+78% branches, 90% lines or 88% functions. All four are explicit — c8 defaults `lines`
+to 90 and leaves the rest at 0, so an unset threshold is not a neutral choice.
 
-It measures `src/**` and nothing else, which it did not always do: c8 counted every
-file it loaded, so 69 test files were in the denominator. Tests run themselves and
-scored 99.79%, lifting the reported figure to 85.68% while the code they exist to
-cover sat at 79.02%. If that number ever jumps without tests being written, check
-what is in the denominator before believing it.
+What it measures took two corrections, in opposite directions, and both were invisible
+from the summary line:
 
-Quote the number it prints, never one you remember — it moves, and it currently sits
-within a hundredth of a point of the floor. Do not claim measured
+- It counted every file it loaded, so 69 **test** files were in the denominator. Tests
+  run themselves, scored 99.79%, and lifted the reported figure to 85.68% while the
+  code they exist to cover sat at 79.02%. Now `--include "src/**"`.
+- It ran only unit and integration, so anything covered mainly by e2e looked untested
+  — `mcp/handlers.ts` read 9%, `api/routes/oauth.ts` 23.7%. That understated the whole
+  figure by about ten points. Now all three suites.
+
+If the number moves without tests being written, check what is in the denominator and
+which suites ran before believing it. Quote what it prints, never what you remember.
+
+The statements and lines floors are set at 90 deliberately: the OpenSSF gold answer
+claims 90%, and a floor beneath a published claim lets that claim quietly become false. Do not claim measured
 performance without running `scripts/bench.ts` and quoting the actual output.
 
 ---
