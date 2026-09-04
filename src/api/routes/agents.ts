@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 /**
  * Agent reliability: how well the callers behind this workspace actually behave.
  *

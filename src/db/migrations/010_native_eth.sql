@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Enable native ETH now that value transfers are verifiable.
 --
 -- Verification reads tx.to and tx.value directly, so only DIRECT wallet

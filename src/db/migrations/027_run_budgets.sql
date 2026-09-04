@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- A wallet for one unit of agent work.
 --
 -- Budgets already exist, bound to an API key or an effect type, and reset every

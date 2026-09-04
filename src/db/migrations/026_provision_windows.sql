@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Keyless workspace provisioning, counted where it cannot be forgotten.
 --
 -- The ceiling used to be a Map in the API process. Three things were wrong with

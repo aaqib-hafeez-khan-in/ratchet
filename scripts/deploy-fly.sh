@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Deimos.MX
 # One-command deploy to Fly.io.
 #
 #   brew install flyctl && fly auth login     # once, needs your browser

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 import { randomUUID } from 'node:crypto';
 
 // Tests run against a real Postgres. Configure BEFORE any module reads config.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 /**
  * Execute the integration recipes we hand out.
  *

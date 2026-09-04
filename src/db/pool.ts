@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 import pg from 'pg';
 import { config } from '../lib/config.js';
 

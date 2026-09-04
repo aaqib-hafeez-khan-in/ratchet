@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Non-custodial crypto payments.
 --
 -- Ratchet never holds a private key and never takes custody of funds. The

@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Declared dimensions, and the ceilings that can be keyed on them.
 --
 -- Until now a ceiling could be scoped to a workspace, an API key, or an effect

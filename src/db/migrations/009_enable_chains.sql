@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Enable the assets whose chains now have an operator-controlled receiving
 -- address. Each address was checksum-validated before being configured:
 -- EIP-55 for the EVM chains, bech32 for Bitcoin.

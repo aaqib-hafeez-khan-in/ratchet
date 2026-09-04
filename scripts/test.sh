@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Deimos.MX
 # Runs the full suite against a disposable Postgres database.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+# --coverage runs unit + integration under c8 instead of the full three suites.
+# It lives here rather than as its own npm script because the database setup
+# below is the whole point: the coverage run used to invoke the suites directly
+# with no DATABASE_URL of its own, so it ran against the development database
+# and inherited whatever rows were already there. That produced failures with
+# no relationship to the change being measured, three times in one afternoon.
+COVERAGE=0
+[ "${1:-}" = "--coverage" ] && COVERAGE=1
 
 PORT=${RATCHET_DB_PORT:-5433}
 export DATABASE_URL="postgres://ratchet:ratchet@127.0.0.1:${PORT}/ratchet_test"
@@ -35,6 +46,15 @@ npx tsc -p tsconfig.json --noEmit
 # never checked. A required field added to a domain type could go missing
 # from a fixture and only surface at runtime.
 npx tsc -p tsconfig.test.json
+
+if [ "$COVERAGE" = "1" ]; then
+  echo "→ unit + integration, measured"
+  exec npx c8 --reporter=text-summary --reporter=lcov --src src --all \
+    --exclude "src/db/migrations/**" --check-coverage \
+    --statements 80 --branches 75 --lines 80 --functions 80 \
+    node --test --test-concurrency=1 --import tsx \
+      "test/unit/"*.test.ts "test/integration/"*.test.ts
+fi
 
 echo "→ unit"
 node --test --import tsx "test/unit/"*.test.ts

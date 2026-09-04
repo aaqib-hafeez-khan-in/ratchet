@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Ratchet core schema.
 -- Design notes:
 --  * Every tenant-scoped table carries workspace_id and is always queried with it.

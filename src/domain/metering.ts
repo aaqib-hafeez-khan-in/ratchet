@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 import { ANONYMOUS_EFFECT_QUOTA } from './auth.js';
 import type { PoolClient } from 'pg';
 import type { Db } from '../db/pool.js';

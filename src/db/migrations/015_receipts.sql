@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Signed decision receipts.
 --
 -- A gate's value is invisible when it works: you never see the charge that did

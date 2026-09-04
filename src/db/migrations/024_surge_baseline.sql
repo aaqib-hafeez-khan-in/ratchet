@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Relative surge thresholds.
 --
 -- `surge_per_hour` requires knowing your own traffic. Most people do not, which

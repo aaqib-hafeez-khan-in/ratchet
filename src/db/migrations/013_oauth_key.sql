@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- An OAuth grant is backed by a real api_keys row.
 --
 -- Without this, an OAuth caller's key id fails the foreign key on

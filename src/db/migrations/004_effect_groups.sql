@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Reversible effect groups (agent sagas).
 --
 -- An agent declares that several effects form one unit of work and, for each,

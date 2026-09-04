@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 /**
  * Ratchet's own pricing. One meter: a *gated effect* — the first successful
  * begin() for a given (workspace, effect_type, idempotency_key).

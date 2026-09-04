@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Deimos.MX
 # Move from Fly Managed Postgres ($38/mo) to an unmanaged Postgres app (~$5/mo).
 #
 # Safe to run only while the database holds nothing worth keeping: this does NOT

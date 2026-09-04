@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 import { randomBytes, createHmac } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { getPool, withTx, type Db } from '../db/pool.js';

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Deimos.MX
 # Ship the repository itself off-machine, beside the database backups.
 #
 # The database already has two independent backups. The CODE had exactly one

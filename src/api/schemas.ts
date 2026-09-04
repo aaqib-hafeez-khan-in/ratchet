@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 /**
  * JSON Schemas shared by route definitions. Fastify validates requests and
  * serializes responses against these, and @fastify/swagger derives the OpenAPI

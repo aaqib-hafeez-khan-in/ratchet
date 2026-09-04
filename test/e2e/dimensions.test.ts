@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 /**
  * Dimensions over real HTTP: the wire contract, and the refusals a caller sees.
  */

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 /**
  * A dead link on a marketing page is a small bug that reads as carelessness,
  * and a placeholder like github.com/OWNER/... shipped to production reads as

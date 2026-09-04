@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- A provider quota is a temporary condition, and until now it was fatal.
 --
 -- Resend's daily quota resets at UTC midnight. The retry ladder tops out at 30

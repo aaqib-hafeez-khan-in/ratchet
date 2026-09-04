@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Key rotation for receipts.
 --
 -- The signing key is derived from AUTH_SECRET. Rotating that secret — which an

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Deimos.MX
 # Refuses to let a deploy proceed unless the build is sound and the
 # configuration is safe. Run by deploy-fly.sh; safe to run on its own.
 set -euo pipefail

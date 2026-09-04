@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 /**
  * A rate-limit store that is shared across instances without putting the
  * database on the request path.

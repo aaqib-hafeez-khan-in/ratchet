@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Verifying the address the free plan is attached to.
 --
 -- Claiming a workspace wrote owner_email and lifted the cap from 100 effects to

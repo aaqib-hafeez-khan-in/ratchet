@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Two facts we were throwing away, and the index to read them by agent.
 --
 -- Both are written by the UPDATE that grants a lease, so neither costs a round

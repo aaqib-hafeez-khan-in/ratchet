@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- A fourth plan, and the only one that cannot be bought.
 --
 -- Enterprise exists because the fraud and risk controls brought a different

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 import { candidates, claimRecharge, settle, disable } from '../domain/auto-recharge.js';
 import { chargeSavedCard } from '../domain/billing.js';
 import { config } from '../lib/config.js';

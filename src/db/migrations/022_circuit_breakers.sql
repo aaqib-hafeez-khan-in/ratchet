@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Surge containment: stop an agent that has started doing far more than it ever
 -- did before, without stopping the ones behaving normally.
 --

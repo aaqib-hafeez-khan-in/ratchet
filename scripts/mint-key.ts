@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 /** Mint an API key under an existing workspace, for local demos. */
 import 'dotenv/config';
 import { getPool, closePool } from '../src/db/pool.js';

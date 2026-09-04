@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Receipt retention, and making a receipt self-contained.
 --
 -- TWO PROBLEMS.

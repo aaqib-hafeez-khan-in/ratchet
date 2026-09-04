@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 /**
  * OAuth 2.1 with PKCE and Dynamic Client Registration.
  *

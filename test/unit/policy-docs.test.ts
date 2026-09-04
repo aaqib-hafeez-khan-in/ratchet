@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 /**
  * The policy reference table on /docs is a contract surface, and it drifted.
  *

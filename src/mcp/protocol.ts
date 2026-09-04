@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 /**
  * Minimal, spec-faithful MCP JSON-RPC handling shared by both transports.
  * Kept dependency-free so the same code path serves the HTTP endpoint inside

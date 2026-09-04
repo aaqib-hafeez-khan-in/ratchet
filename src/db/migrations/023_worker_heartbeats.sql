@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Proof that the worker is not merely alive, but actually working.
 --
 -- The worker must be long-running: it expires leases on a timer whether or not

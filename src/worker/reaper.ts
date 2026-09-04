@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 import { withTx, getPool } from '../db/pool.js';
 import { enqueueEvent } from '../domain/events.js';
 import { adjustSpend } from '../domain/budget.js';

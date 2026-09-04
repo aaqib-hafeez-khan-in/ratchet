@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { withTx, getPool } from '../db/pool.js';
 import { addCredit } from './metering.js';

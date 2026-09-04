@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 /**
  * The path from "signed up" to "gated an effect", and the ways it goes wrong.
  *

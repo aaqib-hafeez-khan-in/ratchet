@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 /**
  * Minimal S3 PUT with AWS SigV4, for shipping a verified backup off-machine.
  *

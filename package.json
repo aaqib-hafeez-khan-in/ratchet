@@ -51,8 +51,7 @@
     "schema:check": "node scripts/build-schema.mjs --check",
     "bench:ab": "tsx scripts/ab-benchmark.ts",
     "set-plan": "tsx scripts/set-plan.ts",
-    "coverage": "c8 --reporter=text-summary --reporter=lcov --src src --all --exclude \"src/db/migrations/**\" --check-coverage --statements 80 --branches 75 npm run test:cov",
-    "test:cov": "tsx --test --test-concurrency=1 test/unit/*.test.ts test/integration/*.test.ts",
+    "coverage": "bash scripts/test.sh --coverage",
     "fuzz": "FUZZ_RUNS=${FUZZ_RUNS:-25000} tsx --test test/unit/fuzz-*.test.ts"
   },
   "dependencies": {

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 /**
  * Moving to a real domain introduces two ways to break things quietly: a
  * redirect that mangles an API call, and a security.txt that silently expires.

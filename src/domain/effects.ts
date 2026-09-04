@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 import type { PoolClient } from 'pg';
 import { withTx, type Db } from '../db/pool.js';
 import { newId, canonicalFingerprint, constantTimeEqual, normalizeText } from '../lib/ids.js';

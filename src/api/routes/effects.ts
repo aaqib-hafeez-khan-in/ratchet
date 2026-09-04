@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 import type { FastifyInstance } from 'fastify';
 import { beginEffect, reportEffect, extendLease, resolveEffect, cancelEffect,
          decideApproval, getEffect, lookupEffect, listEffects } from '../../domain/effects.js';

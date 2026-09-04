@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Let an operator require a declared cost.
 --
 -- Budget ceilings are computed from the cost the caller declares on begin. That

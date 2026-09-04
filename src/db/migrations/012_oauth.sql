@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- OAuth 2.1 + Dynamic Client Registration, for MCP clients and connector
 -- directories that cannot ask a user to paste an API key.
 --

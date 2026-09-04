@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 // Exercise the API with production-shaped webhook rules (https only, no private

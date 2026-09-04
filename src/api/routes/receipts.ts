@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Deimos.MX
 import { stricterThan } from '../rate-limit.js';
 /**
  * Receipts, chain audit, and reconciliation.

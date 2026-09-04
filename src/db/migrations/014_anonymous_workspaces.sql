@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright 2026 Deimos.MX
 -- Keyless first contact.
 --
 -- An agent that discovers this service through the registry cannot use it: it
