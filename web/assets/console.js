@@ -111,13 +111,28 @@ const usd = (m) => {
     : `$${v.toFixed(2)}`;
 };
 const num = (n) => (n ?? 0).toLocaleString();
+const CHAIN_NAMES = {
+  solana: 'Solana', ethereum: 'Ethereum', base: 'Base', bitcoin: 'Bitcoin',
+};
+const chainName = (c) => CHAIN_NAMES[c] ?? c;
+/**
+ * A relative time, pointing whichever way the timestamp actually points.
+ *
+ * This assumed the past and appended "ago" unconditionally, which is right for
+ * created_at and updated_at and wrong for a deadline: a crypto quote issued
+ * seconds earlier rendered as "Quote expires -900s ago", telling somebody about
+ * to move real money that their quote had already lapsed.
+ */
 const when = (iso) => {
   if (!iso) return '—';
   const d = new Date(iso);
   const secs = Math.round((Date.now() - d.getTime()) / 1000);
-  if (secs < 60) return `${secs}s ago`;
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+  const ahead = secs < 0;
+  const n = Math.abs(secs);
+  const say = (v, unit) => (ahead ? `in ${v}${unit}` : `${v}${unit} ago`);
+  if (n < 60) return say(n, 's');
+  if (n < 3600) return say(Math.floor(n / 60), 'm');
+  if (n < 86400) return say(Math.floor(n / 3600), 'h');
   return d.toLocaleDateString();
 };
 
@@ -126,6 +141,37 @@ const STATE_PILL = {
   pending: 'wait', awaiting_approval: 'wait', indeterminate: 'unk',
 };
 const pill = (state) => `<span class="pill ${STATE_PILL[state] ?? 'flat'}">${esc(state)}</span>`;
+
+/**
+ * Spend against a ceiling.
+ *
+ * A run with no ceiling gets no bar. An empty track would read as "nothing
+ * spent", which is the opposite of what is true — nothing is BOUNDING it — and a
+ * meter that lies in the reassuring direction is worse than no meter.
+ */
+const spendCell = (r) => {
+  if (r.limit_micros == null) {
+    return `<span class="mono">${usd(r.spent_micros)}</span>`
+      + ` <span class="spend-none" title="Summed from estimated_cost_micros on this run's`
+      + ` effects. The gate did not enforce against it, because no ceiling was set.">declared</span>`;
+  }
+  const pct = r.limit_micros === 0 ? 100
+    : Math.min(100, Math.round((r.spent_micros / r.limit_micros) * 100));
+  const tone = pct >= 100 ? 'full' : pct >= 80 ? 'near' : '';
+  // A ceiling opened part-way through a run starts its ledger at zero, so the
+  // wallet can read $0.00 on a run that has already spent hundreds. Saying only
+  // the enforced number would reassure in the one direction this page must never
+  // reassure, so the earlier spend is named where it cannot be missed.
+  const before = r.declared_micros - r.spent_micros;
+  const earlier = before > 0
+    ? ` <span class="spend-none" title="Declared on this run before the ceiling existed.` +
+      ` The wallet did not count it, because it was not open yet.">+${usd(before)} before</span>`
+    : '';
+  return `<div class="spend"><span class="mono">${usd(r.spent_micros)}</span>
+    <span class="spend-track" role="img"
+      aria-label="${pct}% of ceiling spent"><span class="spend-fill ${tone}"
+      style="width:${pct}%"></span></span></div>${earlier}`;
+};
 
 const empty = (msg, hint) =>
   `<div class="empty"><p style="margin:0 0 0.3rem">${esc(msg)}</p>${
@@ -571,6 +617,83 @@ const PANELS = {
 
   reliability,
 
+  /**
+   * Run budgets.
+   *
+   * Unbudgeted runs are listed alongside budgeted ones, and that is the whole
+   * point of the page: the job quietly spending with nothing bounding it is the
+   * row you came here to find, and a list filtered to wallets would never show
+   * it. Their spend is summed from what callers declared rather than counted by
+   * the gate, so it is labelled as an estimate — showing the two as one number
+   * would be a small lie on a page about honesty.
+   */
+  async runs() {
+    loading();
+    try {
+      const { runs } = await api('/runs?days=7&limit=100');
+      const head = `<div style="padding:1.25rem 1.25rem 0">
+        <p class="small dim" style="max-width:72ch">A wallet for one unit of work. Daily
+        ceilings reset at midnight and a task is not a day, so a run budget never resets:
+        a loop cannot wait it out. The agent may <em>read</em> what it has left, which is
+        what lets it take a cheaper path or stop cleanly, but raising it needs
+        <code>policies:write</code> &mdash; an agent key does not have it.</p>
+        <p class="small faint" style="max-width:72ch">Counts what callers declare in
+        <code>estimated_cost_micros</code>, so it is only ever as good as what they declare.
+        Runs with no ceiling are listed too; their spend is what was declared, not something
+        the gate enforced.</p></div>`;
+
+      if (!runs.length) {
+        return panel(head + empty('No runs in the last 7 days.',
+          'Send <code>run_id</code> on <code>POST /v1/effects/begin</code> and each unit of '
+          + 'work will appear here, whether or not you have capped it.'));
+      }
+
+      panel(head + table(
+        ['Run', 'Agent', 'Effects', 'Spent', 'Ceiling', 'Left', 'Last seen', ''],
+        runs.map((r) => `<tr>
+          <td class="mono" title="${esc(r.run_id)}">${esc(r.run_id.slice(0, 28))}</td>
+          <td class="small faint">${esc(r.agent_ids[0] ?? '—')}${
+            r.agent_ids.length > 1 ? ` <span class="faint">+${r.agent_ids.length - 1}</span>` : ''}</td>
+          <td>${num(r.effects)}</td>
+          <td>${spendCell(r)}</td>
+          <td class="mono">${r.limit_micros == null
+            ? '<span class="spend-none">no ceiling</span>' : usd(r.limit_micros)}</td>
+          <td class="mono">${r.remaining_micros == null ? '—'
+            : r.exhausted ? '<span class="pill stop">spent</span>' : usd(r.remaining_micros)}</td>
+          <td class="small faint">${when(r.last_activity_at)}</td>
+          <td style="white-space:nowrap"><button class="btn small secondary"
+            data-run="${esc(r.run_id)}"
+            data-limit="${r.limit_micros == null ? '' : r.limit_micros}">${
+              r.limit_micros == null ? 'Set a ceiling' : 'Adjust'}</button></td>
+        </tr>`)));
+
+      for (const btn of $('panel').querySelectorAll('[data-run]')) {
+        btn.addEventListener('click', async () => {
+          const current = btn.dataset.limit
+            ? (Number(btn.dataset.limit) / 1_000_000).toFixed(2) : '50.00';
+          const answer = prompt(
+            `Total this run may spend at vendors, in dollars.\n\n`
+            + 'Lowering it below what is already spent claws nothing back — it means '
+            + 'nothing further may be spent.',
+            current);
+          if (answer === null) return;
+          const dollars = Number(answer.replace(/[$,\s]/g, ''));
+          if (!Number.isFinite(dollars) || dollars < 0) {
+            return failed(new Error(`"${answer}" is not an amount. Enter dollars, e.g. 50`));
+          }
+          btn.disabled = true;
+          try {
+            await api(`/runs/${encodeURIComponent(btn.dataset.run)}/budget`, {
+              method: 'PUT',
+              body: { limit_micros: Math.round(dollars * 1_000_000) },
+            });
+            await PANELS.runs();
+          } catch (err) { failed(err); }
+        });
+      }
+    } catch (err) { failed(err); }
+  },
+
   async attention() {
     loading();
     try {
@@ -792,7 +915,7 @@ const PANELS = {
         safe defaults: allowed, 60-second lease, 3 attempts, and <code>block</code> on an unknown
         outcome. Edit with <code>PUT /v1/policies/{effect_type}</code>.</p></div>`;
       panel(head + (data.length
-        ? table(['Effect type', 'Mode', 'On unknown outcome', 'Lease', 'Tries', 'Max cost', 'Daily budget', 'Retention'],
+        ? table(['Effect type', 'Mode', 'On unknown outcome', 'Lease', 'Tries', 'Max cost', 'Daily budget', 'Surge ceiling', 'Retention'],
             data.map((p) => `<tr>
               <td class="mono">${esc(p.effect_type)}</td>
               <td><span class="pill ${p.mode === 'deny' ? 'stop' : p.mode === 'require_approval' ? 'wait' : 'go'}">${esc(p.mode)}</span></td>
@@ -831,13 +954,24 @@ const PANELS = {
               <option value="effects:read,workspace:read">Read only</option>
             </select>
           </div>
+          <div style="flex:1;min-width:190px">
+            <label for="key-budget">Daily budget (USD)</label>
+            <input id="key-budget" type="number" min="0" step="0.01" placeholder="no limit">
+          </div>
           <button class="btn" type="submit">Create key</button>
         </form>
-      </div>` + table(['Name', 'Prefix', 'Scopes', 'Last used', 'Status', ''],
+        <p class="small faint" style="margin:0.7rem 0 0;max-width:64ch">A hard ceiling on
+          external spend this key may declare per UTC day, on top of any per-effect-type
+          policy. Leave it empty for no limit. Worth setting on any key that leaves your own
+          infrastructure &mdash; a key you hand to a hosted sandbox should not be able to
+          declare more than you would miss.</p>
+      </div>` + table(['Name', 'Prefix', 'Scopes', 'Daily budget', 'Last used', 'Status', ''],
         data.map((k) => `<tr>
           <td>${esc(k.name)}</td>
           <td class="mono">${esc(k.prefix)}</td>
           <td class="small faint">${k.scopes.map(esc).join(', ')}</td>
+          <td class="mono">${k.dailyBudgetMicros == null
+            ? '<span class="faint">none</span>' : usd(k.dailyBudgetMicros)}</td>
           <td class="small faint">${when(k.lastUsedAt)}</td>
           <td>${k.revoked ? '<span class="pill stop">revoked</span>' : '<span class="pill go">active</span>'}</td>
           <td>${k.revoked ? '' : `<button class="btn small danger" data-revoke="${esc(k.id)}">Revoke</button>`}</td>
@@ -848,13 +982,24 @@ const PANELS = {
         try {
           const made = await api('/keys', {
             method: 'POST',
-            body: { name: $('key-name').value.trim(), scopes: $('key-scopes').value.split(',') },
+            body: {
+            name: $('key-name').value.trim(),
+            scopes: $('key-scopes').value.split(','),
+            // Empty means no ceiling, which is not the same as a ceiling of zero
+            // — that would refuse every declared spend the key ever made.
+            daily_budget_micros: $('key-budget').value.trim() === ''
+              ? null : Math.round(Number($('key-budget').value) * 1_000_000),
+          },
           });
           $('key-result').innerHTML =
             `<div class="notice good">Copy this now — it will not be shown again.</div>
              <div class="secret">${esc(made.api_key)}</div>`;
-          const rows = await api('/keys');
-          void rows;
+          // Re-render so the new key appears in the table with its budget. The
+          // secret is re-injected afterwards because the redraw clears it, and
+          // it is shown exactly once.
+          const secret = $('key-result').innerHTML;
+          await PANELS.keys();
+          $('key-result').innerHTML = secret;
         } catch (err) {
           $('key-result').innerHTML = `<div class="notice bad">${esc(err.message)}</div>`;
         }
@@ -922,9 +1067,20 @@ const PANELS = {
             method: 'POST',
             body: { url: $('wh-url').value.trim(), events: $('wh-events').value.split(',') },
           });
-          $('wh-result').innerHTML =
+          /**
+           * Re-render, then put the secret back.
+           *
+           * Refreshing was skipped here because the panel rebuild would discard
+           * the signing secret, which is shown exactly once — losing an
+           * operator their only copy. The cost of not refreshing was worse: the
+           * table below still read "No endpoints." immediately after adding
+           * one, so the obvious next move was to add it again.
+           */
+          const added =
             `<div class="notice good">Endpoint added. Save the signing secret — shown once.</div>
              <div class="secret">${esc(made.signing_secret)}</div>`;
+          await PANELS.webhooks();
+          $('wh-result').innerHTML = added;
         } catch (err) {
           $('wh-result').innerHTML = `<div class="notice bad">${esc(err.message)}</div>`;
         }
@@ -1011,6 +1167,12 @@ const PANELS = {
       }
 
       // Crypto top-ups, when the instance is configured for them.
+    //
+    // The chain name is not decoration. USDC exists on Solana, Ethereum and Base
+    // under a different contract and a different destination address on each, so
+    // a panel labelling all three "$25 in USDC" shows three identical buttons
+    // where choosing wrong sends real money to a chain nobody is watching. The
+    // symbol on its own never identifies the payment.
       try {
         const c = await (await fetch('/v1/billing/crypto/assets')).json();
         if (c.enabled && c.assets.length) {
@@ -1021,7 +1183,8 @@ const PANELS = {
               controls. Quoted in USD, so a price move cannot change your credit.</p>
             <div class="actions">${c.assets.map((a) =>
               `<button class="btn secondary" data-crypto="${esc(a.token_mint)}">
-                 $25 in ${esc(a.symbol)}</button>`).join('')}</div>
+                 $25 in ${esc(a.symbol)} <span class="on-chain">on ${esc(chainName(a.chain))}</span>
+               </button>`).join('')}</div>
             <div id="crypto-result"></div>`;
           $('panel').appendChild(box);
           for (const b of box.querySelectorAll('[data-crypto]')) {
@@ -1033,7 +1196,12 @@ const PANELS = {
                 });
                 document.getElementById('crypto-result').innerHTML = `
                   <div class="notice">Send exactly <strong>${esc(i.amount)} ${esc(i.symbol)}</strong>
-                    with memo <code>${esc(i.memo)}</code>. Quote expires ${when(i.expires_at)}.</div>
+                    on the <strong>${esc(chainName(i.chain))}</strong> network${i.memo
+                      ? `, with memo <code>${esc(i.memo)}</code>` : ''}.
+                    Quote expires ${when(i.expires_at)}.</div>
+                  <p class="small dim" style="margin:.55rem 0 .3rem">This address takes
+                    ${esc(i.symbol)} on ${esc(chainName(i.chain))}. Sent on any other network
+                    it does not arrive here, and we cannot recover it.</p>
                   <div class="secret">${esc(i.destination)}</div>
                   <p class="small faint">${i.instructions.map(esc).join('<br>')}</p>`;
               } catch (err) {

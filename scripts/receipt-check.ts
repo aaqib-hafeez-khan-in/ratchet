@@ -6,6 +6,7 @@ const body = {
   v: RECEIPT_VERSION, workspace_id: 'ws_1', effect_id: 'eff_1',
   effect_type: 'payment.charge', idempotency_key: 'k', decision: 'execute',
   state: 'pending', attempt: 1, payload_fingerprint: 'abc',
+  cost_micros: 0, kid: 'test-kid',
   decided_at: new Date().toISOString(),
 };
 const s = signBody(body);

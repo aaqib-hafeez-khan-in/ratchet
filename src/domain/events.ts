@@ -12,6 +12,7 @@ export const EVENT_TYPES = [
   'effect.denied',
   'budget.exceeded',
   'circuit.tripped',
+  'reconciliation.due',
 ] as const;
 
 export type EventType = (typeof EVENT_TYPES)[number];

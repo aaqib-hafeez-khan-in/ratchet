@@ -59,6 +59,33 @@ export const config = {
   // Used to derive the API-key lookup pepper and console session ids.
   authSecret: req('AUTH_SECRET', 'dev-only-insecure-auth-secret-change-me'),
 
+  /**
+   * Secrets this deployment has rotated AWAY from, newest first.
+   *
+   * A key hashed under a retired secret still authenticates, and is re-hashed
+   * with the current one the first time it is used. Without this, rotating
+   * AUTH_SECRET invalidates every customer key at the same instant — which made
+   * the one action you must take after a suspected compromise the one action
+   * nobody could take. Drop a secret from this list once no key still carries
+   * its kid; `GET /metrics` reports the remaining count per kid.
+   */
+  retiredAuthSecrets: list('AUTH_SECRET_RETIRED'),
+
+  /**
+   * The pepper for blinding declared dimensions. Falls back to AUTH_SECRET.
+   *
+   * Separate because these two secrets protect different things and want
+   * different lifetimes. An API key hash may be re-derived on next use, so
+   * rotating it costs nothing. A blinded counterparty CANNOT be re-derived —
+   * the value it was made from is gone, deliberately — so changing this pepper
+   * does not invalidate ceilings, it silently RESETS them: every destination
+   * looks new, and a limit an operator believes is holding refuses nothing
+   * until spend re-accumulates. Pin this before rotating AUTH_SECRET, which
+   * assertProductionSafety refuses to start without.
+   */
+  dimensionSecret: process.env.DIMENSION_SECRET
+    || req('AUTH_SECRET', 'dev-only-insecure-auth-secret-change-me'),
+
   // Browser origins permitted to call the API with credentials.
   // Empty in production means "same-origin only".
   corsOrigins: list('CORS_ORIGINS'),
@@ -294,6 +321,32 @@ export function assertProductionSafety(): string[] {
   }
   if (config.authSecret.length < 32) {
     problems.push('AUTH_SECRET must be at least 32 characters in production.');
+  }
+  for (const [i, retired] of config.retiredAuthSecrets.entries()) {
+    if (retired.length < 32) {
+      problems.push(`AUTH_SECRET_RETIRED[${i}] is shorter than 32 characters — `
+        + 'a retired secret is still a live credential until every key has drained off it.');
+    }
+    if (retired === config.authSecret) {
+      problems.push('AUTH_SECRET_RETIRED contains the current AUTH_SECRET, '
+        + 'so nothing has actually been rotated.');
+    }
+  }
+  /**
+   * The trap this exists to close.
+   *
+   * Rotating AUTH_SECRET while dimensions still derive from it re-blinds every
+   * counterparty. Nothing errors: the ceilings still read as configured in the
+   * console and simply stop refusing, because every destination looks new. That
+   * is a security control failing silently OPEN, during the incident response
+   * that prompted the rotation. Pinning DIMENSION_SECRET to the pre-rotation
+   * value keeps every existing bucket addressable.
+   */
+  if (config.retiredAuthSecrets.length > 0 && !process.env.DIMENSION_SECRET) {
+    problems.push('AUTH_SECRET has been rotated but DIMENSION_SECRET is not set. '
+      + 'Set DIMENSION_SECRET to the AUTH_SECRET value that was in use when the '
+      + 'existing dimensions were blinded, or every per-counterparty ceiling '
+      + 'silently resets to zero.');
   }
   if (config.webhook.allowPrivateNetwork) {
     problems.push('WEBHOOK_ALLOW_PRIVATE_NETWORK must be off in production.');

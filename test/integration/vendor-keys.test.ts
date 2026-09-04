@@ -119,7 +119,8 @@ describe('vendor key through the gate', () => {
 
     await reportEffect({
       workspaceId: ws.workspaceId, effectId: first.effectId,
-      leaseToken: first.leaseToken!, outcome: 'failed', error: 'card declined',
+      leaseToken: first.leaseToken!, outcome: 'failed', failureReason: 'card declined',
+    apiKeyId: ws.key.id, apiKeyPrefix: ws.key.prefix,
     });
 
     const retry = await begin(key, 'stripe');

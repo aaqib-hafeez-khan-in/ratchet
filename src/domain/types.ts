@@ -35,6 +35,30 @@ export interface Policy {
   /** Refuse a begin for this effect type unless it declares a cost. */
   requireCost: boolean;
   /**
+   * Declared cost at or above which begin holds the effect for a human instead
+   * of granting a lease. Null disables it.
+   *
+   * Sits below maxCostMicros, which refuses outright: allow up to here, hold
+   * between here and the ceiling, refuse above it. It only ever RAISES the
+   * decision — an amount under the threshold never turns require_approval back
+   * into allow.
+   *
+   * Keys on the amount the caller declared, so it carries the same exposure
+   * maxCostMicros always has: under-declare and you land under the line. Setting
+   * it therefore implies requireCost, and reconciliation is what catches a
+   * declaration that was not true.
+   */
+  approvalAboveMicros: number | null;
+  /**
+   * How often this effect type should be compared against the vendor's own
+   * record, in hours. Null disables the reminder.
+   *
+   * Ratchet cannot perform the comparison — it has no vendor credentials. What
+   * it has is the calendar: it knows when the last POST /v1/reconcile for this
+   * type arrived, and says so when the gap exceeds this.
+   */
+  reconcileEveryHours: number | null;
+  /**
    * Dimensions that must be declared, or begin is refused.
    *
    * Without this a counterparty ceiling is trivially evaded: a compromised agent

@@ -309,7 +309,9 @@ ${hidden}
     const wanted = b.scope ? b.scope.split(/\s+/).filter(isScope) : client.scopes;
     const granted = wanted.filter((s) => client.scopes.includes(s));
 
-    let sess = req.cookies?.rk_session
+    // Identity only: the consent screen asks who you are and which workspace
+    // you are authorising, never what your plan includes.
+    let sess: { workspaceId: string; email: string } | null = req.cookies?.rk_session
       ? await resolveConsoleSession(req.cookies.rk_session) : null;
 
     // Step one: exchange a pasted API key for a browser session.

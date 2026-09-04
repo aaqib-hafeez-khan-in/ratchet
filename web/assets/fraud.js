@@ -4,6 +4,7 @@ import {
   scrollProgress, onScroll, token, fitted, once, reduced,
   drawContainment, PAYOUT,
 } from '/assets/counterfactual.js';
+import { WALLET, drawWallet } from '/assets/wallet-model.js';
 
 mountChrome('/fraud');
 revealSections({ skip: ['.stage'], stagger: 60 });
@@ -114,6 +115,42 @@ const ROWS = 5;
     out.held.textContent = `$${(refused * PAYOUT.each).toLocaleString('en-US')}`;
     out.hint.textContent = seen.tried >= PAYOUT.attempts
       ? 'ceiling held' : `${seen.tried} of ${PAYOUT.attempts}`;
+  });
+})();
+
+/* ── the wallet that never refills ───────────────────────────────────────
+   Two cumulative lines over three days, from the same stuck agent.
+
+   The point is the SHAPE, not either number. A daily ceiling draws a staircase:
+   it refuses, and then midnight hands the allowance back and it refuses again
+   tomorrow, having let the same money out a second time. A run budget draws a
+   plateau. The gap between the lines is the whole argument, so it is shaded and
+   counted rather than left for the reader to infer.
+
+   Both are the arithmetic of the two rules. Neither is a measurement. */
+(() => {
+  const stage = $('wallet'), canvas = $('walCanvas');
+  if (!stage || !canvas) return;
+  const draw = fitted(canvas);
+  const out = { day: $('walDay'), daily: $('walDaily'), run: $('walRun'),
+                gap: $('walGap'), hint: $('walHint') };
+  const money = (n) => `$${Math.round(n).toLocaleString('en-US')}`;
+
+  onScroll(() => {
+    const t = Math.max(0, Math.min(WALLET.DAYS, scrollProgress(stage) * WALLET.DAYS));
+    draw((ctx, w, h) => drawWallet(ctx, w, h, t, {
+      rule: token('--border', '#e3e6ea'),
+      faint: token('--text-faint', '#868d99'),
+      stop: token('--stop', '#b0341f'),
+      accent: token('--accent', '#1c5cff'),
+    }));
+
+    const d = WALLET.dailyOut(t), r = WALLET.runOut(t);
+    out.day.textContent = String(Math.min(WALLET.DAYS, Math.floor(t) + 1));
+    out.daily.textContent = money(d);
+    out.run.textContent = money(r);
+    out.gap.textContent = money(d - r);
+    out.hint.textContent = t >= WALLET.DAYS ? 'three days later' : 'scroll';
   });
 })();
 

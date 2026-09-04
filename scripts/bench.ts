@@ -47,7 +47,7 @@ for (let i = 0; i < 50; i++) {
  * accepted responses and refuse to report if any were rejected.
  */
 let rejected = 0;
-const check = (r: { statusCode: number }) => {
+const check = <T extends { statusCode: number }>(r: T): T => {
   if (r.statusCode === 429) rejected++;
   return r;
 };

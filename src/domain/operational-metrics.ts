@@ -26,6 +26,15 @@ import { emailQueueHealth } from './email.js';
  */
 
 export interface OperationalMetrics {
+  /**
+   * Live API keys grouped by which AUTH_SECRET their hash was made under.
+   *
+   * A rotation is not finished when the new secret is deployed; it is finished
+   * when nothing still authenticates with the old one. Without this an operator
+   * keeps a retired secret for ever, because dropping it is a guess.
+   */
+  keysByPepper: { kid: string; keys: number; current: boolean; known: boolean }[];
+
   effectsByState: Record<string, number>;
   /** Effects created in the last hour and the last day, for a rate. */
   effectsCreated: { lastHour: number; lastDay: number };
@@ -54,6 +63,9 @@ export interface OperationalMetrics {
 }
 
 export async function collect(db: Db = getPool()): Promise<OperationalMetrics> {
+  const { pepperDrain } = await import('./auth.js');
+  const drain = await pepperDrain(db);
+
   // One round trip. A scrape happens on a timer and should not turn into eight
   // separate queries against the same table.
   const { rows } = await db.query<{
@@ -119,6 +131,9 @@ export async function collect(db: Db = getPool()): Promise<OperationalMetrics> {
   }
 
   return {
+    keysByPepper: drain.live.map((r) => ({
+      kid: r.kid ?? 'unstamped', keys: r.keys, current: r.current, known: r.known,
+    })),
     effectsByState: byState,
     effectsCreated: { lastHour: createdHour, lastDay: createdDay },
     indeterminate: {
@@ -183,6 +198,17 @@ export function render(m: OperationalMetrics): string {
     + 'Alert on a sustained non-zero 24h value.', 'gauge',
     [['{window="1h"}', m.indeterminate.lastHour],
      ['{window="24h"}', m.indeterminate.lastDay]]);
+
+  // Emitted even when there is only one series, so a rotation shows up as a
+  // second line appearing and then draining to zero rather than as a shape
+  // nobody was watching for.
+  metric('ratchet_api_keys_by_pepper',
+    'Live API keys by the AUTH_SECRET their hash was derived under. During a '
+    + 'rotation, wait for every series except current="true" to reach zero '
+    + 'before dropping that secret from AUTH_SECRET_RETIRED. A series with '
+    + 'known="false" is keys that can no longer authenticate at all.', 'gauge',
+    m.keysByPepper.map((k) => [
+      `{kid="${k.kid}",current="${k.current}",known="${k.known}"}`, k.keys]));
 
   metric('ratchet_leases_outstanding',
     'Effects holding a live lease: work an agent currently has permission to do.',

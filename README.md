@@ -5,6 +5,7 @@
 [![npm](https://img.shields.io/npm/v/ratchet-mcp?label=ratchet-mcp)](https://www.npmjs.com/package/ratchet-mcp)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/thearchitect0x-glitch/ratchet/badge)](https://scorecard.dev/viewer/?uri=github.com/thearchitect0x-glitch/ratchet)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14440/badge)](https://www.bestpractices.dev/projects/14440)
 
 **An effect gate for AI agents.** Your agent asks before it does anything it cannot take back —
 charge a card, ship a deploy, publish a package, send the email — and gets a durable decision, so
@@ -26,6 +27,20 @@ POST /v1/effects/begin  →  decision: execute | duplicate | in_flight
 Only `execute` authorises the caller to act.
 
 ---
+
+
+## Project documents
+
+| | |
+|---|---|
+| [Architecture](docs/handoff/ARCHITECTURE.md) | High-level design — what the gate is and what it deliberately is not |
+| [Assurance case](ASSURANCE_CASE.md) | Threat model, trust boundaries, and the argument for each security requirement — including what is *not* defended |
+| [Roadmap](ROADMAP.md) | What the next year holds, and what will never be built |
+| [Governance](GOVERNANCE.md) | Who decides, and what happens if they stop |
+| [Contributing](CONTRIBUTING.md) | How to report a bug or propose a change |
+| [Security policy](SECURITY.md) | How to report a vulnerability, and how fast you hear back |
+| [Code of conduct](CODE_OF_CONDUCT.md) | What is expected, and who to tell |
+| [Known limitations](docs/handoff/KNOWN_LIMITATIONS.md) | Everything that is not true yet, stated plainly |
 
 ## The part that matters
 

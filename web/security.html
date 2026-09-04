@@ -233,6 +233,48 @@
       If that ever changes, this paragraph changes with it, before the architecture does.
     </p>
 
+    <h2 style="margin-top:2rem">What you can check yourself</h2>
+    <p class="dim small">Three of these are machine-verifiable without asking us anything. The
+      fourth is a self-certification, and is labelled as one.</p>
+
+    <div class="grid two" style="margin-top:1.25rem">
+      <div class="card">
+        <h3>Verifiable by you, independently</h3>
+        <ul class="checks">
+          <li><strong>Every release since 0.2.0 carries SLSA provenance.</strong> The npm
+            package is signed with an attestation naming the exact workflow run and commit
+            that built it, so you can prove the artifact came from this source and not from
+            someone's laptop. <code>npm audit signatures</code> checks it. The two 0.1.x
+            releases predate the signed publish path and carry no attestation.</li>
+          <li><strong>Every decision carries a signed receipt</strong>, hash-chained, with the
+            key id inside the signed body so it cannot be repointed. Public keys stay published
+            for ever at <code>/.well-known/ratchet-receipt-key</code>, so a receipt from last
+            quarter still verifies after a key rotation.</li>
+          <li><strong>OpenSSF Scorecard</strong> runs weekly against the repository and is
+            computed by OpenSSF, not by us — branch protection, pinned dependencies, dangerous
+            workflow patterns, token permissions.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Self-certified, against a public checklist</h3>
+        <p class="small dim" style="margin:0 0 .8rem">
+          <a href="https://www.bestpractices.dev/projects/14440">OpenSSF Best Practices</a> —
+          <strong>silver</strong>, 100% of both the passing and silver criteria.
+        </p>
+        <ul class="checks">
+          <li>It is a <em>self</em>-certification. Nobody from OpenSSF inspected this code; the
+            project answers a public checklist and the answers are public, so you can read every
+            claim and its justification and disagree with any of them.</li>
+          <li>Five criteria are recorded as <em>unmet</em> on that page rather than argued into
+            a yes: no DCO sign-off, unsigned git tags, one cryptographic algorithm family,
+            English-only, and a bus factor of one.</li>
+          <li>Gold is not achievable here and we are not pursuing it. It requires two
+            unassociated contributors and independent review of half of all changes, which is a
+            statement about how many people work on this, not about the code.</li>
+        </ul>
+      </div>
+    </div>
+
     <h2 style="margin-top:2rem">What we do not claim</h2>
     <p class="dim">
       No third-party audit has been performed. There is no SOC 2 report, no penetration test, and

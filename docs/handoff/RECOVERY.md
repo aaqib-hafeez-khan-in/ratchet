@@ -86,7 +86,7 @@ is used, and this table says how to re-obtain it.
 
 | Secret | Lives in | If lost |
 |---|---|---|
-| `AUTH_SECRET` | Fly secret on `ratchet-gate` | **Rotating invalidates every API key.** Last resort |
+| `AUTH_SECRET` | Fly secret on `ratchet-gate` | Rotatable without downtime since 3 Sep 2026 — follow *Rotating AUTH_SECRET* below. Ends every console session; API keys survive |
 | `DATABASE_URL` | Fly secret | `flyctl postgres attach` regenerates |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Fly secret | Stripe dashboard → roll |
 | `EMAIL_API_KEY` | Fly secret | Resend dashboard → new key |
@@ -236,3 +236,83 @@ security, creating a moat, professionalism, attractiveness, communication."*
 `CIRCUIT_BREAKER` · `WORKER_LIVENESS` · `LOAD_AND_CAPACITY_2026-08-31` ·
 `RECEIPTS` · `OAUTH` · `X402` · `BACKUP_AND_RESTORE` · `SECURITY_REVIEW` ·
 `INCIDENT_2026-08-31_DB_OOM` · `PROMOTION_COPY`.
+
+---
+
+## Rotating `AUTH_SECRET`
+
+This used to be impossible. The pepper carried no record of which secret made a
+hash, so rotating invalidated every API key in existence at the same instant —
+which meant the one action you must take after a suspected compromise was the one
+action nobody could take. It is now a drain, not a cutover.
+
+Fly secrets are write-only; you cannot read the current value back. Have the
+existing `AUTH_SECRET` to hand from wherever it is stored before you start.
+
+### Step 0 — pin the dimension pepper, before changing anything
+
+```bash
+flyctl secrets set DIMENSION_SECRET="<the CURRENT auth secret>" --app ratchet-gate
+```
+
+Blinded counterparties cannot be re-derived: the value each was made from is gone
+by design. If the pepper changes underneath them nothing errors — every
+destination looks new, and every per-counterparty ceiling silently stops refusing
+while still reading as configured in the console. A security control failing OPEN
+during the incident that prompted the rotation. `assertProductionSafety()`
+refuses to boot when `AUTH_SECRET_RETIRED` is set and this is not.
+
+### Steps 1 and 2 — two phases, and the order is load-bearing
+
+**Do not swap the secret in a single deploy.** Instances roll one at a time, so
+mid-deploy some run the old configuration and some the new. A new instance would
+authenticate a key, re-hash it onto the new secret, and the next request routed to
+an old instance — which has never heard of the new secret — would 401 a key that
+is perfectly valid. A real outage window, for exactly the customers who are
+active during it.
+
+Two phases remove the window, because in both of them **every instance accepts
+both secrets**:
+
+```bash
+# Phase 1 — teach every instance the new secret, without adopting it yet.
+flyctl secrets set AUTH_SECRET_RETIRED="<new>" --app ratchet-gate
+# wait for the rollout to finish
+```
+
+Nothing drains during phase 1: the current secret is still the old one, so keys
+already hashed under it stay where they are.
+
+```bash
+# Phase 2 — swap which one is current.
+flyctl secrets set AUTH_SECRET="<new>" AUTH_SECRET_RETIRED="<old>" --app ratchet-gate
+```
+
+During phase 2's rollout an instance is running either phase 1 (accepts old and
+new) or phase 2 (accepts new and old). Both accept both, so no request can land
+on an instance that cannot verify the key in front of it.
+
+### Step 3 — wait for the drain
+
+`GET /metrics` reports `ratchet_api_keys_by_pepper{kid=...,current=...,known=...}`.
+Every key re-hashes onto the current secret the first time it is used, so the old
+series falls as customers make calls. A key that is never used never drains, so a
+long tail is normal — that is what the metric is for.
+
+### Step 4 — drop the retired secret
+
+Only once its series reaches zero. A key still on it after removal reports
+`known="false"` and can no longer authenticate at all; revoke and reissue those
+rather than restoring the old secret.
+
+### What does not survive
+
+**Console sessions.** Ids are `sha256(raw + AUTH_SECRET)` with no version, so
+every operator signs in again. Documented rather than fixed: it affects operators
+rather than agents, and ending every session is a reasonable thing to happen at
+the moment you rotate a secret you suspect is compromised. A test asserts it, so
+if it ever becomes survivable this runbook is wrong.
+
+**Receipts are unaffected.** They resolve their signing key per record from the
+`kid` inside the signed body, and every public half stays published forever. See
+`RECEIPTS.md`.

@@ -1,5 +1,10 @@
 # ratchet-mcp
 
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14440/badge)](https://www.bestpractices.dev/projects/14440)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/thearchitect0x-glitch/ratchet/badge)](https://scorecard.dev/viewer/?uri=github.com/thearchitect0x-glitch/ratchet)
+[![CI](https://github.com/thearchitect0x-glitch/ratchet/actions/workflows/ci.yml/badge.svg)](https://github.com/thearchitect0x-glitch/ratchet/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/thearchitect0x-glitch/ratchet/blob/main/LICENSE)
+
 MCP server for [Ratchet](https://ratchetgate.com) — an effect gate for AI agents.
 
 Agents retry. LLM control flow is non-deterministic, network calls fail ambiguously, and processes
@@ -25,6 +30,11 @@ Get a key at <https://ratchetgate.com/console> (free, no card), then:
 Put the key in `env`, never in `args` — arguments are visible in process listings.
 
 Works with Claude Desktop, Claude Code, Cursor, and any MCP client that spawns a stdio server.
+
+**Runs on macOS, Linux, Windows and BSD** — anywhere Node 18+ runs. The bridge is a single
+dependency-free file with no native modules, no shell-outs and no platform-specific paths, so there
+is nothing to compile and nothing that behaves differently between operating systems. Ratchet
+itself is a hosted service, so the gate is never something you install or operate.
 
 ## Tools
 

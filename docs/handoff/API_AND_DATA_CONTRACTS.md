@@ -301,6 +301,8 @@ answers.
 | `lease_seconds` | 5–3600 | 60 | Time to report before going indeterminate |
 | `max_attempts` | 1–50 | 3 | Attempt ceiling per key |
 | `max_cost_micros` | int \| null | null | Per-effect cost ceiling |
+| `approval_above_micros` | int \| null | null | Declared cost at or above which begin returns `approval_required` |
+| `reconcile_every_hours` | 1–8760 \| null | null | Announce `reconciliation.due` when a comparison is this overdue |
 | `daily_budget_micros` | int \| null | null | Daily external-spend ceiling for this type |
 | `retention_days` | 1–400 | 7 | Bounded by plan |
 
@@ -312,12 +314,107 @@ analysis*), and `surge_per_hour` / `surge_multiplier` / `surge_action` / `surge_
 (see `CIRCUIT_BREAKER.md`) — carry their prose in the PUT body schema in
 `src/api/routes/workspace.ts`, which is where `/openapi.json` gets it from.
 
-**The reference table on `/docs` is pinned to that schema.** All four of the newest fields were
+**The reference table on `/docs` is pinned to that schema.** `required_dimensions`,
+`dimension_limits`, `structuring_threshold_micros` and `surge_cooldown_seconds` were each
 documented somewhere on the site and missing from the one table a reader consults to learn what a
-policy accepts, which is a gap nobody notices, because every field looks documented from wherever
-it *was* written up. `test/unit/policy-docs.test.ts` now diffs the emitted PUT body schema against
-the field names in `web/docs.html` in both directions: a new policy field has to be explained on
-the page, and the page cannot name a field the route would reject.
+policy accepts — a gap nobody notices, because from wherever a field *was* written up it looks
+documented. `test/unit/policy-docs.test.ts` diffs the emitted PUT body schema against the field
+names in `web/docs.html` in both directions: a new policy field has to be explained on the page,
+and the page cannot name a field the route would reject.
+
+**Value-triggered approval.** `mode = 'require_approval'` is all-or-nothing per effect type —
+every refund waits for a human or none does — which is why operators who try it turn it off
+again. `approval_above_micros` is the rule they actually have: hold anything at or above a
+number, let the routine work through. The comparison is `>=`, because "approve above $5,000"
+is read by humans as including $5,000.
+
+**It raises the decision and never lowers it.** This keys on a caller-supplied number, which
+CLAUDE.md §6 otherwise forbids from reaching a decision. It is admissible for the same reason
+`dimensions` is: the influence runs one way. A larger declared amount can turn `allow` into
+`require_approval`; nothing declared can turn `require_approval` or `deny` back into `allow`.
+A caller that under-declares to duck the threshold lands exactly where it would have been had
+the field never existed — and on a receipt `POST /v1/reconcile` checks against the vendor's own
+record. Preserve that property or remove the feature.
+
+**Setting it makes a declared cost mandatory**, whether or not `require_cost` is on: an effect
+declaring nothing is compared against nothing and would sail past a line the operator believes
+is holding. Begin is refused with `cost_required` instead.
+
+**It sits below `max_cost_micros`**, which refuses outright — allow, hold, refuse. A threshold
+*above* the ceiling could never fire, since the ceiling has already refused those requests, so
+`upsertPolicy` rejects that configuration with `approval_threshold_above_ceiling` rather than
+storing a control that reads as configured and does nothing. Equal to the ceiling is legal and
+means a one-amount band, since the ceiling refuses only what is strictly above it.
+
+**The run-budget figure on /fraud** (`#wallet`) makes an argument, so its arithmetic lives in
+`web/assets/wallet-model.js` and is asserted by `test/unit/wallet-figure.test.ts` rather than
+eyeballed. The claim is narrow: a daily ceiling hands the allowance back every midnight, a run
+budget never does, so `dailyOut(t) >= runOut(t)` at every instant. If that ever inverted the page
+would be an advert for daily ceilings drawn in Ratchet's own colours — and the last time a figure
+here taught the opposite of the truth, the only reason anyone found out was that a reader said
+so. The test fails if the invariant breaks.
+
+**Run budgets in the console.** `GET /v1/runs` · the Run budgets tab.
+
+`PUT /v1/runs/{run_id}/budget` moved from `requireKey` to **`requireConsole('policies:write')`**,
+so the person dispatching work can set a wallet from the browser instead of needing to hold an
+API key for the one thing the page exists for. The asymmetry the control rests on is untouched:
+a bearer token still needs `policies:write`, which `DEFAULT_AGENT_SCOPES` does not grant, and an
+agent has no session cookie. An e2e test asserts an agent key gets `403`. There is still
+deliberately no MCP tool for it.
+
+**Unbudgeted runs are listed.** Filtering to runs that have a wallet would hide the row the page
+exists to surface — the job spending steadily with nothing bounding it. Their spend is summed
+from what callers declared; `spend_source` distinguishes that from what the gate counted and
+enforced against, because those are not the same kind of number.
+
+**A cross-tenant leak was found here by a test, and is worth remembering.** The first version
+joined `run_budgets` with the workspace test in the `ON` clause of a `FULL OUTER JOIN`. An `ON`
+predicate decides what *matches*; it does not filter the unmatched rows the join still emits from
+each side, so every other tenant's wallets came through as unmatched rows — an unscoped read
+path, which §3 forbids outright. Both sides are now narrowed to the workspace in CTEs before they
+meet. **Never put a tenant predicate in the ON clause of an outer join.**
+
+**`declared_micros` is reported next to `spent_micros`.** A ceiling opened part-way through a run
+starts its ledger at zero, because the effects gated before it existed were never counted against
+it. That is the honest accounting and it is also, alone, badly misleading: the console showed
+`$0.00 spent, $250.00 left` for a run that had already declared `$405`. Both numbers travel
+together so the page cannot reassure in the one direction it must never reassure.
+
+**Scheduled reconciliation.** `GET /v1/reconcile/status` · the `reconciliation-due` worker loop.
+
+What is scheduled is the **remembering, not a fetch.** Ratchet has no vendor credentials and no
+outbound access to customer systems, and this does not change that — it cannot ask Stripe what
+happened. It has the one thing the customer's own cron does not: it knows when the last
+`POST /v1/reconcile` for each effect type arrived. So it keeps the calendar and emits
+`reconciliation.due` when a comparison is overdue. The vendor's truth still arrives from the
+customer, by the same POST. The event wording is asserted by a test to say `cannot fetch`, so
+the boundary cannot be blurred by a later copy edit.
+
+Reconciliation was the one control nobody ran: you reach for it when already suspicious, which
+is exactly too late.
+
+`reconciliation_runs` holds **counts only, no keys.** The caller supplied the keys and gets the
+unmatched ones back live, so persisting them would build a store of records about actions that
+bypassed the gate while answering nothing the counts do not. Coverage and drift are count
+questions. `GET /v1/reconcile/status` returns the last ten `ungated` totals oldest-first, so a
+rising line reads as one.
+
+Restraint is the hard part. The sweep notifies **once per cadence, not once per pass** —
+`reconcile_due_notified_at` is stamped inside the claiming transaction, and rows are claimed
+`FOR UPDATE SKIP LOCKED` so replicas cannot double-announce. A one-hour grace period after
+`updated_at` means turning the reminder on does not immediately accuse you of being late for
+history that predates the setting. Doing the reconciliation is what clears it; nobody has to
+dismiss anything.
+
+One trap worth keeping: `enqueueEvent` dedupes on a hash of the payload, which is correct for an
+event describing a thing that happened once. `reconciliation.due` describes a state that
+persists, so a second announcement a cadence later is a new occurrence and was being silently
+swallowed. The payload carries `noticedAt` for that reason — the replica guarantee lives in
+`SKIP LOCKED` and the stamp, which is where it belongs.
+
+The `effect.approval_required` event carries `trigger` (`value` | `circuit` | `policy`) and
+`approval_above_micros`, so an approval queue can be triaged without looking anything up.
 
 ### Workspace, keys, webhooks, billing
 

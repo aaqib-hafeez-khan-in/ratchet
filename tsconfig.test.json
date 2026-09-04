@@ -1,0 +1,19 @@
+{
+  // Type-checking for everything the build config deliberately leaves out.
+  //
+  // tsconfig.json is the BUILD config: rootDir is src, and it emits to dist. It
+  // therefore never looked at test/ or scripts/, which meant a required field
+  // added to a domain type could go missing from a test fixture and only
+  // surface at runtime as "Cannot read properties of undefined". That is how
+  // ReceiptBody.kid — added when receipt signing keys became rotatable — stayed
+  // absent from the receipt fixtures without anything complaining.
+  //
+  // Same compiler options, no emit, and a rootDir wide enough to see the rest.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

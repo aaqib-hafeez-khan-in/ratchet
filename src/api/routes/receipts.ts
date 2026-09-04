@@ -8,12 +8,13 @@ import { stricterThan } from '../rate-limit.js';
  * acting, which is the failure we cannot see from here.
  */
 import type { FastifyInstance } from 'fastify';
+import { recordRun, reconciliationStatus } from '../../domain/reconciliation.js';
 import { getPool } from '../../db/pool.js';
 import { config } from '../../lib/config.js';
 import { wsOf } from '../plugins/auth.js';
 import { receiptsFor, auditChain, receiptPublicKey, currentKid, knownKeys,
          RECEIPT_VERSION } from '../../domain/receipts.js';
-import { errorResponses } from '../schemas.js';
+import { errorResponses, reconciliationStatusSchema } from '../schemas.js';
 
 /**
  * Registered at the ORIGIN root, not under /v1.
@@ -201,6 +202,12 @@ export default async function receiptRoutes(app: FastifyInstance) {
     const seen = new Map(rows.map((r) => [r.idempotency_key, r.state]));
     const ungated = wanted.filter((k) => !seen.has(k));
 
+    // Counts only, and deliberately: see migration 037. Recording the run is
+    // what turns reconciliation from a thing you did once into coverage you can
+    // see, and it is what stops the scheduler asking for a check that just ran.
+    await recordRun(getPool(), workspaceId, b.effect_type,
+      { checked: wanted.length, gated: seen.size, ungated: ungated.length });
+
     return {
       effect_type: b.effect_type,
       checked: wanted.length,
@@ -213,4 +220,31 @@ export default async function receiptRoutes(app: FastifyInstance) {
           + 'Those code paths are unprotected: a retry there can act twice.',
     };
   });
+
+  app.get('/reconcile/status', {
+    preHandler: [app.requireConsole('effects:read'), app.requireCapability('reconciliation')],
+    schema: {
+      tags: ['Receipts'], operationId: 'reconciliationStatus',
+      summary: 'Which effect types are overdue a comparison against the vendor',
+      description:
+        'Ratchet cannot fetch your vendor\'s records — it has no credentials and no outbound '
+        + 'access to your systems. What it keeps is the calendar: when each effect type was '
+        + 'last reconciled, whether that is now overdue against the cadence you set, and the '
+        + 'ungated count from the last ten runs so drift is visible. Effect types with no '
+        + 'cadence are listed too, because "never reconciled and never scheduled" is the '
+        + 'answer that matters most.',
+      response: { 200: reconciliationStatusSchema, ...errorResponses },
+    },
+  }, async (req) => ({
+    effect_types: (await reconciliationStatus(getPool(), wsOf(req))).map((r) => ({
+      effect_type: r.effectType,
+      every_hours: r.everyHours,
+      last_run_at: r.lastRunAt,
+      hours_since_last_run: r.hoursSinceLastRun,
+      due_at: r.dueAt,
+      overdue: r.overdue,
+      last_run: r.lastRun,
+      ungated_trend: r.ungatedTrend,
+    })),
+  }));
 }

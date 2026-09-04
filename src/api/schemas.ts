@@ -322,6 +322,73 @@ export const effectView = {
   },
 } as const;
 
+export const runListSchema = {
+  type: 'object',
+  properties: {
+    runs: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          run_id: { type: 'string' },
+          limit_micros: { type: ['integer', 'null'],
+            description: 'Null when no wallet was opened — an unbudgeted run is not capped.' },
+          spent_micros: { type: 'integer' },
+          remaining_micros: { type: ['integer', 'null'] },
+          exhausted: { type: 'boolean' },
+          spend_source: { type: 'string', enum: ['wallet', 'declared'],
+            description:
+              '"wallet" is what the gate counted and enforced against. "declared" is summed '
+              + 'from what callers declared on an unbudgeted run — an estimate, not a ledger.' },
+          declared_micros: { type: 'integer',
+            description:
+              'Everything declared on this run in the window. Reported alongside spent, not '
+              + 'instead of it: a ceiling opened part-way through a run starts its ledger at '
+              + 'zero, so spent alone would read as "plenty of room" on a run that has '
+              + 'already spent heavily.' },
+          effects: { type: 'integer' },
+          last_activity_at: { type: ['string', 'null'], format: 'date-time' },
+          agent_ids: { type: 'array', items: { type: 'string' } },
+        },
+      },
+    },
+  },
+} as const;
+
+export const reconciliationStatusSchema = {
+  type: 'object',
+  properties: {
+    effect_types: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          effect_type: { type: 'string' },
+          every_hours: { type: ['integer', 'null'] },
+          last_run_at: { type: ['string', 'null'], format: 'date-time' },
+          hours_since_last_run: { type: ['number', 'null'] },
+          due_at: { type: ['string', 'null'], format: 'date-time' },
+          overdue: { type: 'boolean' },
+          last_run: {
+            type: ['object', 'null'],
+            properties: {
+              checked: { type: 'integer' },
+              gated: { type: 'integer' },
+              ungated: { type: 'integer' },
+            },
+          },
+          ungated_trend: {
+            type: 'array', items: { type: 'integer' },
+            description:
+              'Ungated counts from the last ten runs, oldest first. A rising line means '
+              + 'more of your real actions are reaching the vendor without asking.',
+          },
+        },
+      },
+    },
+  },
+} as const;
+
 export const policySchema = {
   type: 'object',
   properties: {
@@ -334,6 +401,20 @@ export const policySchema = {
     daily_budget_micros: { type: ['integer', 'null'] },
     retention_days: { type: 'integer' },
     require_cost: { type: 'boolean' },
+    reconcile_every_hours: {
+      type: ['integer', 'null'],
+      description:
+        'How often this effect type should be compared against the vendor\'s own record. '
+        + 'Ratchet cannot perform that comparison — it keeps the calendar and says when one '
+        + 'is overdue, via the reconciliation.due event.',
+    },
+    approval_above_micros: {
+      type: ['integer', 'null'],
+      description:
+        'Declared cost at or above which begin returns approval_required instead of '
+        + 'execute. Raises the decision only — it never turns an approval or a denial '
+        + 'back into an allow. Null disables it.',
+    },
     structuring_threshold_micros: {
       type: ['integer', 'null'],
       description:

@@ -56,9 +56,100 @@ describe('the page must not scroll sideways', () => {
       'the <pre> scrolls; its wrapper was what refused to shrink');
   });
 
+  test('a canvas figure is bounded by its box, not by its backing store', () => {
+    // A canvas has an intrinsic 300x150. Without an explicit width it lays out
+    // at 300px and, worse, will not shrink below it inside a grid item — the
+    // same min-width:auto blowout the rules above exist for. The wallet figure
+    // sits in normal flow today, so this is a guard against it being moved into
+    // a grid later and quietly widening the page on a phone.
+    const rule = topLevelRule('.walletfig canvas');
+    assert.match(rule, /width:\s*100%/,
+      'the canvas must take its width from its container, not from its backing store');
+    assert.match(rule, /display:\s*block/,
+      'an inline canvas also picks up a baseline gap under it');
+  });
+
   test('containers that can hold code or tables may shrink', () => {
     assert.match(css, /\.entry\s*>\s*\*\s*\{[^}]*min-width:\s*0/,
       'a grid item defaults to min-width:auto and will not go below its content');
+  });
+});
+
+/**
+ * A select that keeps the native appearance is drawn by the OS, which honours
+ * background-color inconsistently and draws the option popup in system colours.
+ * On a dark theme that can leave the control looking like the page behind it —
+ * present, focusable, operable, and invisible. Reported from the console's API
+ * keys form, where the surrounding inputs rendered and the dropdown did not.
+ */
+describe('a select is drawn by us, not by the operating system', () => {
+  /**
+   * topLevelRule('select') finds `input, select {` first — the substring is in
+   * it — and that block is not the one under test. Anchor to a line start.
+   */
+  const selectRule = (() => {
+    const m = /\nselect \{([\s\S]*?)\}/.exec(css);
+    return m ? m[1]! : '';
+  })();
+
+  test('the native appearance is removed', () => {
+    const rule = selectRule;
+    assert.match(rule, /appearance:\s*none/,
+      'with menulist appearance the browser may ignore our background entirely');
+    assert.match(rule, /-webkit-appearance:\s*none/, 'Safari needs the prefix');
+  });
+
+  test('it does not sit on the same colour as the page', () => {
+    const rule = selectRule;
+    assert.match(rule, /background-color:\s*var\(--bg-sunk\)/,
+      'var(--bg) is the page itself, so the control would read as empty space');
+  });
+
+  test('having taken the chevron away, we draw one', () => {
+    const rule = selectRule;
+    assert.match(rule, /background-image:\s*url\("data:image\/svg/,
+      'appearance:none removes the arrow — without replacing it, nothing says '
+      + 'this field opens');
+    assert.match(rule, /padding-right/, 'and the text must not run under it');
+  });
+
+  test('the option popup is given colours too', () => {
+    assert.match(css, /select option \{[^}]*background:[^}]*color:/,
+      'the popup is an OS surface and falls back to system colours otherwise');
+  });
+
+  test('forced-colours users get their own control back', () => {
+    assert.match(css, /@media \(forced-colors: active\)[\s\S]{0,200}appearance:\s*auto/,
+      'overriding a high-contrast or forced-colour mode is how you break a '
+      + 'control for the people who most need it drawn their way');
+  });
+});
+
+/**
+ * The API has always accepted daily_budget_micros when minting a key; the
+ * console form only ever sent name and scopes. So the advice "give that key a
+ * small daily budget" — correct advice, for a key you are handing to someone
+ * else's infrastructure — described a field that did not exist.
+ */
+describe('a key can be given a budget where keys are made', () => {
+  const js = readFileSync(new URL('../../web/assets/console.js', import.meta.url), 'utf8');
+
+  test('the form has the field', () => {
+    assert.match(js, /id="key-budget"/,
+      'the ceiling is settable over the API and was not settable in the console');
+  });
+
+  test('it is sent, and empty means no ceiling rather than a ceiling of zero', () => {
+    assert.match(js, /daily_budget_micros:/);
+    assert.match(js, /\? null : Math\.round/,
+      'a budget of zero would refuse every declared spend the key ever made');
+  });
+
+  test('the table shows which keys have one', () => {
+    assert.match(js, /'Daily budget'/,
+      'a key with no ceiling should be visibly a key with no ceiling');
+    assert.match(js, /k\.dailyBudgetMicros/,
+      '/v1/keys returns the domain object directly, so its wire shape is camelCase');
   });
 });
 
@@ -108,5 +199,106 @@ describe('a pinned beat must fit the visible viewport', () => {
     const short = css.slice(css.indexOf('@media (max-width: 44rem), (max-height: 44rem)'));
     assert.match(short.slice(0, 900), /\.stage-pin\s*\{\s*min-height:\s*0/,
       '600px of minimum inside a 560px window is the entire bug');
+  });
+});
+
+/**
+ * Two controls that were the right drawing and the wrong target.
+ *
+ * The progress rail under each pinned beat is a row of 34x4px bars — four
+ * pixels is what reads as a rail, and four pixels is not something a thumb can
+ * hit. WCAG 2.5.8 asks for 24. Nothing caught it because the bars are exactly
+ * the size they were designed to be; the defect was that they were also the
+ * whole target.
+ *
+ * The nav links measured 23.5px: half a pixel under the same floor, which no
+ * amount of looking was ever going to reveal.
+ */
+describe('a control must be big enough to hit, whatever size it is drawn', () => {
+  test('the rail bars carry a touch area larger than the bar', () => {
+    const hit = topLevelRule('.rail button::after');
+    assert.ok(hit, 'the rail bars must have a ::after hit area');
+    assert.match(hit, /position:\s*absolute/, 'the hit area must not affect layout');
+    const h = /height:\s*(\d+)px/.exec(hit);
+    assert.ok(h, 'the hit area needs an explicit height');
+    assert.ok(
+      Number(h[1]) >= 24,
+      `WCAG 2.5.8 asks for 24px; the hit area is ${h[1]}px`,
+    );
+    // The bar itself must stay small, or the fix has changed the design.
+    assert.match(topLevelRule('.rail button'), /height:\s*4px/);
+  });
+
+  test('a nav link is at least 24px tall', () => {
+    const rule = topLevelRule('nav.site a');
+    const m = /min-height:\s*(\d+)px/.exec(rule);
+    assert.ok(m, 'nav links need an explicit minimum height');
+    assert.ok(Number(m[1]) >= 24, `nav links are ${m[1]}px; the floor is 24`);
+    assert.match(rule, /align-items:\s*center/, 'the text must stay centred in it');
+  });
+});
+
+/**
+ * Figure labels have a floor, because a legend nobody can read is decoration.
+ *
+ * The axis captions, ledger totals, band scales and case tags drifted down to
+ * 9px and 10px per component — small enough on a 375px phone to be a shape
+ * rather than a word, and these are the labels carrying what the figure means:
+ * "who it is going to", "ceiling $2,000", "Attempted".
+ *
+ * Expressed as a rule on the stylesheet rather than a measurement, for the same
+ * reason as everything above it: the next 9px label will arrive in a `font:`
+ * shorthand that looks exactly like its neighbours.
+ */
+describe('nothing is set smaller than a phone can read', () => {
+  const FLOOR_REM = 0.6875; // 11px at a 16px root
+
+  test('no font shorthand goes below the floor', () => {
+    const offenders: string[] = [];
+    for (const m of css.matchAll(/font:\s*[^;]*?(\d*\.?\d+)rem\s*\//g)) {
+      const rem = Number(m[1]);
+      if (rem < FLOOR_REM) {
+        const at = css.slice(0, m.index).split('\n').length;
+        offenders.push(`line ${at}: ${rem}rem`);
+      }
+    }
+    assert.deepEqual(offenders, [],
+      `below ${FLOOR_REM}rem (${FLOOR_REM * 16}px) — raise it, or the label is decoration`);
+  });
+
+  /**
+   * One documented exception, not a silent one.
+   *
+   * .packet.tiny is a digit inside a fixed 26px token in the retry-swarm
+   * figure — a glyph scaled to its container, not a label you read a sentence
+   * of. It is already at the edge of that box at 0.66rem, so the floor would
+   * push the digit out of its own circle. Anything else added here needs the
+   * same kind of reason written next to it.
+   */
+  const EXEMPT = ['.packet.tiny'];
+
+  test('no font-size declaration goes below it either', () => {
+    const offenders: string[] = [];
+    for (const m of css.matchAll(/font-size:\s*(\d*\.?\d+)rem/g)) {
+      const rem = Number(m[1]);
+      if (rem >= FLOOR_REM) continue;
+      const lineStart = css.lastIndexOf('\n', m.index) + 1;
+      const line = css.slice(lineStart, css.indexOf('\n', m.index));
+      if (EXEMPT.some((sel) => line.includes(sel))) continue;
+      offenders.push(`line ${css.slice(0, m.index).split('\n').length}: ${rem}rem`);
+    }
+    assert.deepEqual(offenders, [], `below ${FLOOR_REM}rem`);
+  });
+
+  test('every exemption still exists, so the list cannot rot', () => {
+    for (const sel of EXEMPT) {
+      assert.ok(css.includes(sel), `${sel} is exempt from the floor but no longer in the sheet`);
+    }
+  });
+
+  test('the check is looking at real declarations', () => {
+    // Guard against a regex that matches nothing and therefore always passes.
+    const found = [...css.matchAll(/font:\s*[^;]*?(\d*\.?\d+)rem\s*\//g)];
+    assert.ok(found.length > 8, `only ${found.length} font shorthands matched`);
   });
 });

@@ -19,7 +19,7 @@ let ws: Awaited<ReturnType<typeof freshWorkspace>>;
 before(async () => { app = await buildApp(); await app.ready(); ws = await freshWorkspace(); });
 after(async () => { await app.close(); await closePool(); });
 
-const post = (url: string, body: unknown, key?: string) => app.inject({
+const post = (url: string, body: object, key?: string) => app.inject({
   method: 'POST', url,
   headers: { 'content-type': 'application/json', ...(key ? { authorization: `Bearer ${key}` } : {}) },
   payload: body,

@@ -4,7 +4,7 @@
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
-  "description": "Ratchet \u2014 the effect gate for AI agents. At-most-once side effects, budget enforcement, and an auditable execution record.",
+  "description": "Ratchet — the effect gate for AI agents. At-most-once side effects, budget enforcement, and an auditable execution record.",
   "engines": {
     "node": ">=20.11"
   },
@@ -13,14 +13,14 @@
     "dev:worker": "tsx watch src/worker/main.ts",
     "dev:db": "bash scripts/dev-db.sh up",
     "dev:db:down": "bash scripts/dev-db.sh down",
-    "build": "tsc -p tsconfig.json && cp -r src/db/migrations dist/db/migrations",
+    "build": "tsc -p tsconfig.json && rm -rf dist/db/migrations && mkdir -p dist/db && cp -r src/db/migrations dist/db/migrations",
     "start": "node dist/api/server.js",
     "start:worker": "node dist/worker/main.js",
     "mcp:stdio": "tsx src/mcp/stdio.ts",
     "migrate": "tsx src/db/migrate.ts up",
     "seed": "tsx scripts/seed.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "lint": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "test": "bash scripts/test.sh",
     "test:unit": "node --test --import tsx test/unit/*.test.ts",
     "test:integration": "node --test --test-concurrency=1 --import tsx test/integration/*.test.ts",
@@ -50,7 +50,9 @@
     "schema": "node scripts/build-schema.mjs",
     "schema:check": "node scripts/build-schema.mjs --check",
     "bench:ab": "tsx scripts/ab-benchmark.ts",
-    "set-plan": "tsx scripts/set-plan.ts"
+    "set-plan": "tsx scripts/set-plan.ts",
+    "coverage": "c8 --reporter=text-summary --reporter=lcov --src src --all --exclude \"src/db/migrations/**\" --check-coverage --statements 80 --branches 75 npm run test:cov",
+    "test:cov": "tsx --test --test-concurrency=1 test/unit/*.test.ts test/integration/*.test.ts"
   },
   "dependencies": {
     "@fastify/cookie": "11.1.2",
@@ -66,6 +68,7 @@
   "devDependencies": {
     "@types/node": "24.10.1",
     "@types/pg": "8.15.6",
+    "c8": "^12.0.0",
     "tsx": "4.23.12",
     "typescript": "5.9.3"
   }

@@ -222,6 +222,63 @@ tabs(document.getElementById('int-tabs'), (name) => {
 // skipped: it already drives its own scroll animation and would fight this one.
 revealSections({ skip: ['.stage'] });
 
+/* ── a day is not a task ──────────────────────────────────────────────────
+   The same model and the same drawing /fraud uses, for the reason the two
+   figures below are shared: a compact restatement that quietly disagreed with
+   the full version would be worse than not restating it at all.
+
+   This one plays ONCE on reveal rather than scrubbing with the scrollbar. The
+   page already pins two stages further down, and a third would turn reading
+   into work. */
+(async () => {
+  const fig = document.getElementById('homeWallet');
+  const canvas = document.getElementById('homeWalletCanvas');
+  if (!fig || !canvas) return;
+
+  const cf = await import('/assets/counterfactual.js');
+  const { WALLET, drawWallet } = await import('/assets/wallet-model.js');
+  const draw = cf.fitted(canvas);
+  const daily = document.getElementById('homeWalDaily');
+  const run = document.getElementById('homeWalRun');
+  const money = (n) => `$${Math.round(n).toLocaleString('en-US')}`;
+
+  const paint = (t) => {
+    draw((ctx, w, h) => drawWallet(ctx, w, h, t, {
+      rule: cf.token('--border', '#e3e6ea'),
+      faint: cf.token('--text-faint', '#868d99'),
+      stop: cf.token('--stop', '#b0341f'),
+      accent: cf.token('--accent', '#1c5cff'),
+    }, { compact: true }));
+    daily.textContent = money(WALLET.dailyOut(t));
+    run.textContent = money(WALLET.runOut(t));
+  };
+
+  // Redrawing on resize keeps the canvas sharp after an orientation change;
+  // it holds whatever t the animation last reached.
+  let last = 0;
+  addEventListener('resize', () => paint(last), { passive: true });
+  paint(0);
+
+  cf.once(fig, () => {
+    // A hidden tab does not run requestAnimationFrame at all, so an animation
+    // started in one would leave the figure sitting at zero — the very failure
+    // once() has a timer to prevent. Nobody is watching a hidden tab, so the
+    // honest thing is to already be finished when they look at it.
+    if (cf.reduced() || document.hidden) { last = WALLET.DAYS; paint(last); return; }
+    const started = performance.now();
+    const ms = 2000;
+    const step = (now) => {
+      const k = Math.min(1, (now - started) / ms);
+      // Ease out, so the plateau at the end is held long enough to be read as
+      // a plateau rather than as the animation simply stopping.
+      last = (1 - (1 - k) ** 3) * WALLET.DAYS;
+      paint(last);
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+})();
+
 /* ── the counterfactual, scrubbed by scroll ───────────────────────────────
    The landing page's short version of /benchmark. Both read the same seeded
    run from the same module, so the number quoted here cannot drift from the

@@ -31,6 +31,10 @@ fi
 
 echo "→ typecheck"
 npx tsc -p tsconfig.json --noEmit
+# test/ and scripts/ are outside the build config's rootDir, so they were
+# never checked. A required field added to a domain type could go missing
+# from a fixture and only surface at runtime.
+npx tsc -p tsconfig.test.json
 
 echo "→ unit"
 node --test --import tsx "test/unit/"*.test.ts

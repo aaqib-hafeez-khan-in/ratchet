@@ -6,10 +6,10 @@ import { errors, ApiError } from '../../lib/errors.js';
 import { config } from '../../lib/config.js';
 import { planRateLimit } from '../rate-limit.js';
 import { recallRun, recallOnWire } from '../../domain/recall.js';
-import { setRunBudget } from '../../domain/run-budget.js';
+import { setRunBudget, listRuns } from '../../domain/run-budget.js';
 import { wsOf, actorOf } from '../plugins/auth.js';
 import { audit } from '../../domain/audit.js';
-import { beginBody, beginResponse, reportBody, effectView, errorResponses } from '../schemas.js';
+import { beginBody, beginResponse, reportBody, effectView, errorResponses, runListSchema } from '../schemas.js';
 import { beginOut, effectOut, reportOut } from '../serialize.js';
 import { x402Enabled, paymentRequired, encodeHeader, decodePayload,
          settlePayment, PaymentError } from '../../domain/x402.js';
@@ -285,8 +285,15 @@ export default async function effectRoutes(app: FastifyInstance) {
      *
      * For the same reason there is deliberately no MCP tool for this. Putting
      * it in the toolbox would invite exactly the call that must not be made.
+     *
+     * requireConsole rather than requireKey, so the person who dispatches the
+     * work can set the wallet from the console instead of having to hold a key.
+     * The asymmetry above is untouched: a bearer token still needs
+     * policies:write, which DEFAULT_AGENT_SCOPES does not grant, and an agent
+     * has no session cookie. CLAUDE.md §11 draws the line in exactly this place
+     * — begin and report stay key-only; operator actions take either.
      */
-    preHandler: app.requireKey('policies:write'),
+    preHandler: app.requireConsole('policies:write'),
     config: { rateLimit: planRateLimit },
     schema: {
       tags: TAG,
@@ -326,6 +333,46 @@ export default async function effectRoutes(app: FastifyInstance) {
       spent_micros: b.spentMicros,
       remaining_micros: b.remainingMicros,
       exhausted: b.exhausted,
+    };
+  });
+
+  app.get('/runs', {
+    preHandler: app.requireConsole('effects:read'),
+    schema: {
+      tags: TAG, operationId: 'listRuns',
+      summary: 'Runs and their wallets',
+      description:
+        'Every run seen in the window, whether or not a wallet was opened for it. Runs with '
+        + 'no ceiling are included deliberately: the job quietly spending with nothing '
+        + 'bounding it is the row you came here to find, and a list filtered to budgeted '
+        + 'runs would never show it. Where a wallet exists, spend is what the gate counted '
+        + 'and enforced against; where none does, it is summed from what callers declared. '
+        + 'spend_source says which, because those are not the same kind of number.',
+      querystring: {
+        type: 'object', additionalProperties: false,
+        properties: {
+          days: { type: 'integer', minimum: 1, maximum: 90, default: 7 },
+          limit: { type: 'integer', minimum: 1, maximum: 500, default: 100 },
+        },
+      },
+      response: { 200: runListSchema, ...errorResponses },
+    },
+  }, async (req) => {
+    const q = req.query as { days?: number; limit?: number };
+    const runs = await listRuns(wsOf(req), { days: q.days, limit: q.limit });
+    return {
+      runs: runs.map((r) => ({
+        run_id: r.runId,
+        limit_micros: r.limitMicros,
+        spent_micros: r.spentMicros,
+        remaining_micros: r.remainingMicros,
+        exhausted: r.exhausted,
+        spend_source: r.spendSource,
+        declared_micros: r.declaredMicros,
+        effects: r.effects,
+        last_activity_at: r.lastActivityAt,
+        agent_ids: r.agentIds,
+      })),
     };
   });
 

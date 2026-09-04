@@ -133,6 +133,112 @@ export async function releaseRunSpend(
   );
 }
 
+/**
+ * Every run worth showing an operator, budgeted or not.
+ *
+ * Listing only the runs that HAVE a wallet would be the same mistake as listing
+ * only the effect types with a reconciliation cadence: it hides the answer that
+ * matters. The run quietly spending four hundred dollars with no ceiling on it is
+ * exactly the row you opened the page to find, and it is the one a filtered list
+ * would never contain.
+ *
+ * Spend comes from the wallet where there is one, because that is the number the
+ * gate actually enforced against. Where there is none it is summed from what
+ * callers declared, and the two are labelled differently on the way out: one is a
+ * ledger, the other is an estimate, and showing them as the same number would be
+ * a small lie in a place that exists to prevent them.
+ */
+export interface RunSummary {
+  runId: string;
+  /** Null when no wallet was opened. */
+  limitMicros: number | null;
+  spentMicros: number;
+  remainingMicros: number | null;
+  exhausted: boolean;
+  /** 'wallet' when the gate counted it; 'declared' when summed from effects. */
+  spendSource: 'wallet' | 'declared';
+  /**
+   * Everything callers declared on this run in the window, wallet or no wallet.
+   *
+   * Reported alongside the wallet rather than instead of it, because a ceiling
+   * opened part-way through a run starts its ledger at zero: the effects gated
+   * before it existed were never counted against it. That is the honest
+   * accounting, but on its own it reads as "nothing spent, plenty of room" for a
+   * run that has already burned four hundred dollars. Both numbers, or the page
+   * reassures in the one direction it must never reassure.
+   */
+  declaredMicros: number;
+  effects: number;
+  lastActivityAt: string | null;
+  agentIds: string[];
+}
+
+export async function listRuns(
+  workspaceId: string, o: { days?: number; limit?: number } = {}, db: Db = getPool(),
+): Promise<RunSummary[]> {
+  const days = o.days ?? 7;
+  const limit = Math.min(o.limit ?? 100, 500);
+
+  const { rows } = await db.query<{
+    run_id: string; limit_micros: string | null; spent_micros: string | null;
+    declared: string | null; effects: string | null; last_at: Date | null;
+    agents: string[] | null;
+  }>(
+    `WITH seen AS (
+       SELECT run_id,
+              count(*)                                   AS effects,
+              COALESCE(sum(declared_micros), 0)          AS declared,
+              max(created_at)                            AS last_at,
+              array_remove(array_agg(DISTINCT agent_id), NULL) AS agents
+         FROM effects
+        WHERE workspace_id = $1 AND run_id IS NOT NULL
+          AND created_at > now() - make_interval(days => $2)
+        GROUP BY run_id
+     ),
+     wallets AS (
+       -- Scoped HERE, not in the join condition. In a FULL OUTER JOIN an ON
+       -- predicate decides what MATCHES; it does not filter the unmatched rows
+       -- the join still emits from each side. A workspace test in the ON
+       -- clause therefore let every other tenant's wallets through as unmatched
+       -- rows — an unscoped read path, which is the one thing §3 forbids
+       -- outright. A test caught it. Both sides are narrowed to the workspace
+       -- before they ever meet.
+       SELECT run_id, limit_micros, spent_micros
+         FROM run_budgets
+        WHERE workspace_id = $1
+     )
+     SELECT COALESCE(s.run_id, w.run_id)  AS run_id,
+            w.limit_micros, w.spent_micros,
+            s.declared, s.effects, s.last_at, s.agents
+       FROM seen s
+       -- A wallet opened for a run that has not spent yet still belongs on the
+       -- page: somebody dispatched work and set a ceiling, and seeing it is how
+       -- they know it took.
+       FULL OUTER JOIN wallets w ON w.run_id = s.run_id
+      ORDER BY s.last_at DESC NULLS LAST, COALESCE(s.run_id, w.run_id)
+      LIMIT $3`,
+    [workspaceId, days, limit],
+  );
+
+  return rows.map((r) => {
+    const limit_ = r.limit_micros === null ? null : Number(r.limit_micros);
+    const spent = limit_ === null
+      ? Number(r.declared ?? 0) : Number(r.spent_micros ?? 0);
+    return {
+      runId: r.run_id,
+      limitMicros: limit_,
+      spentMicros: spent,
+      remainingMicros: limit_ === null ? null : Math.max(0, limit_ - spent),
+      exhausted: limit_ !== null && spent >= limit_,
+      spendSource: limit_ === null ? 'declared' as const : 'wallet' as const,
+      declaredMicros: Number(r.declared ?? 0),
+      effects: Number(r.effects ?? 0),
+      lastActivityAt: r.last_at?.toISOString() ?? null,
+      agentIds: (r.agents ?? []).slice(0, 5),
+    };
+  });
+}
+
 /** Wallets for runs nobody will look at again. Called by the retention sweep. */
 export async function gcRunBudgets(db: Db = getPool(), days = 90): Promise<number> {
   const res = await db.query(

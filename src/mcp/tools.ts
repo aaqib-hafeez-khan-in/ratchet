@@ -92,7 +92,7 @@ export const MCP_TOOLS: McpToolDef[] = [
         },
         estimated_cost_micros: {
           type: 'integer', minimum: 0,
-          description: 'What this action will cost at the third party, in micro-USD (1000000 = $1). ALWAYS SEND THIS when the action costs money. Spend ceilings are computed from it, and a ceiling with nothing declared against it never fires — the operator would be relying on a limit that cannot trigger. If the response contains budget_warning, that is exactly what has happened: tell the operator. Ratchet does not collect this money; it only counts it.',
+          description: 'What this action will cost at the third party, in micro-USD (1000000 = $1). ALWAYS SEND THIS when the action costs money. Spend ceilings are computed from it, and a ceiling with nothing declared against it never fires — the operator would be relying on a limit that cannot trigger. If the response contains budget_warning, that is exactly what has happened: tell the operator. Ratchet does not collect this money; it only counts it. It can also route the action to a human: an operator may set an approval threshold, and an action whose declared cost reaches it comes back approval_required instead of execute — so declaring accurately is what keeps large actions reviewable. Where a threshold is set, omitting this is refused with cost_required rather than allowed.',
         },
         dimensions: {
           type: 'object',
@@ -277,8 +277,9 @@ export const MCP_TOOLS: McpToolDef[] = [
     readOnly: true,
     description:
       'Shows how this workspace has configured a given effect type: whether it is allowed, how long a ' +
-      'lease lasts, the attempt ceiling, spend limits, and — most importantly — what happens when an ' +
-      'attempt ends indeterminate. Check this before designing a retry strategy.',
+      'lease lasts, the attempt ceiling, spend limits, the approval threshold above which an action ' +
+      'waits for a human, and — most importantly — what happens when an attempt ends indeterminate. ' +
+      'Check this before designing a retry strategy.',
     inputSchema: {
       type: 'object',
       required: ['effect_type'],

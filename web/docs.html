@@ -161,8 +161,21 @@
               <td class="small">Ceiling on attempts for one key. Exceeding it denies the effect.</td></tr>
           <tr><td class="mono">max_cost_micros</td><td class="mono small">integer · null</td>
               <td class="small">Refuse a single effect declaring more than this.</td></tr>
+          <tr><td class="mono">approval_above_micros</td><td class="mono small">integer · null</td>
+              <td class="small">Hold a single effect for a human when it declares this much or
+                more. Sits beneath <span class="mono">max_cost_micros</span>, which refuses
+                outright &mdash; allow, hold, refuse. Raises the decision only: an amount below
+                it never turns an approval or a denial back into an allow. Setting it makes a
+                declared cost mandatory, since an effect declaring nothing would otherwise pass
+                the line untested.</td></tr>
           <tr><td class="mono">daily_budget_micros</td><td class="mono small">integer · null</td>
               <td class="small">Daily external-spend ceiling for this type.</td></tr>
+          <tr><td class="mono">reconcile_every_hours</td><td class="mono small">1–8760 · null</td>
+              <td class="small">Remind me to compare this effect type against the vendor's own
+                record this often. Ratchet cannot fetch those records &mdash; it has no
+                credentials at your vendors. It keeps the calendar and emits
+                <code>reconciliation.due</code> when a comparison is overdue; you still post
+                the records to <span class="mono">POST /v1/reconcile</span>.</td></tr>
           <tr><td class="mono">require_cost</td><td class="mono small">boolean</td>
               <td class="small">Refuse a begin that declares no cost, so a spend ceiling
                 cannot be bypassed by simply not declaring anything.</td></tr>

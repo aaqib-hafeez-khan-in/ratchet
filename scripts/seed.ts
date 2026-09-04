@@ -28,10 +28,13 @@ if (arg) {
   console.log(`api key   ${ws.key.plaintext}`);
 }
 
+// The spread is the point of this helper — each caller overrides a different
+// field — and a spread of Record<string, any> cannot prove to the compiler
+// that effect_type and idempotency_key survived it.
 const begin = (o: Record<string, any>) => beginEffect({
   workspaceId, apiKeyId: keyId, apiKeyPrefix: keyPrefix, keyDailyBudgetMicros: null,
   payload: o.payload ?? {}, estimatedCostMicros: 0, ...o,
-});
+} as Parameters<typeof beginEffect>[0]);
 
 // 1. A completed effect with a replayable result.
 const a = await begin({
