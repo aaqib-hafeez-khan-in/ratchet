@@ -19,7 +19,7 @@ import { freshWorkspace, closePool, getPool } from '../helpers.js';
 
 process.env.X402_FACILITATOR_URL = 'https://facilitator.test';
 process.env.X402_PAY_TO = '0x209693Bc6afc0C5328bA36FaF03C514EF312287C';
-process.env.X402_NETWORK = 'eip155:8453';
+process.env.X402_NETWORK = 'eip155:1';
 process.env.X402_AMOUNT = '1000000';
 process.env.X402_CREDIT_MICROS = '1000000';
 

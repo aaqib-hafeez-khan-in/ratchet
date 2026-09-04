@@ -130,7 +130,7 @@ export default async function billingRoutes(app: FastifyInstance) {
         ? 'Quotes are struck in USD. Credit granted is always the USD amount, never a token '
           + 'amount, so a price move between quote and settlement cannot mint credit.'
         : 'Crypto payments are not configured on this instance.',
-      chains: ['solana', 'ethereum', 'base', 'bitcoin'].map((c) => ({
+      chains: ['solana', 'ethereum', 'bitcoin'].map((c) => ({
         chain: c,
         destination: destinationFor(c) || null,
         configured: destinationFor(c).length > 0,
@@ -159,7 +159,7 @@ export default async function billingRoutes(app: FastifyInstance) {
         type: 'object', required: ['token_mint', 'usd_micros'], additionalProperties: false,
         properties: {
           token_mint: { type: 'string', maxLength: 64 },
-          chain: { type: 'string', enum: ['solana', 'ethereum', 'base', 'bitcoin'] },
+          chain: { type: 'string', enum: ['solana', 'ethereum', 'bitcoin'] },
           usd_micros: { type: 'integer', minimum: 1, maximum: 100_000_000_000 },
         },
       },

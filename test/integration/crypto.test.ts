@@ -167,7 +167,7 @@ describe('non-custodial crypto payments', () => {
 
     // Crypto is available when ANY chain has a receiving address, so all of
     // them must be cleared to prove the off state.
-    const CHAINS = ['SOLANA', 'ETHEREUM', 'BASE', 'BITCOIN'] as const;
+    const CHAINS = ['SOLANA', 'ETHEREUM', 'BITCOIN'] as const;
     const saved = Object.fromEntries(
       CHAINS.map((c) => [c, process.env[`${c}_DESTINATION_ADDRESS`]]));
     for (const c of CHAINS) process.env[`${c}_DESTINATION_ADDRESS`] = '';

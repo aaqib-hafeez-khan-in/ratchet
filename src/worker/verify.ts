@@ -61,6 +61,14 @@ async function rpc(urls: string[], method: string, params: unknown[]): Promise<a
 }
 
 /** Configured endpoint first, then public fallbacks. */
+/**
+ * Base is still verifiable here although it is no longer quotable.
+ *
+ * Migration 039 disabled its assets and the chain has no destination, so no new
+ * Base intent can be created. This path stays because verification is about
+ * transactions that already happened: a chain we stopped accepting is not a
+ * chain whose history stops needing to be checkable.
+ */
 function endpointsFor(chain: 'ethereum' | 'base'): string[] {
   const configured = config.crypto.chains[chain]?.rpc;
   const fallbacks = chain === 'base'

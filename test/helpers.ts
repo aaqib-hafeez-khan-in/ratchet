@@ -26,7 +26,6 @@ process.env.LOG_LEVEL = 'silent';
 // addresses in their .env. A test that needs a chain enabled sets it first.
 process.env.SOLANA_DESTINATION_ADDRESS ??= '';
 process.env.ETHEREUM_DESTINATION_ADDRESS ??= '';
-process.env.BASE_DESTINATION_ADDRESS ??= '';
 process.env.BITCOIN_DESTINATION_ADDRESS ??= '';
 
 process.env.BILLING_PROVIDER ??= 'test';

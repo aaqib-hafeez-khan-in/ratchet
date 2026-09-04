@@ -236,10 +236,6 @@ export const config = {
           destination: process.env.ETHEREUM_DESTINATION_ADDRESS ?? '',
           rpc: process.env.ETHEREUM_RPC_URL ?? 'https://ethereum.publicnode.com',
         },
-        base: {
-          destination: process.env.BASE_DESTINATION_ADDRESS ?? '',
-          rpc: process.env.BASE_RPC_URL ?? 'https://base-rpc.publicnode.com',
-        },
         bitcoin: {
           destination: process.env.BITCOIN_DESTINATION_ADDRESS ?? '',
           rpc: process.env.BITCOIN_API_URL ?? 'https://mempool.space/api',
@@ -287,11 +283,17 @@ export const config = {
     get facilitatorUrl() { return process.env.X402_FACILITATOR_URL ?? ''; },
     get facilitatorKey() { return process.env.X402_FACILITATOR_KEY ?? ''; },
     get payTo() { return process.env.X402_PAY_TO ?? ''; },
-    /** CAIP-2 chain id, e.g. eip155:8453 for Base mainnet. */
-    get network() { return process.env.X402_NETWORK ?? 'eip155:8453'; },
-    /** Token contract. Defaults to USDC on Base. */
+    /**
+     * CAIP-2 chain id. eip155:1 is Ethereum mainnet.
+     *
+     * This defaulted to eip155:8453 — Base — which is no longer a chain this
+     * operator accepts. A default that quietly settles on a refused chain is
+     * worse than having no default at all.
+     */
+    get network() { return process.env.X402_NETWORK ?? 'eip155:1'; },
+    /** Token contract. Defaults to USDC on Ethereum mainnet. */
     get asset() {
-      return process.env.X402_ASSET ?? '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+      return process.env.X402_ASSET ?? '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
     },
     /**
      * The token's EIP-712 domain. The client signs over it, so a wrong value
