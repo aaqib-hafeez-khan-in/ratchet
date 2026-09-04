@@ -69,6 +69,13 @@ jobs:
           FUZZ_RUNS: 50000
         run: npm run fuzz
 
+      - name: Reproducible build
+        # Two clean builds must be byte-identical and carry nothing specific to
+        # the machine that made them. Same-machine determinism is the easy half;
+        # the check that matters is that no absolute path leaked into a source
+        # map, because that is how a build stops reproducing for anybody else.
+        run: npm run verify:build
+
       - name: Production dependency audit
         # A vulnerable production dependency should fail the build; a vulnerable
         # dev tool should not stop a release at midnight.
