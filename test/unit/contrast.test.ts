@@ -97,3 +97,49 @@ describe('every text token clears WCAG AA on every surface it can sit on', () =>
     assert.ok(ratio('#000000', '#ffffff') > AA);
   });
 });
+
+/**
+ * Tokens passing is not the same as the page passing.
+ *
+ * Both benchmark bars drew their label with a colour that was chosen for the
+ * other theme: a hardcoded #fff that works on the light-mode accent and gives
+ * 2.69:1 on the dark one, and a dark-mode override painting the label in --bg
+ * on a mid-grey bar for 1.88:1. Every token involved was fine on its own.
+ * These are the specific foreground/background pairs the components actually
+ * put on screen.
+ */
+describe('component colour pairs clear AA in both themes', () => {
+  const PAIRS: ReadonlyArray<readonly [string, string, string]> = [
+    ['gate bar label', '--accent-ink', '--accent'],
+    ['quiet bar label', '--text', '--border-strong'],
+    ['credential note', '--text-dim', '--bg-raised'],
+    ['credential issuer', '--text-dim', '--bg-raised'],
+  ];
+
+  for (const theme of ['light', 'dark'] as const) {
+    test(theme, () => {
+      const p = palette(theme);
+      const failures: string[] = [];
+      for (const [what, fg, bg] of PAIRS) {
+        const f = p.get(fg);
+        const b = p.get(bg);
+        assert.ok(f && b, `${theme} is missing ${fg} or ${bg}`);
+        const r = ratio(f, b);
+        if (r < AA) failures.push(`${what} (${fg} on ${bg}): ${r.toFixed(2)}:1`);
+      }
+      assert.deepEqual(failures, [], `below ${AA}:1 in the ${theme} palette`);
+    });
+  }
+
+  test('no component paints text in a raw hex instead of a token', () => {
+    // #fff on .bar-fill span was exactly this bug: invisible to a token audit
+    // because it never was a token.
+    const bar = /\.bar-fill span \{([^}]*)\}/.exec(CSS);
+    assert.ok(bar, '.bar-fill span must exist');
+    assert.doesNotMatch(
+      bar[1] ?? '',
+      /color:\s*#/,
+      'use a token, so the colour follows the theme it is drawn on',
+    );
+  });
+});

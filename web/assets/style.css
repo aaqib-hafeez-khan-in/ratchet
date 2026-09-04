@@ -119,8 +119,16 @@ nav.site {
   scrollbar-width: none;
 }
 nav.site::-webkit-scrollbar { display: none; }
-nav.site a { white-space: nowrap; }
-nav.site a { color: var(--text-dim); font-size: 0.92rem; }
+/* One rule, not two: a second block with the same selector reads as an
+   oversight and hides declarations from anything scanning for them.
+   inline-flex with a min-height rather than padding, because the nav is a
+   horizontal scroller and vertical padding would grow the header — these
+   landed at 23.5px, half a pixel under the 24px WCAG 2.5.8 floor. */
+nav.site a {
+  white-space: nowrap;
+  color: var(--text-dim); font-size: 0.92rem;
+  display: inline-flex; align-items: center; min-height: 24px;
+}
 nav.site a:hover, nav.site a[aria-current="page"] { color: var(--text); text-decoration: none; }
 
 @media (max-width: 640px) {
@@ -188,7 +196,7 @@ footer.site ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.
    before you click, and these open in a new tab so the page you were reading
    survives. */
 footer.site .fmt {
-  font: 600 0.62rem/1 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font: 600 0.72rem/1 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   letter-spacing: 0.04em;
   color: var(--text-faint);
   border: 1px solid var(--border);
@@ -657,7 +665,15 @@ ul.checks li::before {
 .rail button {
   width: 34px; height: 4px; border: none; border-radius: 2px; padding: 0;
   background: var(--border-strong); cursor: pointer;
+  position: relative;
   transition: background 0.3s ease, transform 0.3s ease;
+}
+/* A 4px-tall bar is the right drawing and an impossible target — WCAG 2.5.8
+   asks for 24. Grow the touch area, not the bar: this is invisible, centred on
+   the bar, and inside the rail's own bottom margin so it covers no content. */
+.rail button::after {
+  content: ''; position: absolute; left: 0; right: 0;
+  top: 50%; height: 28px; transform: translateY(-50%);
 }
 .rail button[aria-current="true"] { background: var(--accent); transform: scaleY(1.8); }
 
@@ -1471,7 +1487,7 @@ ul.checks li::before {
 .bar-fill { height: 100%; width: 0; display: flex; align-items: center; border-radius: 2px; transition: width 1s cubic-bezier(0.16, 0.84, 0.3, 1); }
 .bar-fill.gate { background: var(--accent); }
 .bar-fill.quiet { background: var(--border-strong); }
-.bar-fill span { padding-left: 0.7rem; font: 500 0.8125rem/1 var(--mono); font-variant-numeric: tabular-nums; color: #fff; white-space: nowrap; }
+.bar-fill span { padding-left: 0.7rem; font: 500 0.8125rem/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--accent-ink); white-space: nowrap; }
 .bar-fill.quiet span { color: var(--text); }
 
 /* -- the wallet figure, restated small on the landing page --------------- */
@@ -1554,9 +1570,9 @@ table.grid td.good { color: var(--accent); }
   .stack-bars .blk, .race-fill, .bar-fill, .trips .trip { transition: none; }
 }
 
-@media (prefers-color-scheme: dark) {
-  .bar-fill.quiet span { color: var(--bg); }
-}
+/* No dark-mode override here on purpose: the quiet bar is --border-strong in
+   both themes, and --text clears AA on both (11.4:1 light, 8.5:1 dark). This
+   used to paint the label in --bg, which was 1.88:1 against the dark bar. */
 
 /* ─────────────────────────────────────────────────────────────────────────
    Fraud page, and the containment block on the landing page.

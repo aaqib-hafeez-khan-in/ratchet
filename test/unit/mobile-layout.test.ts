@@ -201,3 +201,39 @@ describe('a pinned beat must fit the visible viewport', () => {
       '600px of minimum inside a 560px window is the entire bug');
   });
 });
+
+/**
+ * Two controls that were the right drawing and the wrong target.
+ *
+ * The progress rail under each pinned beat is a row of 34x4px bars — four
+ * pixels is what reads as a rail, and four pixels is not something a thumb can
+ * hit. WCAG 2.5.8 asks for 24. Nothing caught it because the bars are exactly
+ * the size they were designed to be; the defect was that they were also the
+ * whole target.
+ *
+ * The nav links measured 23.5px: half a pixel under the same floor, which no
+ * amount of looking was ever going to reveal.
+ */
+describe('a control must be big enough to hit, whatever size it is drawn', () => {
+  test('the rail bars carry a touch area larger than the bar', () => {
+    const hit = topLevelRule('.rail button::after');
+    assert.ok(hit, 'the rail bars must have a ::after hit area');
+    assert.match(hit, /position:\s*absolute/, 'the hit area must not affect layout');
+    const h = /height:\s*(\d+)px/.exec(hit);
+    assert.ok(h, 'the hit area needs an explicit height');
+    assert.ok(
+      Number(h[1]) >= 24,
+      `WCAG 2.5.8 asks for 24px; the hit area is ${h[1]}px`,
+    );
+    // The bar itself must stay small, or the fix has changed the design.
+    assert.match(topLevelRule('.rail button'), /height:\s*4px/);
+  });
+
+  test('a nav link is at least 24px tall', () => {
+    const rule = topLevelRule('nav.site a');
+    const m = /min-height:\s*(\d+)px/.exec(rule);
+    assert.ok(m, 'nav links need an explicit minimum height');
+    assert.ok(Number(m[1]) >= 24, `nav links are ${m[1]}px; the floor is 24`);
+    assert.match(rule, /align-items:\s*center/, 'the text must stay centred in it');
+  });
+});
