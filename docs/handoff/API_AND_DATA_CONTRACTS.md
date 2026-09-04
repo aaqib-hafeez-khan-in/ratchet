@@ -308,6 +308,20 @@ answers.
 
 An unconfigured effect type returns the defaults with `is_default: true`.
 
+The rows above are the fields most people set. The rest — `require_cost`, `required_dimensions`
+and `dimension_limits` (see *Dimensions*), `structuring_threshold_micros` (see *Structuring
+analysis*), and `surge_per_hour` / `surge_multiplier` / `surge_action` / `surge_cooldown_seconds`
+(see `CIRCUIT_BREAKER.md`) — carry their prose in the PUT body schema in
+`src/api/routes/workspace.ts`, which is where `/openapi.json` gets it from.
+
+**The reference table on `/docs` is pinned to that schema.** `required_dimensions`,
+`dimension_limits`, `structuring_threshold_micros` and `surge_cooldown_seconds` were each
+documented somewhere on the site and missing from the one table a reader consults to learn what a
+policy accepts — a gap nobody notices, because from wherever a field *was* written up it looks
+documented. `test/unit/policy-docs.test.ts` diffs the emitted PUT body schema against the field
+names in `web/docs.html` in both directions: a new policy field has to be explained on the page,
+and the page cannot name a field the route would reject.
+
 **Value-triggered approval.** `mode = 'require_approval'` is all-or-nothing per effect type —
 every refund waits for a human or none does — which is why operators who try it turn it off
 again. `approval_above_micros` is the rule they actually have: hold anything at or above a
