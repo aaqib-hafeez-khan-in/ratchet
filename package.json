@@ -4,7 +4,7 @@
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
-  "description": "Ratchet — the effect gate for AI agents. At-most-once side effects, budget enforcement, and an auditable execution record.",
+  "description": "Ratchet \u2014 the effect gate for AI agents. At-most-once side effects, budget enforcement, and an auditable execution record.",
   "engines": {
     "node": ">=20.11"
   },
@@ -26,7 +26,7 @@
     "test:integration": "node --test --test-concurrency=1 --import tsx test/integration/*.test.ts",
     "test:e2e": "node --test --test-concurrency=1 --import tsx test/e2e/*.test.ts",
     "openapi": "tsx scripts/emit-openapi.ts",
-    "audit": "npm audit --omit=dev",
+    "audit": "bash scripts/audit.sh",
     "stripe:listen": "stripe listen --forward-to localhost:8787/v1/billing/webhook/stripe --events checkout.session.completed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,charge.refunded,charge.dispute.created",
     "stripe:trigger": "stripe trigger checkout.session.completed",
     "stripe:check": "tsx scripts/check-stripe.ts",
