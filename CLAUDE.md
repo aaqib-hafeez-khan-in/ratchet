@@ -110,6 +110,7 @@ npm run build           # tsc + copy migrations into dist/
 npm start               # compiled control plane
 npm run start:worker    # compiled worker
 npm run seed            # realistic workspace state for the console
+npm run fuzz            # property-based fuzzing (FUZZ_RUNS=n to go deeper)
 npm run audit           # production dependency audit
 ```
 
@@ -198,6 +199,13 @@ New behaviour needs a test at the right layer:
 - **Unit** — pure logic: fingerprinting, SSRF classification, signature verification.
 - **Integration** — real Postgres: state transitions, concurrency, isolation, billing, webhooks.
 - **E2E** — real HTTP through `app.inject`: auth, validation, headers, limits, MCP.
+- **Fuzz** — property-based, over the three functions that read attacker-supplied input
+  before anything has been verified: the payload fingerprint, the SSRF guard, and payment
+  signature verification. `test/unit/fuzz-*.test.ts`, fast-check, `npm run fuzz`.
+  These assert what must hold for *every* input, not for the cases somebody thought of.
+  If you add a property here, break the implementation on purpose and watch it fail before
+  you trust it — two of the first three written here passed against code that was already
+  broken, and only the deliberate mutation revealed it.
 
 A change to any of these **must** come with a test:
 state transitions · authorization · tenant isolation · idempotency and replay · rate limits ·

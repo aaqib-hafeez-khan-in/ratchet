@@ -59,6 +59,16 @@ jobs:
       - name: Full suite
         run: npm test
 
+      - name: Fuzz the security-critical parsers
+        # Property-based, over the three functions that read attacker-supplied
+        # input before anything has been verified: the payload fingerprint that
+        # decides what counts as a duplicate, the SSRF guard, and payment
+        # webhook signature verification. More cases here than locally — CI has
+        # the time, and the whole point is to reach inputs nobody thought of.
+        env:
+          FUZZ_RUNS: 50000
+        run: npm run fuzz
+
       - name: Production dependency audit
         # A vulnerable production dependency should fail the build; a vulnerable
         # dev tool should not stop a release at midnight.
