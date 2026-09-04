@@ -166,6 +166,20 @@
           <tr><td class="mono">require_cost</td><td class="mono small">boolean</td>
               <td class="small">Refuse a begin that declares no cost, so a spend ceiling
                 cannot be bypassed by simply not declaring anything.</td></tr>
+          <tr><td class="mono">required_dimensions</td><td class="mono small">string[] · max 8</td>
+              <td class="small">Dimensions a caller must declare on begin. Set this alongside any
+                <code>dimension_limits</code> entry — a ceiling keyed on a dimension is otherwise
+                evaded by simply not declaring it. Omitting one is refused, never allowed.</td></tr>
+          <tr><td class="mono">dimension_limits</td><td class="mono small">object · max 8</td>
+              <td class="small">Per-destination ceilings: no more than $200 and no more than 20
+                effects to any one counterparty per UTC day. <code>daily_count</code> applies to
+                effects that declare no cost at all, which is what makes it usable for outbound
+                messaging. Only a keyed hash of the value is ever stored.</td></tr>
+          <tr><td class="mono">structuring_threshold_micros</td><td class="mono small">integer · null</td>
+              <td class="small">A line to <em>watch</em>, never one to enforce — nothing is refused
+                for exceeding it. Ratchet measures how closely declared amounts crowd it, which is
+                how you point it at a threshold it does not own: a reporting limit, an internal
+                review limit. Null falls back to <code>max_cost_micros</code>.</td></tr>
           <tr><td class="mono">surge_per_hour</td><td class="mono small">integer · null</td>
               <td class="small"><strong>Surge containment.</strong> Absolute ceiling: new effects
                 of this type per hour above which the breaker opens. Null (the default) is off.</td></tr>
@@ -176,6 +190,11 @@
           <tr><td class="mono">surge_action</td><td class="mono small">monitor · require_approval · deny</td>
               <td class="small">What an open breaker does. Defaults to
                 <code>require_approval</code>.</td></tr>
+          <tr><td class="mono">surge_cooldown_seconds</td><td class="mono small">60–86400</td>
+              <td class="small">How long a tripped breaker stays open before closing itself.
+                Closing grants a fresh allowance measured from the count it cleared at, so a
+                cooldown is a real second chance rather than an instant re-trip. A breaker you
+                opened by hand ignores this and waits for you.</td></tr>
           <tr><td class="mono">retention_days</td><td class="mono small">1–400</td>
               <td class="small">How long records and replayable results are kept.</td></tr>
         </tbody>
@@ -184,6 +203,11 @@
     <p class="small faint">
       Choose <code>retry</code> only when the underlying vendor is genuinely idempotent, or a
       duplicate is truly harmless. Ratchet will not assume that for you.
+    </p>
+    <p class="small faint">
+      <code>required_dimensions</code>, <code>dimension_limits</code> and
+      <code>structuring_threshold_micros</code> get a fuller treatment in
+      <a href="/fraud">the risk controls</a>, including why a declaration can only ever tighten.
     </p>
   </div>
 </section>
