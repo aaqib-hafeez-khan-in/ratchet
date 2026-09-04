@@ -111,13 +111,28 @@ const usd = (m) => {
     : `$${v.toFixed(2)}`;
 };
 const num = (n) => (n ?? 0).toLocaleString();
+const CHAIN_NAMES = {
+  solana: 'Solana', ethereum: 'Ethereum', base: 'Base', bitcoin: 'Bitcoin',
+};
+const chainName = (c) => CHAIN_NAMES[c] ?? c;
+/**
+ * A relative time, pointing whichever way the timestamp actually points.
+ *
+ * This assumed the past and appended "ago" unconditionally, which is right for
+ * created_at and updated_at and wrong for a deadline: a crypto quote issued
+ * seconds earlier rendered as "Quote expires -900s ago", telling somebody about
+ * to move real money that their quote had already lapsed.
+ */
 const when = (iso) => {
   if (!iso) return '—';
   const d = new Date(iso);
   const secs = Math.round((Date.now() - d.getTime()) / 1000);
-  if (secs < 60) return `${secs}s ago`;
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+  const ahead = secs < 0;
+  const n = Math.abs(secs);
+  const say = (v, unit) => (ahead ? `in ${v}${unit}` : `${v}${unit} ago`);
+  if (n < 60) return say(n, 's');
+  if (n < 3600) return say(Math.floor(n / 60), 'm');
+  if (n < 86400) return say(Math.floor(n / 3600), 'h');
   return d.toLocaleDateString();
 };
 
@@ -1052,9 +1067,20 @@ const PANELS = {
             method: 'POST',
             body: { url: $('wh-url').value.trim(), events: $('wh-events').value.split(',') },
           });
-          $('wh-result').innerHTML =
+          /**
+           * Re-render, then put the secret back.
+           *
+           * Refreshing was skipped here because the panel rebuild would discard
+           * the signing secret, which is shown exactly once — losing an
+           * operator their only copy. The cost of not refreshing was worse: the
+           * table below still read "No endpoints." immediately after adding
+           * one, so the obvious next move was to add it again.
+           */
+          const added =
             `<div class="notice good">Endpoint added. Save the signing secret — shown once.</div>
              <div class="secret">${esc(made.signing_secret)}</div>`;
+          await PANELS.webhooks();
+          $('wh-result').innerHTML = added;
         } catch (err) {
           $('wh-result').innerHTML = `<div class="notice bad">${esc(err.message)}</div>`;
         }
@@ -1141,6 +1167,12 @@ const PANELS = {
       }
 
       // Crypto top-ups, when the instance is configured for them.
+    //
+    // The chain name is not decoration. USDC exists on Solana, Ethereum and Base
+    // under a different contract and a different destination address on each, so
+    // a panel labelling all three "$25 in USDC" shows three identical buttons
+    // where choosing wrong sends real money to a chain nobody is watching. The
+    // symbol on its own never identifies the payment.
       try {
         const c = await (await fetch('/v1/billing/crypto/assets')).json();
         if (c.enabled && c.assets.length) {
@@ -1151,7 +1183,8 @@ const PANELS = {
               controls. Quoted in USD, so a price move cannot change your credit.</p>
             <div class="actions">${c.assets.map((a) =>
               `<button class="btn secondary" data-crypto="${esc(a.token_mint)}">
-                 $25 in ${esc(a.symbol)}</button>`).join('')}</div>
+                 $25 in ${esc(a.symbol)} <span class="on-chain">on ${esc(chainName(a.chain))}</span>
+               </button>`).join('')}</div>
             <div id="crypto-result"></div>`;
           $('panel').appendChild(box);
           for (const b of box.querySelectorAll('[data-crypto]')) {
@@ -1163,7 +1196,12 @@ const PANELS = {
                 });
                 document.getElementById('crypto-result').innerHTML = `
                   <div class="notice">Send exactly <strong>${esc(i.amount)} ${esc(i.symbol)}</strong>
-                    with memo <code>${esc(i.memo)}</code>. Quote expires ${when(i.expires_at)}.</div>
+                    on the <strong>${esc(chainName(i.chain))}</strong> network${i.memo
+                      ? `, with memo <code>${esc(i.memo)}</code>` : ''}.
+                    Quote expires ${when(i.expires_at)}.</div>
+                  <p class="small dim" style="margin:.55rem 0 .3rem">This address takes
+                    ${esc(i.symbol)} on ${esc(chainName(i.chain))}. Sent on any other network
+                    it does not arrive here, and we cannot recover it.</p>
                   <div class="secret">${esc(i.destination)}</div>
                   <p class="small faint">${i.instructions.map(esc).join('<br>')}</p>`;
               } catch (err) {

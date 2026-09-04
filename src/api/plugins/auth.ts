@@ -3,7 +3,7 @@ import fp from 'fastify-plugin';
 import type {} from '@fastify/cookie';
 import { authenticate, requireScope, resolveConsoleSession, provisionAnonymousWorkspace,
          ANONYMOUS_EFFECT_QUOTA,
-         type AuthContext, type Scope } from '../../domain/auth.js';
+         type AuthContext, type ConsoleSession, type Scope } from '../../domain/auth.js';
 import { PLANS, type PlanCapabilities } from '../../domain/plans.js';
 import { errors } from '../../lib/errors.js';
 import { claimProvisionSlot } from '../../domain/provisioning.js';
@@ -17,7 +17,7 @@ declare module 'fastify' {
      * equality only; never used as a credential in its own right.
      */
     authToken?: string;
-    console?: { workspaceId: string; email: string };
+    console?: ConsoleSession;
     /** Set when this request provisioned its own workspace; returned once. */
     provisionedKey?: { api_key: string; workspace_id: string; quota: number };
   }
@@ -84,7 +84,11 @@ async function plugin(app: FastifyInstance) {
    */
   app.decorate('requireCapability', (cap: keyof PlanCapabilities) => {
     return async (req: FastifyRequest) => {
-      const ctx = req.auth;
+      // Either credential answers this question. It used to read req.auth
+      // alone, which requireConsole leaves unset on its cookie path — so a
+      // signed-in operator hit the throw below and got "Internal error." on
+      // every capability-gated route, where an API key got a clean 403.
+      const ctx = req.auth ?? req.console;
       // Ordering bug rather than an auth failure: say so plainly instead of
       // returning a 401 that sends somebody looking at their credentials.
       if (!ctx) throw new Error(`requireCapability('${cap}') ran before authentication`);
@@ -162,7 +166,10 @@ async function plugin(app: FastifyInstance) {
       const ctx = await authenticate(token);
       for (const s of scopes) requireScope(ctx, s);
       req.auth = ctx;
-      req.console = { workspaceId: ctx.workspaceId, email: `key:${ctx.keyPrefix}` };
+      req.console = {
+        workspaceId: ctx.workspaceId, email: `key:${ctx.keyPrefix}`,
+        plan: ctx.plan, legacyCapabilities: ctx.legacyCapabilities,
+      };
     };
   });
 }

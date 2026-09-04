@@ -237,3 +237,68 @@ describe('a control must be big enough to hit, whatever size it is drawn', () =>
     assert.match(rule, /align-items:\s*center/, 'the text must stay centred in it');
   });
 });
+
+/**
+ * Figure labels have a floor, because a legend nobody can read is decoration.
+ *
+ * The axis captions, ledger totals, band scales and case tags drifted down to
+ * 9px and 10px per component — small enough on a 375px phone to be a shape
+ * rather than a word, and these are the labels carrying what the figure means:
+ * "who it is going to", "ceiling $2,000", "Attempted".
+ *
+ * Expressed as a rule on the stylesheet rather than a measurement, for the same
+ * reason as everything above it: the next 9px label will arrive in a `font:`
+ * shorthand that looks exactly like its neighbours.
+ */
+describe('nothing is set smaller than a phone can read', () => {
+  const FLOOR_REM = 0.6875; // 11px at a 16px root
+
+  test('no font shorthand goes below the floor', () => {
+    const offenders: string[] = [];
+    for (const m of css.matchAll(/font:\s*[^;]*?(\d*\.?\d+)rem\s*\//g)) {
+      const rem = Number(m[1]);
+      if (rem < FLOOR_REM) {
+        const at = css.slice(0, m.index).split('\n').length;
+        offenders.push(`line ${at}: ${rem}rem`);
+      }
+    }
+    assert.deepEqual(offenders, [],
+      `below ${FLOOR_REM}rem (${FLOOR_REM * 16}px) — raise it, or the label is decoration`);
+  });
+
+  /**
+   * One documented exception, not a silent one.
+   *
+   * .packet.tiny is a digit inside a fixed 26px token in the retry-swarm
+   * figure — a glyph scaled to its container, not a label you read a sentence
+   * of. It is already at the edge of that box at 0.66rem, so the floor would
+   * push the digit out of its own circle. Anything else added here needs the
+   * same kind of reason written next to it.
+   */
+  const EXEMPT = ['.packet.tiny'];
+
+  test('no font-size declaration goes below it either', () => {
+    const offenders: string[] = [];
+    for (const m of css.matchAll(/font-size:\s*(\d*\.?\d+)rem/g)) {
+      const rem = Number(m[1]);
+      if (rem >= FLOOR_REM) continue;
+      const lineStart = css.lastIndexOf('\n', m.index) + 1;
+      const line = css.slice(lineStart, css.indexOf('\n', m.index));
+      if (EXEMPT.some((sel) => line.includes(sel))) continue;
+      offenders.push(`line ${css.slice(0, m.index).split('\n').length}: ${rem}rem`);
+    }
+    assert.deepEqual(offenders, [], `below ${FLOOR_REM}rem`);
+  });
+
+  test('every exemption still exists, so the list cannot rot', () => {
+    for (const sel of EXEMPT) {
+      assert.ok(css.includes(sel), `${sel} is exempt from the floor but no longer in the sheet`);
+    }
+  });
+
+  test('the check is looking at real declarations', () => {
+    // Guard against a regex that matches nothing and therefore always passes.
+    const found = [...css.matchAll(/font:\s*[^;]*?(\d*\.?\d+)rem\s*\//g)];
+    assert.ok(found.length > 8, `only ${found.length} font shorthands matched`);
+  });
+});

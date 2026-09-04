@@ -693,7 +693,7 @@ ul.checks li::before {
 @media (max-width: 640px) {
   .stage { height: 380vh; }
   .scene { height: 150px; }
-  .node span { font-size: 0.68rem; }
+  .node span { font-size: 0.6875rem; }
 }
 
 /* ── Works-with ─────────────────────────────────────────────────────────── */
@@ -1418,7 +1418,7 @@ ul.checks li::before {
 }
 .tallies > div { background: var(--bg-raised); padding: 0.75rem 0.9rem; }
 .tallies .k {
-  display: block; font: 500 0.5625rem/1 var(--mono); letter-spacing: 0.12em;
+  display: block; font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.12em;
   text-transform: uppercase; color: var(--text-faint); margin-bottom: 0.4rem;
 }
 .tallies .v {
@@ -1440,14 +1440,14 @@ ul.checks li::before {
 .stack-bars .blk.on { background: var(--stop); height: 100%; }
 .stack-bars .blk b {
   position: absolute; inset-inline: 0; bottom: calc(100% + 0.35rem);
-  font: 500 0.5rem/1 var(--mono); letter-spacing: 0.04em; text-align: center;
+  font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.04em; text-align: center;
   color: var(--text-faint); opacity: 0; transition: opacity 0.3s;
   white-space: nowrap; transform: rotate(-90deg) translateX(0.4rem); transform-origin: bottom center;
 }
 .stack-bars .blk.on b { opacity: 0.75; }
 .stack-total { flex: 0 0 auto; }
 .stack-total .k {
-  display: block; font: 500 0.625rem/1 var(--mono); letter-spacing: 0.14em;
+  display: block; font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--text-faint); margin-bottom: 0.5rem;
 }
 .stack-total strong {
@@ -1543,7 +1543,7 @@ ul.checks li::before {
 .tscroll { overflow-x: auto; margin-top: 2rem; }
 table.grid { border-collapse: collapse; width: 100%; min-width: 30rem; }
 table.grid th, table.grid td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.9375rem; }
-table.grid thead th { font: 500 0.625rem/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-faint); }
+table.grid thead th { font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-faint); }
 table.grid tbody th { font-weight: 400; color: var(--text-dim); }
 table.grid td { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 table.grid td.bad { color: var(--stop); }
@@ -1555,7 +1555,7 @@ table.grid td.good { color: var(--accent); }
 .cf-lanes { display: block; width: 100%; height: clamp(6.5rem, 24vh, 14rem); margin-top: 1.25rem; }
 .cf-read { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1.25rem 2.5rem; margin-top: 1.5rem; }
 .cf-read div { display: flex; flex-direction: column; gap: 0.4rem; }
-.cf-read .k { font: 500 0.625rem/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint); }
+.cf-read .k { font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint); }
 .cf-read .v { font: 500 clamp(1.6rem, 4.5vw, 2.5rem)/1 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
 .cf-read .v.bad { color: var(--stop); }
 .cf-read .v.good { color: var(--accent); }
@@ -1604,7 +1604,7 @@ table.grid td.good { color: var(--accent); }
   padding: 0.55rem clamp(0.75rem, 3vw, 1.1rem);
 }
 .ledger-head {
-  font: 500 0.5625rem/1 var(--mono); letter-spacing: 0.13em; text-transform: uppercase;
+  font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.13em; text-transform: uppercase;
   color: var(--text-faint); border-bottom: 1px solid var(--border);
 }
 .ledger-row { border-bottom: 1px solid var(--border); transition: opacity 0.3s; }
@@ -1624,14 +1624,14 @@ table.grid td.good { color: var(--accent); }
   color: var(--text); white-space: nowrap;
 }
 .ledger-mark {
-  font: 500 0.5625rem/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase;
+  font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase;
   color: var(--ok); text-align: right;
 }
 .ledger-row.refused .ledger-amt { color: var(--text-faint); text-decoration: line-through; }
 .ledger-row.refused .ledger-mark { color: var(--stop); }
 .ledger-total { background: var(--bg-sunk); }
 .ledger-total span:first-child {
-  font: 500 0.5625rem/1 var(--mono); letter-spacing: 0.13em; text-transform: uppercase;
+  font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.13em; text-transform: uppercase;
   color: var(--text-faint);
 }
 .ledger-total strong {
@@ -1640,7 +1640,7 @@ table.grid td.good { color: var(--accent); }
 }
 .ledger-total strong.at-cap { color: var(--stop); }
 .ledger-cap {
-  font: 500 0.5625rem/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase;
+  font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase;
   color: var(--text-faint); text-align: right;
 }
 
@@ -1655,7 +1655,7 @@ table.grid td.good { color: var(--accent); }
 }
 .blind-step { min-width: 0; }
 .blind-step .k {
-  display: block; font: 500 0.5625rem/1 var(--mono); letter-spacing: 0.14em;
+  display: block; font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--text-faint); margin-bottom: 0.5rem;
 }
 .blind-in, .blind-out {
@@ -1668,7 +1668,7 @@ table.grid td.good { color: var(--accent); }
 .blind-out.settled { color: var(--accent); }
 .blind-arrow { display: flex; align-items: center; justify-content: center; }
 .blind-op {
-  font: 500 0.5625rem/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase;
+  font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase;
   color: var(--text-faint); border: 1px solid var(--border); border-radius: 999px;
   padding: 0.3rem 0.55rem; white-space: nowrap; transition: color 0.4s, border-color 0.4s;
 }
@@ -1724,7 +1724,7 @@ table.grid td.good { color: var(--accent); }
 .ct-canvas { display: block; width: 100%; height: clamp(8rem, 30vh, 17rem); margin-top: 1rem; }
 .ct-read { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1rem 2.25rem; margin-top: 1.25rem; }
 .ct-read div { display: flex; flex-direction: column; gap: 0.35rem; }
-.ct-read .k { font: 500 0.5625rem/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint); }
+.ct-read .k { font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint); }
 .ct-read .v { font: 500 clamp(1.4rem, 4vw, 2.2rem)/1 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
 .ct-read .v.bad { color: var(--stop); }
 .ct-read .v.good { color: var(--accent); }
@@ -1782,7 +1782,7 @@ table.grid td.good { color: var(--accent); }
 .bands { margin-top: 2rem; max-width: 44rem; }
 .band-scale {
   display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.5rem;
-  font: 500 0.625rem/1 var(--mono); letter-spacing: 0.1em;
+  font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.1em;
   color: var(--text-faint); margin-bottom: 0.4rem;
 }
 .band-scale span:nth-child(2) { text-align: right; }
@@ -1817,7 +1817,7 @@ table.grid td.good { color: var(--accent); }
 .fan-case { background: var(--bg-raised); padding: 1.35rem clamp(1.1rem, 3vw, 1.6rem); }
 .fan-case.loud { background: color-mix(in srgb, var(--stop) 8%, var(--bg-raised)); }
 .fan-tag {
-  display: inline-block; font: 500 0.5625rem/1 var(--mono); letter-spacing: 0.13em;
+  display: inline-block; font: 500 0.6875rem/1 var(--mono); letter-spacing: 0.13em;
   text-transform: uppercase; color: var(--text-faint);
   border: 1px solid var(--border-strong); border-radius: 999px;
   padding: 0.25rem 0.5rem; margin-bottom: 0.75rem;
@@ -1861,3 +1861,26 @@ table.grid td.good { color: var(--accent); }
 .cred-note code { font-size: 0.94em; }
 
 @media (prefers-reduced-motion: reduce) { .cred { transition: none; } }
+
+/* The chain a crypto button pays on, set inside the button rather than beside
+   it: "USDC" is three different assets at three different addresses, and the
+   distinguishing word must travel with the control you actually press. Quieter
+   than the amount, never quiet enough to miss. */
+.on-chain { color: var(--text-dim); font-weight: 500; }
+.btn.secondary:hover .on-chain { color: inherit; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Figure micro-labels have a floor of 0.6875rem (11px).
+
+   The axis labels, ledger captions, band scales and case tags were set between
+   9px and 10px. On a 375px phone that is below what most people can read
+   comfortably, and these are the labels that say what a figure MEANS — "who it
+   is going to", "ceiling $2,000", "Attempted". A chart nobody can read the
+   legend of is decoration.
+
+   11px matches .wall-stamp and .k, which were already there, so the figures now
+   share one floor instead of drifting per component. They stay uppercase mono
+   with wide tracking, which is what keeps them legible at this size.
+   Raising them re-tightens every figure's spacing, so the collision check that
+   caught the overlapping day labels applies here too.
+   ───────────────────────────────────────────────────────────────────────── */

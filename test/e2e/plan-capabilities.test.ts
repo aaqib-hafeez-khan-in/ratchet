@@ -200,3 +200,56 @@ describe('the pricing table cannot drift from the gates', () => {
     }
   });
 });
+
+/**
+ * The gate must give the same answer to both credentials.
+ *
+ * requireCapability read req.auth, which requireKey sets and requireConsole
+ * leaves unset on its cookie path. So the identical request refused with a
+ * clean 403 for an API key and threw for a signed-in operator, arriving in the
+ * console as "Internal error." on Rollbacks, receipts and reconciliation — the
+ * seven routes that pair the two guards.
+ *
+ * A 500 is not a worse-worded 403. It says the fault is ours, it carries no
+ * reason, and it tells somebody evaluating an upgrade that the feature is
+ * broken rather than unavailable to them.
+ */
+describe('a capability gate answers the same whichever credential asked', () => {
+  async function sessionFor(plan: 'free' | 'pro') {
+    const ws = await workspace(plan);
+    const email = `${ws.workspaceId}@example.test`;
+    await getPool().query('UPDATE workspaces SET owner_email = $2 WHERE id = $1',
+      [ws.workspaceId, email]);
+    const { createConsoleSession } = await import('../../src/domain/auth.js');
+    return { ws, cookie: `rk_session=${await createConsoleSession(ws.workspaceId, email)}` };
+  }
+
+  test('a free-plan cookie session is refused, not failed', async () => {
+    const { cookie } = await sessionFor('free');
+    const r = await app.inject({ method: 'GET', url: '/v1/groups?limit=5', headers: { cookie } });
+
+    assert.notEqual(r.statusCode, 500, 'the gate threw instead of refusing');
+    assert.equal(r.statusCode, 403);
+    const body = JSON.parse(r.payload) as { error: { code: string; message: string } };
+    assert.equal(body.error.code, 'forbidden');
+    // The refusal has to say what would lift it, or it is just a closed door.
+    assert.match(body.error.message, /does not include/);
+    assert.match(body.error.message, /Pro/);
+  });
+
+  test('the key and the cookie agree, on both sides of the gate', async () => {
+    for (const plan of ['free', 'pro'] as const) {
+      const { ws, cookie } = await sessionFor(plan);
+      const viaCookie = await app.inject({
+        method: 'GET', url: '/v1/groups?limit=5', headers: { cookie },
+      });
+      const viaKey = await app.inject({
+        method: 'GET', url: '/v1/groups?limit=5',
+        headers: { authorization: `Bearer ${ws.key.plaintext}` },
+      });
+      assert.equal(viaCookie.statusCode, viaKey.statusCode,
+        `${plan}: cookie got ${viaCookie.statusCode}, key got ${viaKey.statusCode}`);
+      assert.equal(viaCookie.statusCode, plan === 'pro' ? 200 : 403);
+    }
+  });
+});

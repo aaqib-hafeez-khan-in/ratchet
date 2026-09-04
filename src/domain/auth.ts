@@ -380,16 +380,38 @@ export async function createConsoleSession(
   return raw;
 }
 
+export interface ConsoleSession {
+  workspaceId: string;
+  email: string;
+  plan: ReturnType<typeof planFor>;
+  /** Same grandfathering rule as an API key context: see migration 029. */
+  legacyCapabilities: boolean;
+}
+
 export async function resolveConsoleSession(
   raw: string,
-): Promise<{ workspaceId: string; email: string } | null> {
+): Promise<ConsoleSession | null> {
   const id = sha256(raw + config.authSecret).toString('hex');
-  const { rows } = await getPool().query<{ workspace_id: string; email: string }>(
-    `SELECT workspace_id, email FROM console_sessions
-      WHERE id = $1 AND expires_at > now()`, [id],
+  // The plan travels with the session on purpose. A capability check asks "may
+  // this workspace do this", and the answer cannot depend on which credential
+  // asked — a cookie session that carried no plan made every capability-gated
+  // route throw instead of answering, which surfaced as a 500.
+  const { rows } = await getPool().query<{
+    workspace_id: string; email: string; plan: string; legacy_capabilities: boolean;
+  }>(
+    `SELECT s.workspace_id, s.email, w.plan, w.legacy_capabilities
+       FROM console_sessions s JOIN workspaces w ON w.id = s.workspace_id
+      WHERE s.id = $1 AND s.expires_at > now()`, [id],
   );
   const r = rows[0];
-  return r ? { workspaceId: r.workspace_id, email: r.email } : null;
+  return r
+    ? {
+      workspaceId: r.workspace_id,
+      email: r.email,
+      plan: planFor(r.plan),
+      legacyCapabilities: r.legacy_capabilities,
+    }
+    : null;
 }
 
 /**
