@@ -42,6 +42,41 @@ jobs:
             | node bin/ratchet-mcp.mjs 2>/dev/null \
             | grep -q '"result"' || { echo "initialize did not return a result"; exit 1; }
 
+      # Provenance answers "which workflow, at which commit". It does not answer
+      # "was that commit the one the maintainer released" — a release can be cut
+      # from any tag, including an unsigned or a lightweight one, and the
+      # attestation would still be perfectly genuine about a commit nobody
+      # vouched for. Tags are signed now, so require the signature to verify
+      # before anything reaches npm.
+      - name: The tag being published must carry a verified signature
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          TAG="${RELEASE_TAG:-v$(node -p "require('./packages/ratchet-mcp/package.json').version")}"
+          echo "checking $TAG"
+
+          ref=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" \
+                  --jq '.object.type + " " + .object.sha')
+          type="${ref% *}"; sha="${ref#* }"
+
+          # Only an annotated tag object can carry a signature at all.
+          if [ "$type" != "tag" ]; then
+            echo "::error::${TAG} is a lightweight tag, so it carries no signature."
+            echo "  Re-create it signed:  git tag -s ${TAG} <commit> -m '...' && git push --force origin ${TAG}"
+            exit 1
+          fi
+
+          v=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${sha}" --jq '.verification.verified')
+          r=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${sha}" --jq '.verification.reason')
+          if [ "$v" != "true" ]; then
+            echo "::error::${TAG} signature did not verify (${r})."
+            echo "  A signing key must be registered at https://github.com/settings/keys"
+            exit 1
+          fi
+          echo "${TAG}: signature verified (${r})"
+
       - name: Publish
         if: ${{ env.NPM_TOKEN != '' }}
         working-directory: packages/ratchet-mcp
