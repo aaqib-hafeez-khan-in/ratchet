@@ -57,6 +57,8 @@ web/            landing, docs, pricing, security, console — static, no build s
 test/           unit · integration · e2e
 examples/       python · typescript · curl · mcp configs
 docs/handoff/   living project memory — update these when behaviour changes
+docs/SSDF.md    NIST SP 800-218 conformance, with its gaps stated
+docs/CODE_REVIEW.md  what review means here, and its one-person limitation
 scripts/        dev-db · test · seed · bench · emit-openapi
 ```
 
