@@ -22,18 +22,18 @@ whether it makes that more trustworthy.
 
 ## Next — the next six months
 
-**Continuity, half done.** A second partner now holds the credentials the
-project depends on, which was the largest single risk to anyone depending on
-Ratchet. Two halves of it are still open, and both outrank every feature below:
+**Continuity, done.** A partner at Deimos AI LLC holds the credentials the
+project depends on and, since 5 September 2026, admin on the repository. The
+project now survives the loss of any one person, which was the largest single
+risk to anyone depending on Ratchet. One item remains from it, and it outranks
+every feature below:
 
-- **A second repository seat.** The partner holds the credentials but is not a
-  collaborator on the repository, so continuity runs through the maintainer's
-  own account. A second admin makes the handover independent rather than
-  inherited, and is what lets somebody else accept a change or cut a release.
-- **A review record.** A second engineer reviews, but 244 of 247 commits reached
-  `main` without a pull request, so nothing shows which changes that reviewer
-  was in front of. Routing changes through pull requests makes the review
-  visible; see [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md).
+- **A review record.** Two people can approve a pull request; nothing requires
+  one. 244 of 247 commits reached `main` without one, so the history cannot show
+  which changes a second person saw before release — and a reviewer who leaves
+  no trace is indistinguishable from no reviewer. Routing changes through pull
+  requests is what makes it visible; see
+  [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md).
 
 - **Scheduled reconciliation reaching further.** The gate keeps the calendar
   today; the natural next step is a vendor-side adapter *the customer* runs and

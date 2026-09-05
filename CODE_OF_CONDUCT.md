@@ -44,6 +44,12 @@ and mail security@ratchetgate.com instead, so it reaches the right process.
 
 ## The obvious limitation, stated plainly
 
-There is one maintainer, so a report about the maintainer has nowhere internal to
-go. If that is your situation, GitHub's own reporting is the escalation path, and
+A report about the maintainer can go to the second administrator named in
+[GOVERNANCE.md](GOVERNANCE.md) — [@mlimano5](https://github.com/mlimano5), who
+holds admin here and can act on it.
+
+That is better than the nothing this section used to describe, and it is not
+independence: they are a partner in the same company, and a company of three has
+no neutral party inside it. If you would rather not rely on that, GitHub's own
+reporting is the escalation path, it is genuinely outside this project, and
 using it is a reasonable thing to do rather than a hostile one.

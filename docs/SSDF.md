@@ -38,12 +38,12 @@ agent-supplied text never reaching a decision. Each is enforced by a test, so a
 change that breaks one fails the build rather than a review.
 
 **PO.2 — Roles and responsibilities.** [`GOVERNANCE.md`](../GOVERNANCE.md) names
-the roles and who holds them. One person holds all of them — but the credentials
-behind them are no longer held alone: a partner at Deimos AI LLC now holds them, so
-the recovery procedure in [`docs/handoff/RECOVERY.md`](handoff/RECOVERY.md) is
-written for a successor who exists rather than a hypothetical one. **Still
-open:** that partner has no collaborator seat on the repository, so continuity
-runs through the maintainer's account rather than beside it.
+the roles and who holds them. A partner at Deimos AI LLC holds the credentials
+the project depends on and admin on the repository, so the recovery procedure in
+[`docs/handoff/RECOVERY.md`](handoff/RECOVERY.md) is written for a successor who
+exists and can already act without recovering an account first. **Still open:**
+direction rests on one person, and nothing requires a change to be reviewed
+before it ships — see PW.2.
 
 **PO.3 — Supporting toolchains.** Every push to `main` and every pull request
 runs: typecheck of `src`, `test` and `scripts`; unit, integration and
@@ -125,11 +125,12 @@ customer systems. At-most-once initiation is enforced by a database unique index
 rather than by application logic.
 
 **PW.2 — Review the design.** **Partial.** A second engineer at Deimos AI LLC has
-reviewed the codebase, so review is no longer the author alone. It is not yet a
-per-change gate: 244 of 247 commits reached `main` without a pull request, so
-nothing records which modifications were reviewed before release. The OpenSSF
-`two_person_review` criterion asks for 50% of them and stays recorded as unmet
-on the evidence, not on the absence of a reviewer.
+reviewed the codebase and holds admin on the repository, so a reviewer both
+exists and can approve. What is missing is the gate: 244 of 247 commits reached
+`main` without a pull request and no rule requires one. The OpenSSF
+`two_person_review` criterion asks that 50% of proposed modifications be reviewed
+before release; it stays recorded as unmet because the record is absent, not the
+reviewer.
 
 **PW.4 — Reuse well-secured software.** Production dependencies are deliberately
 few; the published MCP bridge has none at all. Nothing is vendored or forked, so
@@ -216,12 +217,13 @@ Stated here rather than left to be inferred:
 
 | Practice | Gap |
 |---|---|
-| PO.2 | One person holds every role. A partner holds the credentials too, but has no repository seat. |
+| PO.2 | Two people can act; one decides. Direction still rests on a single person. |
 | PO.5 | The developer workstation is not covered by a documented hardening standard. |
-| PW.2 | A second engineer reviews, but nothing records which changes were reviewed before release. |
+| PW.2 | A second reviewer can now approve, but nothing requires or records review before release. |
 | RV.3 | Root cause analysis is per-defect, not periodic across defects. |
 
-The first two were one gap until recently, and splitting them is the point: the
-credentials are now held by two people, while the repository seat and the review
-record are still held by one. Both remaining halves are workflow, not
-architecture, and both are on [`ROADMAP.md`](../ROADMAP.md).
+Splitting PO.2 from PW.2 is the point. Being able to act and being seen to
+review are different properties, they were one gap until recently, and only the
+first has closed: two people hold the credentials and the repository, while no
+rule puts either of them in the path of a change. What remains is workflow, not
+architecture, and it is on [`ROADMAP.md`](../ROADMAP.md).

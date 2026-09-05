@@ -5,8 +5,10 @@ change acceptable.
 
 ## Who reviews
 
-One person maintains Ratchet, and a second engineer at Deimos AI LLC has reviewed
-the codebase. Both are true, and they are not the same claim.
+One person maintains Ratchet. A second engineer at Deimos AI LLC has reviewed the
+codebase and holds admin on the repository, so a reviewer exists and is able to
+approve a pull request. Three separate facts, and the third does not follow from
+the first two.
 
 The review happened. What has not happened is a record of it. 244 of Ratchet's
 247 commits reached `main` without a pull request, and the only pull request
@@ -17,8 +19,9 @@ author — stays recorded as unmet, and it is the evidence that is missing rathe
 than the reviewer. A reviewer who leaves no trace is indistinguishable, from
 outside, from no reviewer at all.
 
-Closing that is a workflow change, not a document change: changes go through a
-pull request, and the reviewer approves it there. Until that is the default,
+Closing it is a workflow change, not a document change, and nothing structural
+is in the way any more: changes go through a pull request, and the reviewer
+approves it there. Until that is the default,
 what follows describes one author's checks plus a second reader — several of
 them enforced by machinery precisely because a second pair of eyes is not
 guaranteed to be in the path of any given change.

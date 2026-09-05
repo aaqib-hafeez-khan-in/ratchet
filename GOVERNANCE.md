@@ -10,7 +10,8 @@ what will actually happen.
 
 ## Roles and responsibilities
 
-There is currently one role.
+There are three roles: one decides, one exists so that somebody else can always
+act, and one is open to anybody.
 
 ### Maintainer
 
@@ -33,11 +34,28 @@ Responsible for:
   never storing a raw payload.
 - **Operating the hosted service** at ratchetgate.com, including the on-call for it.
 
+### Second administrator
+
+Held by **[@mlimano5](https://github.com/mlimano5)**, a partner at Deimos AI LLC,
+who also holds the credentials listed under [Continuity](#continuity).
+
+Responsible for:
+
+- **Being able to act.** Creating and closing issues, accepting proposed changes,
+  and releasing, if the maintainer cannot. This is the role's main purpose: it
+  exists so that no single person is the only one who can move the project.
+- **Review.** Approving pull requests as a second pair of eyes — see
+  [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md) for what review currently
+  demonstrates and what it does not.
+
+This role does not set direction. The maintainer does, and disagreements are
+settled the way the next section describes.
+
 ### Contributor
 
 Anyone who opens an issue or a pull request. No permissions are required and none
-are granted; contributions are reviewed by the maintainer. See
-[CONTRIBUTING.md](CONTRIBUTING.md).
+are granted; contributions are reviewed by the maintainer or the second
+administrator. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## How decisions are made
 
@@ -86,12 +104,16 @@ gap this section used to describe: a successor no longer has to fork and run
 their own instance, and can take over the published package, the domain and the
 hosted service.
 
-**What is still open**, stated here because the paragraph this replaced was worth
-more than a comfortable one: that partner holds no collaborator seat on the
-GitHub repository. The only account with access is the maintainer's. Continuity
-therefore runs *through* the maintainer's account rather than alongside it —
-which works, and is slower than a second seat, and leaves no independent record
-of who did what. Adding that seat is tracked in [ROADMAP.md](ROADMAP.md).
+**And a second seat on the repository.**
+[@mlimano5](https://github.com/mlimano5) holds admin here as of 5 September 2026,
+so a successor can create and close issues, accept proposed changes, and cut a
+release without first recovering somebody else's personal account. Continuity now
+runs *alongside* the maintainer rather than through them.
+
+**What is still open:** review leaves no record. Two people can approve a pull
+request; nothing requires one. 244 of 247 commits reached `main` without one, so
+the history cannot show which changes a second person saw before release. That
+is the last item in [ROADMAP.md](ROADMAP.md)'s continuity section.
 
 ### If the project is abandoned
 

@@ -39,8 +39,9 @@ program is what the specification asks about. A program of one satisfies
 "communicated internally" and "aware of the policy" trivially, and it satisfies
 "adequately staffed" only in the narrow sense that the work currently fits one
 person. The bus factor for this program is 1 for its decisions, though no longer
-for its continuity: a second partner holds the credentials, so the program
-survives the participant even though it does not currently share the work.
+for its continuity: a second partner holds the credentials and admin on the
+repository, so the program survives its participant even though it does not
+currently share the work.
 
 **Competence.** The role holder's competence is self-assessed on the basis of
 having designed and built the software in scope, and is evidenced by the
