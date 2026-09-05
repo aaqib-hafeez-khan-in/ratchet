@@ -82,7 +82,7 @@ function note(file) {
     url: `${SITE}/notes/${slug}`,
     mainEntityOfPage: { '@type': 'WebPage', '@id': `${SITE}/notes/${slug}` },
     image: `${SITE}/assets/og.png`,
-    author: { '@type': 'Organization', name: 'Deimos AI LLC', url: 'https://deimos.mx' },
+    author: { '@type': 'Organization', name: 'Deimos AI LLC', url: 'https://deimoscore.com' },
     publisher: {
       '@type': 'Organization', name: 'Ratchet', url: SITE,
       logo: { '@type': 'ImageObject', url: `${SITE}/assets/mark.svg` },
@@ -104,7 +104,7 @@ function home() {
       logo: `${SITE}/assets/mark.svg`,
       description: 'An effect gate for AI agents. Ask before you act, so the same '
         + 'real-world side effect is attempted at most once.',
-      parentOrganization: { '@type': 'Organization', name: 'Deimos AI LLC', url: 'https://deimos.mx' },
+      parentOrganization: { '@type': 'Organization', name: 'Deimos AI LLC', url: 'https://deimoscore.com' },
       // Claiming the social profiles as the same entity is what lets Google
       // show them together and stops a lookalike account outranking the real one.
       sameAs: [
