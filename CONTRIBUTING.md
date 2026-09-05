@@ -38,6 +38,11 @@ private vulnerability reporting.
 Open an issue before a large change, so nobody spends a weekend on something
 that will not be merged. Small fixes can go straight to a pull request.
 
+**Everything goes through a pull request with an approving review** — including
+changes by the maintainer. `main` carries a ruleset with no bypass actors, so
+nobody can push to it directly. If your pull request sits waiting on a review,
+that is the same queue everyone else is in, not a comment on the change.
+
 Pull requests should:
 
 1. **Pass `npm test` in full.** Typecheck, unit, integration, e2e.
@@ -86,6 +91,18 @@ Every commit must carry a `Signed-off-by` line. It certifies the
 short, that you wrote the change or otherwise have the right to submit it under
 the project's licence, and that you understand the contribution and the record
 of it are public and permanent.
+
+**If you have a day job, read that sentence again before you sign it.** Many
+employment agreements assign your employer the copyright in code you write,
+sometimes including code written on your own time or on your own machine. Where
+that applies, the right to submit is your employer's to give, not yours, and a
+sign-off is a statement you are not in a position to make. This is not a
+formality invented here — it is the most common way a contribution turns into a
+problem months later, for the contributor rather than the project.
+
+Contributing on your own equipment and your own time is usually enough. Where
+it is not, or where you are unsure, get it in writing from your employer first.
+We would rather wait for that than accept a change we may later have to remove.
 
 Git adds the line for you:
 
