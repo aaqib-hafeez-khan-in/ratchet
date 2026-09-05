@@ -82,6 +82,9 @@ jobs:
         # would be describing a past state of the repository.
         run: pipx run 'reuse[charset-normalizer]' lint
 
+      - name: Dependency licences are within policy
+        run: bash scripts/check-licenses.sh
+
       - name: Production dependency audit
         # A vulnerable production dependency should fail the build; a vulnerable
         # dev tool should not stop a release at midnight.

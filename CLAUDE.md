@@ -58,6 +58,7 @@ test/           unit · integration · e2e
 examples/       python · typescript · curl · mcp configs
 docs/handoff/   living project memory — update these when behaviour changes
 docs/SSDF.md    NIST SP 800-218 conformance, with its gaps stated
+docs/OPEN_SOURCE_POLICY.md  licence + security policy, ISO 5230 / 18974 mapped
 docs/CODE_REVIEW.md  what review means here, and its one-person limitation
 scripts/        dev-db · test · seed · bench · emit-openapi
 ```
