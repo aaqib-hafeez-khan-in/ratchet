@@ -1,8 +1,9 @@
 # Governance
 
-Ratchet is maintained by one person. This document says so plainly, says what
-that means for anyone depending on it, and says what happens if that person
-stops. A governance document that described committees this project does not
+Ratchet is maintained by one person. Deimos LLC, which publishes it, is three;
+the other two do not hold the credentials or the release path, so for anyone
+depending on Ratchet the number that matters is one. This document says that
+plainly, says what it means, and says what happens if that person stops. A governance document that described committees this project does not
 have would be worse than none, because the point of it is to let you predict
 what will actually happen.
 
@@ -13,7 +14,7 @@ There is currently one role.
 ### Maintainer
 
 Held by **[@thearchitect0x-glitch](https://github.com/thearchitect0x-glitch)**,
-operating as Deimos.MX.
+operating as Deimos LLC.
 
 Responsible for:
 

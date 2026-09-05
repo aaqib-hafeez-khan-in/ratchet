@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos.MX
+// Copyright 2026 Deimos LLC
 import { getPool, type Db } from '../db/pool.js';
 import { emailQueueHealth } from './email.js';
 

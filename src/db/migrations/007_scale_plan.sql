@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos.MX
+-- Copyright 2026 Deimos LLC
 -- Reintroduce a volume tier. `scale` existed in the original three-tier ladder,
 -- was collapsed into `pro` when that ladder was found to price a 20x usage
 -- range at one number, and returns now with a volume that is actually reachable

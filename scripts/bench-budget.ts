@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos.MX
+// Copyright 2026 Deimos LLC
 /** Measures the begin() path with budget enforcement active. */
 // Measure the gate, not the rate limiter: without this the numbers below are
 // the latency of 429 responses once the plan limit is reached.

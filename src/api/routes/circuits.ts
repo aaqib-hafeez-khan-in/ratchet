@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos.MX
+// Copyright 2026 Deimos LLC
 import { stricterThan } from '../rate-limit.js';
 /**
  * Circuit breakers: the surge containment controls.

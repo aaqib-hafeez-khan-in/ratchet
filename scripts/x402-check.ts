@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos.MX
+// Copyright 2026 Deimos LLC
 /**
  * Preflight for x402 configuration.
  *

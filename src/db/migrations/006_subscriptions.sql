@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos.MX
+-- Copyright 2026 Deimos LLC
 -- Recurring subscription billing.
 --
 -- Until now a workspace could buy prepaid credit but could not subscribe to a

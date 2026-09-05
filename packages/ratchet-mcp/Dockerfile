@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Deimos.MX
+# Copyright 2026 Deimos LLC
 # The MCP server, and only the MCP server.
 #
 # The Dockerfile at the repository root builds the Ratchet *service* — the HTTP

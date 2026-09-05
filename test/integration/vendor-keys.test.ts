@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos.MX
+// Copyright 2026 Deimos LLC
 /**
  * Vendor-enforced idempotency.
  *
@@ -11,7 +11,9 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { freshWorkspace, closePool, getPool } from '../helpers.js';
+import { createHmac } from 'node:crypto';
 import { vendorIdempotencyKey, VENDOR_PROFILES } from '../../src/domain/vendor-keys.js';
+import { config } from '../../src/lib/config.js';
 
 const { beginEffect, reportEffect } = await import('../../src/domain/effects.js');
 const { upsertPolicy } = await import('../../src/domain/policy.js');
@@ -30,6 +32,39 @@ describe('vendor key derivation', () => {
   test('is deterministic for the same attempt', () => {
     const a = { workspaceId: 'ws_1', effectType: 'payment.charge', idempotencyKey: 'x', attempt: 1 };
     assert.equal(vendorIdempotencyKey(a).key, vendorIdempotencyKey(a).key);
+  });
+
+  /**
+   * Every other test in this block compares the function to itself: same input,
+   * same output, within one process. That passes even if the derived key
+   * changes between releases — and the vendor deduplicates on this exact
+   * string. If it moves, a retry after a deploy looks like a fresh request to
+   * Stripe, and the customer is charged twice. It is the one failure Ratchet
+   * exists to prevent, escaping at the boundary Ratchet does not control.
+   *
+   * This pins the wire format instead: version tag, field order, separator and
+   * prefix. The separator is a NUL, which spent some time in the source as a
+   * literal byte — which made the file binary to git and invisible to grep, so
+   * any editor that stripped it would have changed every vendor key in
+   * production with no reviewable diff.
+   */
+  test('the derived key is pinned to a wire format, not only to itself', () => {
+    const input = {
+      workspaceId: 'ws_1', effectType: 'payment.charge',
+      idempotencyKey: 'order-42', attempt: 3,
+    };
+
+    const material = ['rtk.v1', 'ws_1', 'payment.charge', 'order-42', '3'].join('\u0000');
+    const expected = `rtk_${createHmac('sha256', config.authSecret).update(material).digest('base64url')}`;
+    assert.equal(vendorIdempotencyKey(input).key, expected,
+      'the material changed: check the separator, the field order and the rtk.v1 tag');
+
+    // An absolute value, not a recomputation, for the secret the harness sets.
+    // Skipped when a developer has exported their own AUTH_SECRET.
+    if (config.authSecret === 'test-secret-that-is-long-enough-to-pass-checks') {
+      assert.equal(vendorIdempotencyKey(input).key,
+        'rtk_J1mcd2_MxGBclEAaXZC_aMu0wD51aDbxyx0ES11mFGw');
+    }
   });
 
   test('changes with the attempt number', () => {

@@ -1,9 +1,9 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-<!-- Copyright 2026 Deimos.MX -->
+<!-- Copyright 2026 Deimos LLC -->
 
 # Open source policy
 
-How Deimos.MX consumes open source software, complies with its licences,
+How Deimos LLC consumes open source software, complies with its licences,
 responds to vulnerabilities in it, and contributes back.
 
 This document is the policy required by **ISO/IEC 5230** (OpenChain licence
@@ -16,36 +16,38 @@ The conformance mapping is at the end.
 
 **Program scope** *(5230 §3.1.4, 18974 §4.1.4)*
 
-This program covers **all software supplied by Deimos.MX**, which at the time of
+This program covers **all software supplied by Deimos LLC**, which at the time of
 writing is Ratchet: the control plane, the worker, the published `ratchet-mcp`
-bridge, and the website. It covers open source that Deimos.MX consumes as a
-dependency and open source that Deimos.MX publishes.
+bridge, and the website. It covers open source that Deimos LLC consumes as a
+dependency and open source that Deimos LLC publishes.
 
-It does not cover software Deimos.MX neither ships nor depends on — developer
+It does not cover software Deimos LLC neither ships nor depends on — developer
 tooling installed on a workstation and never distributed is out of scope.
 
 ## 2. Roles, competence and awareness
 
 **Roles** *(5230 §3.1.2, §3.2.2; 18974 §4.1.2, §4.2.2)*
 
-Deimos.MX has **one member of staff**, who holds every role in this program:
-policy owner, licence reviewer, security responder, and release approver.
-[`GOVERNANCE.md`](../GOVERNANCE.md) records this and what a successor would
-need.
+Deimos LLC is **three people**. **One of them holds every role in this
+program**: policy owner, licence reviewer, security responder, and release
+approver. [`GOVERNANCE.md`](../GOVERNANCE.md) records this and what a successor
+would need.
 
-Stating that plainly is the point. A program of one satisfies "communicated
-internally" and "aware of the policy" trivially, and it satisfies "adequately
-staffed" only in the narrow sense that the work currently fits one person. The
-bus factor is 1. It is the largest risk in this program and no document changes
-that.
+The distinction is load-bearing for this requirement, so it is drawn rather than
+blurred: the company is not one person, but the open source program is, and the
+program is what the specification asks about. A program of one satisfies
+"communicated internally" and "aware of the policy" trivially, and it satisfies
+"adequately staffed" only in the narrow sense that the work currently fits one
+person. The bus factor for this program is 1. It is the largest risk in it, and
+no document changes that.
 
 **Competence.** The role holder's competence is self-assessed on the basis of
 having designed and built the software in scope, and is evidenced by the
-practices in this document being implemented rather than merely described.
-There is no second person to assess it independently.
+practices in this document being implemented rather than merely described. No
+second person has assessed it, so it is not independently assessed.
 
 **Legal expertise** *(5230 §3.2.2.3)*. **This requires a decision before
-certification.** Deimos.MX has no retained counsel. Conformance requires
+certification.** Deimos LLC has no retained counsel. Conformance requires
 identifying legal expertise — internal or external — available for licence
 compliance questions. Until named, this requirement is not met.
 
@@ -87,7 +89,7 @@ to `--production`.
 
 - **Distributed as-is, unmodified** — retain the licence text and attribution;
   satisfied by the SBOM and by preserving the dependency tree intact.
-- **Modified** — Deimos.MX does not fork or vendor dependencies. Nothing is
+- **Modified** — Deimos LLC does not fork or vendor dependencies. Nothing is
   modified, so no modification obligations arise. If that changes, the fork is
   approved case by case and its licence obligations are re-reviewed.
 - **Own code** — published under Apache-2.0, with a per-file `SPDX-License-Identifier`
@@ -124,14 +126,14 @@ release and is not deleted on supersession.
 
 **Contribution policy** *(5230 §3.5.1)*
 
-Deimos.MX **permits and publishes** open source contributions.
+Deimos LLC **permits and publishes** open source contributions.
 
-- Software Deimos.MX publishes is licensed **Apache-2.0**.
-- Contributions *to* Deimos.MX projects require a `Signed-off-by` line
+- Software Deimos LLC publishes is licensed **Apache-2.0**.
+- Contributions *to* Deimos LLC projects require a `Signed-off-by` line
   certifying the [Developer Certificate of Origin](https://developercertificate.org/),
   enforced by [`.github/workflows/dco.yml`](../.github/workflows/dco.yml).
-- Contributions *from* Deimos.MX to third-party projects follow that project's
-  own contribution terms, and must not include material Deimos.MX does not have
+- Contributions *from* Deimos LLC to third-party projects follow that project's
+  own contribution terms, and must not include material Deimos LLC does not have
   the right to submit.
 - The requirements for an acceptable contribution are in
   [`CONTRIBUTING.md`](../CONTRIBUTING.md) and [`docs/CODE_REVIEW.md`](CODE_REVIEW.md).
@@ -167,7 +169,7 @@ The wider secure development practices are documented separately in
 **Public access** *(5230 §3.2.1, 18974 §4.2.1)*
 
 Anyone may raise an open source licence compliance or security question about
-software supplied by Deimos.MX:
+software supplied by Deimos LLC:
 
 - **Licence compliance** — open an issue at
   <https://github.com/thearchitect0x-glitch/ratchet/issues>. Publicly visible,
@@ -192,7 +194,7 @@ download reflects it.
 | Requirement | Where | Status |
 |---|---|---|
 | 3.1.1 Policy | This document | Met |
-| 3.1.2 Competence | §2 | Met, self-assessed — one person |
+| 3.1.2 Competence | §2 | Met, self-assessed — one participant |
 | 3.1.3 Awareness | §2 | Met trivially — one participant |
 | 3.1.4 Program scope | §1 | Met |
 | 3.1.5 Licence obligations | §3 | Met |
@@ -223,11 +225,11 @@ download reflects it.
 
 **One requirement is unmet, in both specifications**, and it is the same one:
 §3.2.2.3 / §4.2.2 asks the organization to identify legal expertise available
-for open source compliance matters. Deimos.MX has none retained. That is a
+for open source compliance matters. Deimos LLC has none retained. That is a
 decision for the organization, not a document to write, and conformance should
 not be submitted until it is made.
 
 ---
 
 *Reviewed: 2026-09-05. This policy is reviewed at least annually, or sooner on a
-material change to what Deimos.MX supplies.*
+material change to what Deimos LLC supplies.*

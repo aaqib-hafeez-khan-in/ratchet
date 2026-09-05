@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos.MX
+-- Copyright 2026 Deimos LLC
 -- Feedback from the website.
 --
 -- Every complaint we have acted on arrived as a screenshot forwarded by the

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos.MX
+// Copyright 2026 Deimos LLC
 import { getPool, withTx } from '../db/pool.js';
 import { config } from '../lib/config.js';
 import { suppressAddress, queueEmail, bucket, type Category } from '../domain/email.js';

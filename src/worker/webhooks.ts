@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos.MX
+// Copyright 2026 Deimos LLC
 import { createHmac } from 'node:crypto';
 import https from 'node:https';
 import http from 'node:http';

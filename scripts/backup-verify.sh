@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Deimos.MX
+# Copyright 2026 Deimos LLC
 # Take a logical backup of production and PROVE it restores.
 #
 # An untested backup is a hypothesis. This dumps the live database, restores it

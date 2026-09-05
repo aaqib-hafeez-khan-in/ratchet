@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos.MX
+// Copyright 2026 Deimos LLC
 /**
  * Shared chrome. Rendered client-side so every page ships one copy of the
  * markup; the pages themselves stay static HTML with no build step.
@@ -140,7 +140,7 @@ export function mountChrome(current) {
         </p>
         <a class="by-deimos" href="https://deimos.mx" target="_blank" rel="noopener noreferrer">
           <svg viewBox="0 0 100 66" role="img" aria-label="Deimos"> <defs>  <linearGradient id="deimosTri" x1="0.15" y1="0" x2="0.5" y2="1">   <stop offset="0" stop-color="currentColor" stop-opacity="0.55"/>   <stop offset="1" stop-color="currentColor" stop-opacity="0.18"/>  </linearGradient> </defs> <g fill="none" stroke="currentColor" stroke-width="2.2">  <ellipse cx="50" cy="33" rx="45" ry="15" transform="rotate(26 50 33)"/>  <ellipse cx="50" cy="33" rx="45" ry="15" transform="rotate(-26 50 33)"/> </g> <path d="M50 9 L76 55 H24 Z" fill="url(#deimosTri)" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>
-          <span>Powered by <b>Deimos.MX</b></span>
+          <span>Powered by <b>Deimos</b></span>
         </a>
         </div>
       </div>

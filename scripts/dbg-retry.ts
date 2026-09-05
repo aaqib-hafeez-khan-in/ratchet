@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos.MX
+// Copyright 2026 Deimos LLC
 import 'dotenv/config';
 import { getPool, closePool } from '../src/db/pool.js';
 import { createWorkspace } from '../src/domain/auth.js';

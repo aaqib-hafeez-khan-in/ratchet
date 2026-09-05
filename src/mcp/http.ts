@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos.MX
+// Copyright 2026 Deimos LLC
 import type { FastifyInstance } from 'fastify';
 import { planRateLimit } from '../api/rate-limit.js';
 import { authenticate } from '../domain/auth.js';

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos.MX
+// Copyright 2026 Deimos LLC
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,11 +11,11 @@ const DIRECTORIES = ['src', 'test', 'scripts', 'web/assets'];
 const EXTENSIONS = new Set(['.ts', '.js', '.mjs', '.sh', '.sql']);
 const SKIPPED_DIRECTORIES = new Set(['.claude', 'node_modules', 'dist']);
 const HEADERS = {
-  '.ts': ['// SPDX-License-Identifier: Apache-2.0', '// Copyright 2026 Deimos.MX'],
-  '.js': ['// SPDX-License-Identifier: Apache-2.0', '// Copyright 2026 Deimos.MX'],
-  '.mjs': ['// SPDX-License-Identifier: Apache-2.0', '// Copyright 2026 Deimos.MX'],
-  '.sh': ['# SPDX-License-Identifier: Apache-2.0', '# Copyright 2026 Deimos.MX'],
-  '.sql': ['-- SPDX-License-Identifier: Apache-2.0', '-- Copyright 2026 Deimos.MX'],
+  '.ts': ['// SPDX-License-Identifier: Apache-2.0', '// Copyright 2026 Deimos LLC'],
+  '.js': ['// SPDX-License-Identifier: Apache-2.0', '// Copyright 2026 Deimos LLC'],
+  '.mjs': ['// SPDX-License-Identifier: Apache-2.0', '// Copyright 2026 Deimos LLC'],
+  '.sh': ['# SPDX-License-Identifier: Apache-2.0', '# Copyright 2026 Deimos LLC'],
+  '.sql': ['-- SPDX-License-Identifier: Apache-2.0', '-- Copyright 2026 Deimos LLC'],
 };
 
 function sourceFiles(directory: string): string[] {
@@ -49,4 +49,27 @@ test('every source file has SPDX and copyright headers', () => {
   }
 
   assert.deepEqual(missing, [], `Missing SPDX/copyright header: ${missing.join(', ')}`);
+});
+
+/**
+ * A NUL byte in a source file is not a style question. `git diff` reports the
+ * file as `Bin 8333 -> 8339 bytes` with no line-level diff, so a change to it
+ * cannot be reviewed; and plain `grep` skips the file entirely and exits 1, so
+ * every grep-based check in this repository silently passes on it.
+ *
+ * `src/domain/vendor-keys.ts` carried one for several releases as the separator
+ * in the vendor idempotency key material. Write it as an escape.
+ */
+test('no source file contains a raw NUL byte', () => {
+  const offenders: string[] = [];
+
+  for (const directory of DIRECTORIES) {
+    const path = new URL(`${directory}/`, ROOT).pathname;
+    for (const file of sourceFiles(path)) {
+      if (readFileSync(file).includes(0)) offenders.push(file.replace(`${ROOT.pathname}`, ''));
+    }
+  }
+
+  assert.deepEqual(offenders, [],
+    `Raw NUL byte, so git cannot diff it and grep cannot see it: ${offenders.join(', ')}`);
 });

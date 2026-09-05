@@ -1,12 +1,12 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-<!-- Copyright 2026 Deimos.MX -->
+<!-- Copyright 2026 Deimos LLC -->
 
 # NIST SSDF conformance
 
 How Ratchet is built, mapped to the four practice groups of the **Secure Software
 Development Framework**, NIST SP 800-218 version 1.1.
 
-**What this is.** A statement of what Deimos.MX actually does when building
+**What this is.** A statement of what Deimos LLC actually does when building
 Ratchet, with a pointer to the file, workflow or test that makes each claim
 checkable. Where a practice is not met, it says so.
 
@@ -17,9 +17,10 @@ agency purchases Ratchet. This document is the substance such an attestation
 would rest on, published so it can be read rather than asserted.
 
 **Scope.** The Ratchet control plane, worker, MCP bridge and website, in
-[this repository](https://github.com/thearchitect0x-glitch/ratchet). Deimos.MX
-has one member of staff; several practices below are met by automation
-precisely because there is no second person to catch a mistake.
+[this repository](https://github.com/thearchitect0x-glitch/ratchet). Deimos LLC
+is three people, one of whom builds and releases Ratchet; several practices
+below are met by automation precisely because no second person is in the path of
+a change to catch a mistake.
 
 ---
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos.MX
+// Copyright 2026 Deimos LLC
 /**
  * The beacon. An agent that finds this service should be able to integrate
  * without a person, so the discovery chain has to actually resolve and the

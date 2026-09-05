@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos.MX
+// Copyright 2026 Deimos LLC
 /**
  * Structured data is a public claim, so it is tested like one.
  *
@@ -68,7 +68,7 @@ describe('structured data', () => {
     const sameAs = org.sameAs as string[];
     assert.ok(sameAs.some((u) => u.includes('x.com')), 'X profile not claimed');
     assert.ok(sameAs.some((u) => u.includes('instagram.com')), 'Instagram profile not claimed');
-    assert.equal((org.parentOrganization as { name: string }).name, 'Deimos.MX');
+    assert.equal((org.parentOrganization as { name: string }).name, 'Deimos LLC');
   });
 });
 

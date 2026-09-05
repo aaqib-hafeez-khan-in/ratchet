@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos.MX
+// Copyright 2026 Deimos LLC
 /**
  * Reports exactly what is and is not configured for payments, and — when the
  * setup is complete — proves it end to end by creating a real Checkout Session.

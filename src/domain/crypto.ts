@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos.MX
+// Copyright 2026 Deimos LLC
 import { randomBytes } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { withTx, getPool, isUniqueViolation, type Db } from '../db/pool.js';

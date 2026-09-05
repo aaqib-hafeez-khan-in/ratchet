@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos.MX
+-- Copyright 2026 Deimos LLC
 -- ---------------------------------------------------------------- refunds
 -- Reversing a credit requires finding the credit that a Stripe charge created.
 -- The payment intent is the durable link between the two, so record it when the

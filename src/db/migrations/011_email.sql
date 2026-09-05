@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos.MX
+-- Copyright 2026 Deimos LLC
 -- Transactional email.
 --
 -- Shaped like webhook delivery, which is already proven here: a durable queue,

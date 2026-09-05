@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos.MX
+-- Copyright 2026 Deimos LLC
 -- Multi-chain crypto payments: Solana, Ethereum, Base, Bitcoin.
 --
 -- Attribution differs by chain and that difference is structural, not cosmetic.

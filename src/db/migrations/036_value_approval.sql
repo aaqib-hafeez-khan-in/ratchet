@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos.MX
+-- Copyright 2026 Deimos LLC
 -- Approval triggered by how much is at stake, rather than by effect type.
 --
 -- `mode = 'require_approval'` is all-or-nothing: every refund waits for a human,

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Deimos.MX
+# Copyright 2026 Deimos LLC
 # Runs the full suite against a disposable Postgres database.
 set -euo pipefail
 cd "$(dirname "$0")/.."

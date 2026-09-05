@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos.MX
+// Copyright 2026 Deimos LLC
 /** Writes the OpenAPI document to disk. Generated from the live route schemas. */
 import { writeFile } from 'node:fs/promises';
 import { buildApp } from '../src/api/app.js';

@@ -1,6 +1,6 @@
 version = 1
 SPDX-PackageName = "ratchet"
-SPDX-PackageSupplier = "Deimos.MX <security@ratchetgate.com>"
+SPDX-PackageSupplier = "Deimos LLC <security@ratchetgate.com>"
 SPDX-PackageDownloadLocation = "https://github.com/thearchitect0x-glitch/ratchet"
 
 # Bulk licensing declarations, for files that cannot carry a comment header or
@@ -9,20 +9,20 @@ SPDX-PackageDownloadLocation = "https://github.com/thearchitect0x-glitch/ratchet
 # Source files carry their own header — see any file under src/, test/, scripts/
 # or web/assets. This file covers the rest: prose, data, images and config where
 # a two-line legal preamble would sit above the first heading of every document.
-# Everything here is Deimos.MX's own work under the same licence as the code;
+# Everything here is Deimos LLC's own work under the same licence as the code;
 # nothing third-party is relicensed by these declarations.
 
 [[annotations]]
 path = ["**.md", "**.html", "**.svg", "**.png", "**.xml"]
-SPDX-FileCopyrightText = "2026 Deimos.MX"
+SPDX-FileCopyrightText = "2026 Deimos LLC"
 SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
 path = ["**.json", "**.yml", "**.yaml", "**.toml", "**.sql", "**.txt"]
-SPDX-FileCopyrightText = "2026 Deimos.MX"
+SPDX-FileCopyrightText = "2026 Deimos LLC"
 SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
 path = [".gitignore", ".dockerignore", ".npmrc", "Dockerfile", "LICENSE", "NOTICE"]
-SPDX-FileCopyrightText = "2026 Deimos.MX"
+SPDX-FileCopyrightText = "2026 Deimos LLC"
 SPDX-License-Identifier = "Apache-2.0"
