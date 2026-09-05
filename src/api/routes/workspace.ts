@@ -12,6 +12,8 @@ import { issueVerification, redeemVerification, TOKEN_TTL_HOURS }
   from '../../domain/verification.js';
 import { queueEmail } from '../../domain/email.js';
 import { listPolicies, upsertPolicy, deletePolicy, getPolicy } from '../../domain/policy.js';
+import { mfaState, beginEnrolment, activate as activateMfa, verifyAndElevate as verifyMfa,
+         disable as disableMfa, stepUpWindowMs } from '../../domain/mfa.js';
 import { getSpendSummary } from '../../domain/budget.js';
 import { listLedger } from '../../domain/metering.js';
 import { listAudit, audit } from '../../domain/audit.js';
@@ -277,6 +279,99 @@ export default async function workspaceRoutes(app: FastifyInstance) {
     };
   });
 
+  // ------------------------------------------------------ second factor
+  //
+  // Enrolment and verification are NOT behind requireMfa: you cannot present a
+  // code before you have one, and being locked out of the thing that unlocks
+  // everything else is how a second factor becomes a lost account.
+
+  app.get('/console/mfa', {
+    preHandler: app.requireConsole('workspace:read'),
+    schema: {
+      tags: ['Workspace'], operationId: 'getMfaState',
+      summary: 'Whether operator actions need a second factor',
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => serializeMfa(await mfaState(getPool(), wsOf(req))));
+
+  app.post('/console/mfa/enrol', {
+    preHandler: app.requireConsole('workspace:read'),
+    schema: {
+      tags: ['Workspace'], operationId: 'beginMfaEnrolment',
+      summary: 'Begin enrolment; returns the secret once',
+      description: 'Returns an otpauth:// URI for an authenticator app. Nothing is enabled '
+        + 'until a code from that app is presented to /console/mfa/activate — enabling on '
+        + 'enrolment would lock out anyone whose scan silently failed.',
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => {
+    const c = req.console!;
+    const { secret, uri } = await beginEnrolment(getPool(), c.workspaceId, c.email);
+    return { secret, otpauth_uri: uri };
+  });
+
+  app.post('/console/mfa/activate', {
+    preHandler: app.requireConsole('workspace:read'),
+    schema: {
+      tags: ['Workspace'], operationId: 'activateMfa',
+      summary: 'Turn it on, and receive the recovery codes',
+      body: {
+        type: 'object', required: ['code'], additionalProperties: false,
+        properties: { code: { type: 'string', minLength: 6, maxLength: 10 } },
+      },
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => {
+    const { code } = req.body as { code: string };
+    const { recoveryCodes } = await activateMfa(getPool(), wsOf(req), code);
+    return {
+      enabled: true,
+      recovery_codes: recoveryCodes,
+      note: 'Store these somewhere that is not the device holding the authenticator. '
+        + 'Each works once. They are not shown again.',
+    };
+  });
+
+  app.post('/console/mfa/verify', {
+    preHandler: app.requireConsole('workspace:read'),
+    schema: {
+      tags: ['Workspace'], operationId: 'verifyMfa',
+      summary: 'Present a code to unlock operator actions for a while',
+      body: {
+        type: 'object', required: ['code'], additionalProperties: false,
+        properties: { code: { type: 'string', minLength: 6, maxLength: 12 } },
+      },
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => {
+    const c = req.console!;
+    const { code } = req.body as { code: string };
+    const r = await verifyMfa(getPool(), c.workspaceId, c.sessionId, code);
+    return {
+      verified: true,
+      used_recovery_code: r.usedRecoveryCode,
+      expires_in_seconds: Math.floor(stepUpWindowMs / 1000),
+    };
+  });
+
+  app.delete('/console/mfa', {
+    preHandler: app.requireConsole('workspace:read'),
+    schema: {
+      tags: ['Workspace'], operationId: 'disableMfa',
+      summary: 'Turn it off; requires a current code',
+      body: {
+        type: 'object', required: ['code'], additionalProperties: false,
+        properties: { code: { type: 'string', minLength: 6, maxLength: 12 } },
+      },
+      response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses },
+    },
+  }, async (req) => {
+    const c = req.console!;
+    const { code } = req.body as { code: string };
+    await disableMfa(getPool(), c.workspaceId, c.sessionId, code);
+    return { enabled: false };
+  });
+
   app.post('/console/signout', {
     schema: {
       tags: ['Workspace'], operationId: 'consoleSignOut',
@@ -335,7 +430,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
   }, async (req) => ({ data: await listApiKeys(getPool(), wsOf(req)) }));
 
   app.post('/keys', {
-    preHandler: app.requireConsole('workspace:read'),
+    preHandler: [app.requireConsole('workspace:read'), app.requireMfa()],
     schema: {
       tags: ['Workspace'], operationId: 'createApiKey',
       summary: 'Mint a scoped API key',
@@ -377,7 +472,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
   });
 
   app.delete('/keys/:keyId', {
-    preHandler: app.requireConsole('workspace:read'),
+    preHandler: [app.requireConsole('workspace:read'), app.requireMfa()],
     schema: {
       tags: ['Workspace'], operationId: 'revokeApiKey', summary: 'Revoke an API key immediately',
       params: { type: 'object', required: ['keyId'], properties: { keyId: { type: 'string' } } },
@@ -418,7 +513,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
       (req.params as { effectType: string }).effectType)));
 
   app.put('/policies/:effectType', {
-    preHandler: app.requireConsole('policies:write'),
+    preHandler: [app.requireConsole('policies:write'), app.requireMfa()],
     schema: {
       tags: ['Policies'], operationId: 'upsertPolicy',
       summary: 'Create or replace the policy for an effect type',
@@ -547,7 +642,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
   });
 
   app.delete('/policies/:effectType', {
-    preHandler: app.requireConsole('policies:write'),
+    preHandler: [app.requireConsole('policies:write'), app.requireMfa()],
     schema: {
       tags: ['Policies'], operationId: 'deletePolicy',
       summary: 'Remove a policy and fall back to workspace defaults',
@@ -569,7 +664,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
   }, async (req) => ({ data: await listWebhookEndpoints(getPool(), wsOf(req)) }));
 
   app.post('/webhooks', {
-    preHandler: app.requireConsole('workspace:read'),
+    preHandler: [app.requireConsole('workspace:read'), app.requireMfa()],
     schema: {
       tags: ['Webhooks'], operationId: 'createWebhook',
       summary: 'Register a signed webhook endpoint',
@@ -615,7 +710,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
   });
 
   app.delete('/webhooks/:id', {
-    preHandler: app.requireConsole('workspace:read'),
+    preHandler: [app.requireConsole('workspace:read'), app.requireMfa()],
     schema: { tags: ['Webhooks'], operationId: 'deleteWebhook', summary: 'Disable a webhook endpoint',
       params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
       response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses } },
@@ -705,4 +800,15 @@ export default async function workspaceRoutes(app: FastifyInstance) {
     schema: { tags: ['Workspace'], operationId: 'listAudit', summary: 'Audit trail',
       response: { 200: { type: 'object', additionalProperties: true }, ...errorResponses } },
   }, async (req) => ({ data: await listAudit(getPool(), wsOf(req)) }));
+}
+
+/** MfaState onto the wire. Conversion lives here rather than leaking camelCase. */
+function serializeMfa(m: { enabled: boolean; enabledAt: string | null;
+  recoveryCodesRemaining: number; lockedUntil: string | null }) {
+  return {
+    enabled: m.enabled,
+    enabled_at: m.enabledAt,
+    recovery_codes_remaining: m.recoveryCodesRemaining,
+    locked_until: m.lockedUntil,
+  };
 }

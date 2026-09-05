@@ -73,7 +73,7 @@ export default async function circuitRoutes(app: FastifyInstance) {
   });
 
   app.post('/circuits/:effectType/open', {
-    preHandler: app.requireConsole('policies:write'),
+    preHandler: [app.requireConsole('policies:write'), app.requireMfa()],
     // Deliberately generous: this is the control someone reaches for in a
     // panic, and a rate limit that refuses it would be indefensible.
     config: { rateLimit: stricterThan(120, '1 minute') },
@@ -104,7 +104,7 @@ export default async function circuitRoutes(app: FastifyInstance) {
   });
 
   app.post('/circuits/:effectType/close', {
-    preHandler: app.requireConsole('policies:write'),
+    preHandler: [app.requireConsole('policies:write'), app.requireMfa()],
     schema: {
       tags: TAG, operationId: 'closeCircuit',
       summary: 'Close a breaker and give the effect type a fresh allowance',

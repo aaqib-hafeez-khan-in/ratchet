@@ -237,7 +237,7 @@ export default async function billingRoutes(app: FastifyInstance) {
   }, async (req) => ({ data: await listIntents(getPool(), wsOf(req)) }));
 
   app.post('/billing/checkout', {
-    preHandler: app.requireConsole('workspace:read'),
+    preHandler: [app.requireConsole('workspace:read'), app.requireMfa()],
     schema: {
       tags: ['Billing'], operationId: 'startCheckout',
       summary: 'Begin a prepaid credit purchase',
@@ -288,7 +288,7 @@ export default async function billingRoutes(app: FastifyInstance) {
   });
 
   app.post('/billing/subscribe', {
-    preHandler: app.requireConsole('workspace:read'),
+    preHandler: [app.requireConsole('workspace:read'), app.requireMfa()],
     schema: {
       tags: ['Billing'], operationId: 'startSubscription',
       summary: 'Subscribe to a paid plan',

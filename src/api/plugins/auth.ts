@@ -9,6 +9,8 @@ import { authenticate, requireScope, resolveConsoleSession, provisionAnonymousWo
 import { PLANS, type PlanCapabilities } from '../../domain/plans.js';
 import { errors } from '../../lib/errors.js';
 import { claimProvisionSlot } from '../../domain/provisioning.js';
+import { mfaState, sessionIsElevated } from '../../domain/mfa.js';
+import { getPool } from '../../db/pool.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -84,6 +86,35 @@ async function plugin(app: FastifyInstance) {
    * already using it is a demotion, and this codebase has been one backfill away
    * from that once already.
    */
+  /**
+   * Step-up for operator actions when the workspace has a second factor on.
+   *
+   * The boundary is the action, not the door. Opening the console and reading
+   * effects needs nothing; changing a policy, issuing a key, closing a circuit
+   * breaker or spending money needs a recent code. Gating the door instead
+   * would have been easier and would have protected less.
+   *
+   * An API key is not asked for a code and is not blocked: it is a separate
+   * credential held by an agent that cannot type one. What stops a key doing
+   * operator damage is that the key issued at signup lacks the scopes, and no
+   * MCP tool exposes them.
+   */
+  app.decorate('requireMfa', () => {
+    return async (req: FastifyRequest) => {
+      // A key-authenticated request has no session row to elevate.
+      if (!req.console?.sessionId) return;
+      const state = await mfaState(getPool(), req.console.workspaceId);
+      if (!state.enabled) return;
+      if (await sessionIsElevated(getPool(), req.console.sessionId)) return;
+      throw errors.forbidden(
+        'This action needs your two-factor code. Verify at POST /v1/console/mfa/verify, '
+        + 'then retry within the step-up window.',
+        { mfa_required: true },
+      );
+    };
+  });
+
+
   app.decorate('requireCapability', (cap: keyof PlanCapabilities) => {
     return async (req: FastifyRequest) => {
       // Either credential answers this question. It used to read req.auth
@@ -170,7 +201,9 @@ async function plugin(app: FastifyInstance) {
       req.auth = ctx;
       req.console = {
         workspaceId: ctx.workspaceId, email: `key:${ctx.keyPrefix}`,
-        plan: ctx.plan, legacyCapabilities: ctx.legacyCapabilities,
+        // An API key has no session row to elevate. That is deliberate: a key
+        // is a separate credential with its own scopes, not a logged-in human.
+        sessionId: '', plan: ctx.plan, legacyCapabilities: ctx.legacyCapabilities,
       };
     };
   });
@@ -181,6 +214,7 @@ declare module 'fastify' {
     requireKey: (...scopes: Scope[]) => (req: FastifyRequest) => Promise<void>;
     requireConsole: (...scopes: Scope[]) => (req: FastifyRequest) => Promise<void>;
     requireCapability: (cap: keyof PlanCapabilities) => (req: FastifyRequest) => Promise<void>;
+    requireMfa: () => (req: FastifyRequest) => Promise<void>;
     requireKeyOrProvision: (...scopes: Scope[]) => (req: FastifyRequest) => Promise<void>;
   }
 }

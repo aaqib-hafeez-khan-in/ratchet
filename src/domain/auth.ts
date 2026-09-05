@@ -385,6 +385,9 @@ export async function createConsoleSession(
 export interface ConsoleSession {
   workspaceId: string;
   email: string;
+  /** The stored session id — the hash of the cookie, never the cookie itself.
+   *  Step-up verification is recorded against this row, not the workspace. */
+  sessionId: string;
   plan: ReturnType<typeof planFor>;
   /** Same grandfathering rule as an API key context: see migration 029. */
   legacyCapabilities: boolean;
@@ -410,6 +413,7 @@ export async function resolveConsoleSession(
     ? {
       workspaceId: r.workspace_id,
       email: r.email,
+      sessionId: id,
       plan: planFor(r.plan),
       legacyCapabilities: r.legacy_capabilities,
     }
