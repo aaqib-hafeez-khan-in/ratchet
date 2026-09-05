@@ -102,8 +102,11 @@ and their restorability is verified rather than assumed — see
 [`scripts/backup-verify.sh`](../scripts/backup-verify.sh) and
 [`scripts/verify-restore.mjs`](../scripts/verify-restore.mjs).
 
-**Gap:** no SBOM is published with releases. The dependency set is small and
-declared in a committed lockfile, but that is not the same thing.
+An SBOM is attached to every release in both SPDX 2.3 and CycloneDX 1.5, the
+two formats procurement tooling reads. A lockfile is not a substitute: it
+records what was resolved, not what shipped, and nobody else's tooling reads it.
+The bill is generated *after* the tag signature check, so it describes a commit
+whose tag verified.
 
 ---
 
@@ -209,7 +212,6 @@ Stated here rather than left to be inferred:
 |---|---|
 | PO.2 | Bus factor of 1. One person holds every role and every credential. |
 | PO.5 | The developer workstation is not covered by a documented hardening standard. |
-| PS.3 | No SBOM is published with releases. |
 | PW.2 | Design review has no independent reviewer. |
 | RV.3 | Root cause analysis is per-defect, not periodic across defects. |
 

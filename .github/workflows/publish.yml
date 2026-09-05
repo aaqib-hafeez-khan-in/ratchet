@@ -22,7 +22,7 @@ jobs:
   npm:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write        # to attach the SBOM to the release
       id-token: write        # what lets npm attach provenance
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -76,6 +76,31 @@ jobs:
             exit 1
           fi
           echo "${TAG}: signature verified (${r})"
+
+      # An SBOM per release, in both formats procurement actually asks for.
+      # The dependency set is small and pinned by a committed lockfile, but a
+      # lockfile is not an SBOM: it says what we resolved, not what shipped, and
+      # it is not in a format anybody else's tooling reads.
+      #
+      # Generated after the signature check above, so the bill of materials
+      # describes a commit whose tag verified.
+      - name: Software bill of materials
+        run: |
+          set -euo pipefail
+          mkdir -p sbom
+          npm sbom --sbom-format spdx      --omit dev > sbom/ratchet.spdx.json
+          npm sbom --sbom-format cyclonedx --omit dev > sbom/ratchet.cyclonedx.json
+          for f in sbom/*.json; do
+            node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))" \
+              || { echo "::error::$f is not valid JSON"; exit 1; }
+            echo "  $f  $(wc -c < "$f") bytes"
+          done
+
+      - name: Attach the SBOM to the release
+        if: ${{ github.event_name == 'release' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" sbom/*.json --clobber
 
       - name: Publish
         if: ${{ env.NPM_TOKEN != '' }}
