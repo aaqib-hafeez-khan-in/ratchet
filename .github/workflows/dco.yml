@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Deimos.MX
+#
+# Every commit a pull request adds must certify the Developer Certificate of
+# Origin 1.1 (https://developercertificate.org/) with a Signed-off-by line.
+#
+# Scoped to the commits the pull request introduces, not the whole history: the
+# requirement starts when it was adopted, and rewriting existing commits to
+# claim an assertion nobody made at the time would be worse than not having it.
+name: DCO
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: sign-off
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Every commit in this pull request is signed off
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          missing=0
+          while read -r sha; do
+            [ -z "$sha" ] && continue
+            subject=$(git log -1 --format=%s "$sha")
+            author=$(git log -1 --format='%an <%ae>' "$sha")
+            if ! git log -1 --format=%B "$sha" | grep -qiE '^Signed-off-by: .+ <.+@.+>$'; then
+              echo "::error::missing Signed-off-by — ${sha:0:8} ${subject}"
+              echo "    author: ${author}"
+              missing=$((missing + 1))
+            fi
+          done < <(git rev-list --no-merges "${BASE}..${HEAD}")
+
+          if [ "$missing" -gt 0 ]; then
+            echo
+            echo "$missing commit(s) are not signed off."
+            echo "Add the line with:  git commit --amend -s --no-edit"
+            echo "or for several:     git rebase --signoff ${BASE}"
+            echo "It certifies https://developercertificate.org/"
+            exit 1
+          fi
+          echo "all commits signed off"

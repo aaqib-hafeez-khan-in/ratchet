@@ -78,3 +78,46 @@ Pull requests should:
 
 By contributing you agree that your contributions are licensed under the
 [Apache License 2.0](LICENSE), the same licence as the project.
+
+## Certificate of origin
+
+Every commit must carry a `Signed-off-by` line. It certifies the
+[Developer Certificate of Origin 1.1](https://developercertificate.org/) — in
+short, that you wrote the change or otherwise have the right to submit it under
+the project's licence, and that you understand the contribution and the record
+of it are public and permanent.
+
+Git adds the line for you:
+
+```bash
+git commit -s -m "your message"
+```
+
+It appends `Signed-off-by: Your Name <your@email>`, taken from your `user.name`
+and `user.email`. Use a real name and a real address — the point of the
+assertion is that somebody made it.
+
+To make it automatic in this repository, use a hook — there is no `git config`
+that does this. `format.signOff` looks like the setting and is not: it applies
+to `git format-patch`, never to `git commit`.
+
+```bash
+cat > .git/hooks/prepare-commit-msg <<'HOOK'
+#!/bin/sh
+# Append Signed-off-by unless one is already present.
+grep -qiE '^Signed-off-by: ' "$1" || \
+  printf '\nSigned-off-by: %s <%s>\n' "$(git config user.name)" "$(git config user.email)" >> "$1"
+HOOK
+chmod +x .git/hooks/prepare-commit-msg
+```
+
+Forgot on the last commit:
+
+```bash
+git commit --amend -s --no-edit
+```
+
+A pull request whose commits are missing the line is rejected by CI, which
+checks the commits the pull request adds rather than the whole history — the
+requirement starts here and is not applied retroactively to work that predates
+it.
