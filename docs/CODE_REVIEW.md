@@ -5,26 +5,31 @@ change acceptable.
 
 ## Who reviews
 
-One person maintains Ratchet. A second engineer at Deimos AI LLC has reviewed the
-codebase and holds admin on the repository, so a reviewer exists and is able to
-approve a pull request. Three separate facts, and the third does not follow from
-the first two.
+Two people can review Ratchet, and since 5 September 2026 the repository
+**requires** that one of them does.
 
-The review happened. What has not happened is a record of it. 244 of Ratchet's
-247 commits reached `main` without a pull request, and the only pull request
-carrying an approval is one from an outside contributor, approved by the
-maintainer. So the OpenSSF gold criterion `two_person_review` — at least 50% of
-proposed modifications reviewed before release by somebody other than the
-author — stays recorded as unmet, and it is the evidence that is missing rather
-than the reviewer. A reviewer who leaves no trace is indistinguishable, from
-outside, from no reviewer at all.
+`main` carries a ruleset with **no bypass actors**: a change reaches it only
+through a pull request carrying at least one approving review, and
+`require_last_push_approval` means whoever pushed last cannot be the one who
+approves. That binds the maintainer too, which was confirmed by pushing directly
+and being refused rather than assumed from the settings page:
 
-Closing it is a workflow change, not a document change, and nothing structural
-is in the way any more: changes go through a pull request, and the reviewer
-approves it there. Until that is the default,
-what follows describes one author's checks plus a second reader — several of
-them enforced by machinery precisely because a second pair of eyes is not
-guaranteed to be in the path of any given change.
+```
+remote: - Changes must be made through a pull request.
+ ! [remote rejected] main -> main (push declined due to repository rule violations)
+```
+
+Before that, 244 of Ratchet's 247 commits reached `main` without a pull request.
+That history does not disappear, and it is why the OpenSSF gold criterion
+`two_person_review` — at least 50% of proposed modifications reviewed before
+release by somebody other than the author — is answered on the rule rather than
+on the archive. From here the proportion is 100%, held there by machinery rather
+than by intention. A reviewer who leaves no trace is indistinguishable, from
+outside, from no reviewer at all; the trace is now mandatory.
+
+What follows is what that reviewer checks — several of the checks automated,
+because a second pair of eyes catches different things than a test does and
+neither substitutes for the other.
 
 ## What every change must pass
 

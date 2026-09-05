@@ -110,10 +110,14 @@ so a successor can create and close issues, accept proposed changes, and cut a
 release without first recovering somebody else's personal account. Continuity now
 runs *alongside* the maintainer rather than through them.
 
-**What is still open:** review leaves no record. Two people can approve a pull
-request; nothing requires one. 244 of 247 commits reached `main` without one, so
-the history cannot show which changes a second person saw before release. That
-is the last item in [ROADMAP.md](ROADMAP.md)'s continuity section.
+**And review is now required.** `main` admits a change only through a pull
+request carrying an approving review from somebody other than the last pusher,
+under a ruleset with no bypass actors — so it binds the maintainer too. The pull
+request that added this paragraph was the first change to go through it.
+
+**What is still open:** one person decides direction. Two can act, and both are
+now in the path of every change, but the maintainer sets what the change should
+be and no repository rule substitutes for that.
 
 ### If the project is abandoned
 

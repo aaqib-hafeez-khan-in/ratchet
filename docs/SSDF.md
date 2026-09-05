@@ -42,8 +42,8 @@ the roles and who holds them. A partner at Deimos AI LLC holds the credentials
 the project depends on and admin on the repository, so the recovery procedure in
 [`docs/handoff/RECOVERY.md`](handoff/RECOVERY.md) is written for a successor who
 exists and can already act without recovering an account first. **Still open:**
-direction rests on one person, and nothing requires a change to be reviewed
-before it ships — see PW.2.
+direction rests on one person. Both can act and both are now in the path of every
+change, but only one decides what the change should be.
 
 **PO.3 — Supporting toolchains.** Every push to `main` and every pull request
 runs: typecheck of `src`, `test` and `scripts`; unit, integration and
@@ -124,13 +124,13 @@ side effect itself, holds no vendor credential, and has no outbound access to
 customer systems. At-most-once initiation is enforced by a database unique index
 rather than by application logic.
 
-**PW.2 — Review the design.** **Partial.** A second engineer at Deimos AI LLC has
-reviewed the codebase and holds admin on the repository, so a reviewer both
-exists and can approve. What is missing is the gate: 244 of 247 commits reached
-`main` without a pull request and no rule requires one. The OpenSSF
-`two_person_review` criterion asks that 50% of proposed modifications be reviewed
-before release; it stays recorded as unmet because the record is absent, not the
-reviewer.
+**PW.2 — Review the design.** **Met, as of 5 September 2026.** A second engineer
+at Deimos AI LLC reviews, and `main` now requires it: a ruleset with no bypass
+actors admits a change only through a pull request carrying an approving review
+from somebody other than the last pusher. Verified by attempting a direct push
+and being refused, not by reading the setting. The OpenSSF `two_person_review`
+criterion asks that 50% of proposed modifications be reviewed before release; the
+rule holds it at 100% going forward, over a history where it was 3 of 247.
 
 **PW.4 — Reuse well-secured software.** Production dependencies are deliberately
 few; the published MCP bridge has none at all. Nothing is vendored or forked, so
@@ -219,11 +219,9 @@ Stated here rather than left to be inferred:
 |---|---|
 | PO.2 | Two people can act; one decides. Direction still rests on a single person. |
 | PO.5 | The developer workstation is not covered by a documented hardening standard. |
-| PW.2 | A second reviewer can now approve, but nothing requires or records review before release. |
 | RV.3 | Root cause analysis is per-defect, not periodic across defects. |
 
-Splitting PO.2 from PW.2 is the point. Being able to act and being seen to
-review are different properties, they were one gap until recently, and only the
-first has closed: two people hold the credentials and the repository, while no
-rule puts either of them in the path of a change. What remains is workflow, not
-architecture, and it is on [`ROADMAP.md`](../ROADMAP.md).
+PW.2 closed on 5 September 2026; PO.2 did not, and the distinction is worth
+keeping rather than rounding away. Two people can act, and a rule now puts one of
+them in the path of every change — but direction still rests on a single person,
+and no ruleset fixes that. The remainder is on [`ROADMAP.md`](../ROADMAP.md).

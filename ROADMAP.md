@@ -28,11 +28,10 @@ project now survives the loss of any one person, which was the largest single
 risk to anyone depending on Ratchet. One item remains from it, and it outranks
 every feature below:
 
-- **A review record.** Two people can approve a pull request; nothing requires
-  one. 244 of 247 commits reached `main` without one, so the history cannot show
-  which changes a second person saw before release — and a reviewer who leaves
-  no trace is indistinguishable from no reviewer. Routing changes through pull
-  requests is what makes it visible; see
+- **A review record — done, 5 September 2026.** `main` requires a pull request
+  with an approving review from somebody other than the last pusher, under a
+  ruleset with no bypass actors, so it binds the maintainer as well. What remains
+  is not a task: the record has to accumulate. See
   [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md).
 
 - **Scheduled reconciliation reaching further.** The gate keeps the calendar
