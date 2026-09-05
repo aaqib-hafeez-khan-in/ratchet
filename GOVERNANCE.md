@@ -1,9 +1,10 @@
 # Governance
 
-Ratchet is maintained by one person. Deimos LLC, which publishes it, is three;
-the other two do not hold the credentials or the release path, so for anyone
-depending on Ratchet the number that matters is one. This document says that
-plainly, says what it means, and says what happens if that person stops. A governance document that described committees this project does not
+Ratchet is maintained by one person. Deimos LLC, which publishes it, is three,
+and a second partner now holds the credentials needed to continue the project —
+so the number that matters to anyone depending on Ratchet is one for day-to-day
+decisions and two for survival. This document says which is which, says what
+each means, and says what happens if the maintainer stops. A governance document that described committees this project does not
 have would be worse than none, because the point of it is to let you predict
 what will actually happen.
 
@@ -79,12 +80,18 @@ successor needs, and the state of each:
 lists every credential, where it lives, and what breaks without it. It is written
 for somebody who is not the author.
 
-**Honest limitation, stated because pretending otherwise would be the failure
-this criterion exists to prevent:** there is currently no second person holding
-those credentials. A successor with account access could continue the project
-immediately; without it they could fork the code and run their own instance, but
-could not take over the published package, the domain, or the hosted service.
-Establishing that second holder is tracked in [ROADMAP.md](ROADMAP.md).
+**A second person now holds those credentials.** A partner at Deimos LLC was
+given them so the project can continue if the maintainer cannot. That closes the
+gap this section used to describe: a successor no longer has to fork and run
+their own instance, and can take over the published package, the domain and the
+hosted service.
+
+**What is still open**, stated here because the paragraph this replaced was worth
+more than a comfortable one: that partner holds no collaborator seat on the
+GitHub repository. The only account with access is the maintainer's. Continuity
+therefore runs *through* the maintainer's account rather than alongside it —
+which works, and is slower than a second seat, and leaves no independent record
+of who did what. Adding that seat is tracked in [ROADMAP.md](ROADMAP.md).
 
 ### If the project is abandoned
 

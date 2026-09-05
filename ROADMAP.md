@@ -22,9 +22,18 @@ whether it makes that more trustworthy.
 
 ## Next — the next six months
 
-**Continuity, first.** [GOVERNANCE.md](GOVERNANCE.md) admits that no second
-person holds the credentials the project depends on. That is the largest single
-risk to anyone depending on Ratchet and it outranks every feature below.
+**Continuity, half done.** A second partner now holds the credentials the
+project depends on, which was the largest single risk to anyone depending on
+Ratchet. Two halves of it are still open, and both outrank every feature below:
+
+- **A second repository seat.** The partner holds the credentials but is not a
+  collaborator on the repository, so continuity runs through the maintainer's
+  own account. A second admin makes the handover independent rather than
+  inherited, and is what lets somebody else accept a change or cut a release.
+- **A review record.** A second engineer reviews, but 244 of 247 commits reached
+  `main` without a pull request, so nothing shows which changes that reviewer
+  was in front of. Routing changes through pull requests makes the review
+  visible; see [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md).
 
 - **Scheduled reconciliation reaching further.** The gate keeps the calendar
   today; the natural next step is a vendor-side adapter *the customer* runs and
@@ -34,8 +43,11 @@ risk to anyone depending on Ratchet and it outranks every feature below.
   approached twice across a boundary. Documented in
   [KNOWN_LIMITATIONS.md](docs/handoff/KNOWN_LIMITATIONS.md); a rolling window is
   the fix.
-- **Coverage toward gold.** Statement coverage is 85%; the useful target is the
-  uncovered branches in the worker and billing paths, not the number.
+- **Coverage toward gold.** Measured 5 Sep 2026 by `npm run coverage` over all
+  three suites: statements 91.1%, branches 81.88%, functions 92.13%. The 85%
+  this line used to claim predated the two corrections to what the figure
+  counts. The useful target is the uncovered branches in the worker and billing
+  paths, not the number.
 - **A second region.** The database is three nodes in one region with automatic
   failover. Single-region is a real limitation for anyone with a recovery
   objective that spans a regional outage.

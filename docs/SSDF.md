@@ -38,11 +38,12 @@ agent-supplied text never reaching a decision. Each is enforced by a test, so a
 change that breaks one fails the build rather than a review.
 
 **PO.2 — Roles and responsibilities.** [`GOVERNANCE.md`](../GOVERNANCE.md) names
-the roles and who holds them. **Gap, stated plainly:** one person holds all of
-them. The bus factor is 1 and the recovery procedure in
-[`docs/handoff/RECOVERY.md`](handoff/RECOVERY.md) is written for a successor who
-does not yet exist. This is the project's largest single risk and is not
-mitigated by anything in this document.
+the roles and who holds them. One person holds all of them — but the credentials
+behind them are no longer held alone: a partner at Deimos LLC now holds them, so
+the recovery procedure in [`docs/handoff/RECOVERY.md`](handoff/RECOVERY.md) is
+written for a successor who exists rather than a hypothetical one. **Still
+open:** that partner has no collaborator seat on the repository, so continuity
+runs through the maintainer's account rather than beside it.
 
 **PO.3 — Supporting toolchains.** Every push to `main` and every pull request
 runs: typecheck of `src`, `test` and `scripts`; unit, integration and
@@ -123,9 +124,12 @@ side effect itself, holds no vendor credential, and has no outbound access to
 customer systems. At-most-once initiation is enforced by a database unique index
 rather than by application logic.
 
-**PW.2 — Review the design.** **Gap.** Design review is performed by the author.
-There is no independent reviewer, which is why the OpenSSF `two_person_review`
-criterion is recorded as unmet rather than argued around.
+**PW.2 — Review the design.** **Partial.** A second engineer at Deimos LLC has
+reviewed the codebase, so review is no longer the author alone. It is not yet a
+per-change gate: 244 of 247 commits reached `main` without a pull request, so
+nothing records which modifications were reviewed before release. The OpenSSF
+`two_person_review` criterion asks for 50% of them and stays recorded as unmet
+on the evidence, not on the absence of a reviewer.
 
 **PW.4 — Reuse well-secured software.** Production dependencies are deliberately
 few; the published MCP bridge has none at all. Nothing is vendored or forked, so
@@ -151,8 +155,9 @@ committed lockfile. The container runs as a non-root user.
 **PW.7 — Review human-readable code.** CodeQL's security query suite runs on
 every push and weekly. The compiler in strict mode acts as a second static
 analyser over source, tests and scripts. Human review is documented in
-[`docs/CODE_REVIEW.md`](CODE_REVIEW.md), including its honest limitation: it is
-one person, and the checks that compensate are automated.
+[`docs/CODE_REVIEW.md`](CODE_REVIEW.md), including its honest limitation: a
+second engineer reviews, but no record shows which changes they were in front
+of, and the checks that compensate for that are automated.
 
 **PW.8 — Test executable code.** Over a thousand tests across unit, integration
 and end-to-end suites, the latter two against a real PostgreSQL database.
@@ -211,10 +216,12 @@ Stated here rather than left to be inferred:
 
 | Practice | Gap |
 |---|---|
-| PO.2 | Bus factor of 1. One person holds every role and every credential. |
+| PO.2 | One person holds every role. A partner holds the credentials too, but has no repository seat. |
 | PO.5 | The developer workstation is not covered by a documented hardening standard. |
-| PW.2 | Design review has no independent reviewer. |
+| PW.2 | A second engineer reviews, but nothing records which changes were reviewed before release. |
 | RV.3 | Root cause analysis is per-defect, not periodic across defects. |
 
-The first is the largest and is not solved by anything technical. It is the
-first item on [`ROADMAP.md`](../ROADMAP.md).
+The first two were one gap until recently, and splitting them is the point: the
+credentials are now held by two people, while the repository seat and the review
+record are still held by one. Both remaining halves are workflow, not
+architecture, and both are on [`ROADMAP.md`](../ROADMAP.md).

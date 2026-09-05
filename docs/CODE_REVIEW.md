@@ -5,16 +5,23 @@ change acceptable.
 
 ## Who reviews
 
-One person maintains Ratchet. That is stated plainly in
-[GOVERNANCE.md](../GOVERNANCE.md) rather than worked around, and it is the
-reason the OpenSSF gold criterion `two_person_review` is recorded as unmet:
-half of all changes cannot be reviewed by somebody other than the author when
-there is only one author.
+One person maintains Ratchet, and a second engineer at Deimos LLC has reviewed
+the codebase. Both are true, and they are not the same claim.
 
-What follows is therefore not a description of two people agreeing. It is the
-set of checks a change must pass before it reaches `main`, several of which are
-enforced by machinery precisely because a second pair of eyes is not available
-to catch them.
+The review happened. What has not happened is a record of it. 244 of Ratchet's
+247 commits reached `main` without a pull request, and the only pull request
+carrying an approval is one from an outside contributor, approved by the
+maintainer. So the OpenSSF gold criterion `two_person_review` — at least 50% of
+proposed modifications reviewed before release by somebody other than the
+author — stays recorded as unmet, and it is the evidence that is missing rather
+than the reviewer. A reviewer who leaves no trace is indistinguishable, from
+outside, from no reviewer at all.
+
+Closing that is a workflow change, not a document change: changes go through a
+pull request, and the reviewer approves it there. Until that is the default,
+what follows describes one author's checks plus a second reader — several of
+them enforced by machinery precisely because a second pair of eyes is not
+guaranteed to be in the path of any given change.
 
 ## What every change must pass
 
