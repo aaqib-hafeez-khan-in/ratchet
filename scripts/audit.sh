@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Deimos LLC
+# Copyright 2026 Deimos AI LLC
 #
 # Production dependency audit, with the registry's own unreliability accounted for.
 #

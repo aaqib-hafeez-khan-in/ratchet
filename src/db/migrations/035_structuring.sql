@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos LLC
+-- Copyright 2026 Deimos AI LLC
 -- A threshold Ratchet watches but does not enforce.
 --
 -- Structuring is keeping amounts just under a line so the line never triggers.

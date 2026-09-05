@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 import type { PoolClient } from 'pg';
 import type { Db } from '../db/pool.js';
 import { newId, sha256Hex } from '../lib/ids.js';

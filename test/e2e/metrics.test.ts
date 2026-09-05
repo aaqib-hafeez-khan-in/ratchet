@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 /**
  * Operating metrics, and the two things that would make them a liability.
  *

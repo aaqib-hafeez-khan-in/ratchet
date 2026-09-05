@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 /**
  * The behaviour `reserveSpend` must keep, whatever shape it takes internally.
  *

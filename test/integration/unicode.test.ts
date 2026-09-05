@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 /**
  * The same visible string has several legal encodings: macOS hands out NFD,
  * nearly everything else NFC. An agent fleet spanning both platforms must not

@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos LLC
+-- Copyright 2026 Deimos AI LLC
 -- Automatic credit top-up, and the machinery that keeps it from firing twice.
 --
 -- Overage draws on prepaid credit, and at a zero balance the effect is REFUSED.

@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos LLC
+-- Copyright 2026 Deimos AI LLC
 -- x402 machine payments.
 --
 -- An agent that exhausts its anonymous quota currently hits a wall it cannot

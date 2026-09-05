@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos LLC
+-- Copyright 2026 Deimos AI LLC
 -- Reversible effect groups (agent sagas).
 --
 -- An agent declares that several effects form one unit of work and, for each,

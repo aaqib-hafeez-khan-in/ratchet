@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Deimos LLC
+# Copyright 2026 Deimos AI LLC
 # Make an encrypted copy of .env for a password manager.
 #
 # You run this, not Claude. The passphrase is prompted, never echoed, never

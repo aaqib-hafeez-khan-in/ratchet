@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Deimos LLC
+# Copyright 2026 Deimos AI LLC
 # Ratchet in nine commands. Run against a local instance:
 #   BASE=http://localhost:8787 bash examples/curl/walkthrough.sh
 set -euo pipefail

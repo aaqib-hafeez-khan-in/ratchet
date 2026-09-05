@@ -1,6 +1,6 @@
 # Governance
 
-Ratchet is maintained by one person. Deimos LLC, which publishes it, is three,
+Ratchet is maintained by one person. Deimos AI LLC, which publishes it, is three,
 and a second partner now holds the credentials needed to continue the project —
 so the number that matters to anyone depending on Ratchet is one for day-to-day
 decisions and two for survival. This document says which is which, says what
@@ -15,7 +15,7 @@ There is currently one role.
 ### Maintainer
 
 Held by **[@thearchitect0x-glitch](https://github.com/thearchitect0x-glitch)**,
-operating as Deimos LLC.
+operating as Deimos AI LLC.
 
 Responsible for:
 
@@ -80,7 +80,7 @@ successor needs, and the state of each:
 lists every credential, where it lives, and what breaks without it. It is written
 for somebody who is not the author.
 
-**A second person now holds those credentials.** A partner at Deimos LLC was
+**A second person now holds those credentials.** A partner at Deimos AI LLC was
 given them so the project can continue if the maintainer cannot. That closes the
 gap this section used to describe: a successor no longer has to fork and run
 their own instance, and can take over the published package, the domain and the

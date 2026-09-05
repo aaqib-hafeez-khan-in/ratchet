@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos LLC
+-- Copyright 2026 Deimos AI LLC
 -- Let an operator require a declared cost.
 --
 -- Budget ceilings are computed from the cost the caller declares on begin. That

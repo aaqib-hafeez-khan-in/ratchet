@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,11 +11,11 @@ const DIRECTORIES = ['src', 'test', 'scripts', 'web/assets'];
 const EXTENSIONS = new Set(['.ts', '.js', '.mjs', '.sh', '.sql']);
 const SKIPPED_DIRECTORIES = new Set(['.claude', 'node_modules', 'dist']);
 const HEADERS = {
-  '.ts': ['// SPDX-License-Identifier: Apache-2.0', '// Copyright 2026 Deimos LLC'],
-  '.js': ['// SPDX-License-Identifier: Apache-2.0', '// Copyright 2026 Deimos LLC'],
-  '.mjs': ['// SPDX-License-Identifier: Apache-2.0', '// Copyright 2026 Deimos LLC'],
-  '.sh': ['# SPDX-License-Identifier: Apache-2.0', '# Copyright 2026 Deimos LLC'],
-  '.sql': ['-- SPDX-License-Identifier: Apache-2.0', '-- Copyright 2026 Deimos LLC'],
+  '.ts': ['// SPDX-License-Identifier: Apache-2.0', '// Copyright 2026 Deimos AI LLC'],
+  '.js': ['// SPDX-License-Identifier: Apache-2.0', '// Copyright 2026 Deimos AI LLC'],
+  '.mjs': ['// SPDX-License-Identifier: Apache-2.0', '// Copyright 2026 Deimos AI LLC'],
+  '.sh': ['# SPDX-License-Identifier: Apache-2.0', '# Copyright 2026 Deimos AI LLC'],
+  '.sql': ['-- SPDX-License-Identifier: Apache-2.0', '-- Copyright 2026 Deimos AI LLC'],
 };
 
 function sourceFiles(directory: string): string[] {

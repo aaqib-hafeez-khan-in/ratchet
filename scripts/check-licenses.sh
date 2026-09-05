@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Deimos LLC
+# Copyright 2026 Deimos AI LLC
 #
 # Enforce the licence policy in docs/OPEN_SOURCE_POLICY.md §3 against what is
 # actually in the production dependency tree.

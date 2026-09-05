@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 /**
  * Every client-visible failure is an ApiError. The `code` is a stable,
  * machine-readable string that agents can branch on; `message` is safe to show.

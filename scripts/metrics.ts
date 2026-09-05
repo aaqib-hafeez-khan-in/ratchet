@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 /**
  * Operator metrics report. Prints the thresholds from
  * docs/handoff/PRICING_AND_DISTRIBUTION_REVIEW.md §6 with pass/fail against

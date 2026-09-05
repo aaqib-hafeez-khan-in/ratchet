@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 import { lookup } from 'node:dns/promises';
 import net from 'node:net';
 import { config } from './config.js';

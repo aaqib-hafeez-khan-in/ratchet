@@ -1,12 +1,12 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-<!-- Copyright 2026 Deimos LLC -->
+<!-- Copyright 2026 Deimos AI LLC -->
 
 # NIST SSDF conformance
 
 How Ratchet is built, mapped to the four practice groups of the **Secure Software
 Development Framework**, NIST SP 800-218 version 1.1.
 
-**What this is.** A statement of what Deimos LLC actually does when building
+**What this is.** A statement of what Deimos AI LLC actually does when building
 Ratchet, with a pointer to the file, workflow or test that makes each claim
 checkable. Where a practice is not met, it says so.
 
@@ -17,7 +17,7 @@ agency purchases Ratchet. This document is the substance such an attestation
 would rest on, published so it can be read rather than asserted.
 
 **Scope.** The Ratchet control plane, worker, MCP bridge and website, in
-[this repository](https://github.com/thearchitect0x-glitch/ratchet). Deimos LLC
+[this repository](https://github.com/thearchitect0x-glitch/ratchet). Deimos AI LLC
 is three people, one of whom builds and releases Ratchet; several practices
 below are met by automation precisely because no second person is in the path of
 a change to catch a mistake.
@@ -39,7 +39,7 @@ change that breaks one fails the build rather than a review.
 
 **PO.2 — Roles and responsibilities.** [`GOVERNANCE.md`](../GOVERNANCE.md) names
 the roles and who holds them. One person holds all of them — but the credentials
-behind them are no longer held alone: a partner at Deimos LLC now holds them, so
+behind them are no longer held alone: a partner at Deimos AI LLC now holds them, so
 the recovery procedure in [`docs/handoff/RECOVERY.md`](handoff/RECOVERY.md) is
 written for a successor who exists rather than a hypothetical one. **Still
 open:** that partner has no collaborator seat on the repository, so continuity
@@ -124,7 +124,7 @@ side effect itself, holds no vendor credential, and has no outbound access to
 customer systems. At-most-once initiation is enforced by a database unique index
 rather than by application logic.
 
-**PW.2 — Review the design.** **Partial.** A second engineer at Deimos LLC has
+**PW.2 — Review the design.** **Partial.** A second engineer at Deimos AI LLC has
 reviewed the codebase, so review is no longer the author alone. It is not yet a
 per-change gate: 244 of 247 commits reached `main` without a pull request, so
 nothing records which modifications were reviewed before release. The OpenSSF

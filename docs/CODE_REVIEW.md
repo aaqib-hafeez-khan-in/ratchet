@@ -5,7 +5,7 @@ change acceptable.
 
 ## Who reviews
 
-One person maintains Ratchet, and a second engineer at Deimos LLC has reviewed
+One person maintains Ratchet, and a second engineer at Deimos AI LLC has reviewed
 the codebase. Both are true, and they are not the same claim.
 
 The review happened. What has not happened is a record of it. 244 of Ratchet's

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 /**
  * Seeds a workspace with realistic traffic: a completed effect, a duplicate,
  * a crashed attempt left indeterminate, and one awaiting approval. Used to

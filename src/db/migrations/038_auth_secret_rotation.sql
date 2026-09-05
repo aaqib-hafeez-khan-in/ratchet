@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos LLC
+-- Copyright 2026 Deimos AI LLC
 -- Which secret an API key's hash was made with.
 --
 -- api_keys.secret_hash is HMAC(AUTH_SECRET, secret) and carried no record of

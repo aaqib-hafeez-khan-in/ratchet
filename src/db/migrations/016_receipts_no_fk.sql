@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos LLC
+-- Copyright 2026 Deimos AI LLC
 -- Drop the receipts -> workspaces foreign key.
 --
 -- Adding receipts to the decision path reintroduced the exact deadlock the

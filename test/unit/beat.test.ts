@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 // @ts-expect-error — plain ES module served to the browser, no types.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 import { stricterThan } from '../rate-limit.js';
 /**
  * OAuth 2.1 endpoints.

@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos LLC
+-- Copyright 2026 Deimos AI LLC
 -- Capability gates, and the promise that nobody loses what they already have.
 --
 -- Every plan limit until now has been a number: effects, keys, webhooks,

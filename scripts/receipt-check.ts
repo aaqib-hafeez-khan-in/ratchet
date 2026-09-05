@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 /** Round-trip check for receipt signing, run outside the test harness. */
 import 'dotenv/config';
 import { RECEIPT_VERSION, signBody, verifyReceipt, receiptPublicKey } from '../src/domain/receipts.js';

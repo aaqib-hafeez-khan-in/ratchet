@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 import { effectiveCeiling } from '../domain/circuit.js';
 import type { EffectView, ReportResult } from '../domain/effects.js';
 import type { BeginResult, Policy } from '../domain/types.js';

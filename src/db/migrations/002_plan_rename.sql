@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos LLC
+-- Copyright 2026 Deimos AI LLC
 -- Two plans replace three. `starter` and `scale` collapse into `pro`.
 --
 -- Any workspace on a legacy plan keeps paid status rather than being demoted to

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 /**
  * Shared chrome. Rendered client-side so every page ships one copy of the
  * markup; the pages themselves stay static HTML with no build step.

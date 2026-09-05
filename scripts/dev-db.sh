@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Deimos LLC
+# Copyright 2026 Deimos AI LLC
 # Local Postgres for development and tests. Requires Docker.
 set -euo pipefail
 NAME=ratchet-pg

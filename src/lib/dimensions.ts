@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { config } from './config.js';
 import { ApiError } from './errors.js';

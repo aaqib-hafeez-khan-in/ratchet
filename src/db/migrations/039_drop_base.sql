@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos LLC
+-- Copyright 2026 Deimos AI LLC
 -- Base is no longer accepted. The operator takes Solana, Ethereum and Bitcoin.
 --
 -- Disabled rather than deleted. The chain column's CHECK still admits 'base',

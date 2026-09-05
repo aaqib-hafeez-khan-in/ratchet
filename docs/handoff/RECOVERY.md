@@ -18,7 +18,7 @@ the product's main safety property. Do not erode it.
 
 - **Live:** https://ratchetgate.com · **Repo:** `github.com/thearchitect0x-glitch/ratchet`
 - **Local:** `/Users/w0lfi3/ajbs` · **Owner:** solo operator, `iamredonerabbit@gmail.com`
-- **Company:** Deimos LLC · **Stage:** live, ~0 real customers, pre-revenue
+- **Company:** Deimos AI LLC · **Stage:** live, ~0 real customers, pre-revenue
 
 **Read `CLAUDE.md` in the repo root next.** It is the project contract and it
 overrides your defaults. This file tells you where things are; that one tells

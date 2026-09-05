@@ -1,5 +1,5 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Copyright 2026 Deimos LLC
+-- Copyright 2026 Deimos AI LLC
 -- A fourth plan, and the only one that cannot be bought.
 --
 -- Enterprise exists because the fraud and risk controls brought a different

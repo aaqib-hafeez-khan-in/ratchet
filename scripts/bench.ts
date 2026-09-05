@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 /**
  * Latency measurement for the gate. Reports real percentiles from this machine
  * against a real Postgres — no synthetic numbers appear in the docs.

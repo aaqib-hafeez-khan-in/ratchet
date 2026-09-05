@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Deimos LLC
+// Copyright 2026 Deimos AI LLC
 import { getPool } from '../db/pool.js';
 import { recallRun, recallOnWire } from '../domain/recall.js';
 import { receiptsFor, receiptPublicKey } from '../domain/receipts.js';
