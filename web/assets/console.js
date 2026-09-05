@@ -86,7 +86,7 @@ function announceCheckoutReturn() {
   }
 }
 
-async function api(path, opts = {}) {
+async function api(path, opts = {}, retriedAfterStepUp = false) {
   const headers = { ...(opts.headers ?? {}) };
   if (opts.body) headers['content-type'] = 'application/json';
   if (apiKey) headers.authorization = `Bearer ${apiKey}`;
@@ -97,6 +97,22 @@ async function api(path, opts = {}) {
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) {
+    /**
+     * Step-up, handled once here rather than at ten call sites.
+     *
+     * Every operator action can come back needing a code. Asking each caller to
+     * handle that would mean ten places to forget, and the one that forgot
+     * would show "forbidden" to somebody who simply needed to type six digits.
+     * So: ask, verify, retry the original request exactly once. The retry flag
+     * is what stops a wrong code becoming a loop.
+     */
+    if (res.status === 403 && data?.error?.detail?.mfa_required && !retriedAfterStepUp) {
+      const code = await askForCode();
+      if (code) {
+        await api('/console/mfa/verify', { method: 'POST', body: { code } }, true);
+        return api(path, opts, true);
+      }
+    }
     const err = new Error(data?.error?.message ?? `Request failed (${res.status})`);
     err.code = data?.error?.code;
     err.status = res.status;
@@ -104,6 +120,69 @@ async function api(path, opts = {}) {
     throw err;
   }
   return data;
+}
+
+/**
+ * Ask for a six-digit code. Resolves to null if the operator dismisses it,
+ * which is a cancelled action rather than a failed one.
+ */
+function askForCode() {
+  return new Promise((resolve) => {
+    const dlg = document.createElement('dialog');
+    dlg.className = 'stepup';
+    dlg.innerHTML = `
+      <form method="dialog">
+        <h3 style="margin:0 0 .35rem">Confirm it is you</h3>
+        <p class="small dim" style="margin:0 0 .9rem;max-width:42ch">
+          This action changes what agents are allowed to do, so it needs the code
+          from your authenticator. A recovery code works too.
+        </p>
+        <input id="stepup-code" inputmode="numeric" autocomplete="one-time-code"
+               placeholder="123456" aria-label="Authentication code"
+               style="width:100%;letter-spacing:.22em;font:600 1.15rem/1 var(--mono);text-align:center">
+        <div class="actions" style="margin-top:1rem;justify-content:flex-end">
+          <button type="button" class="btn secondary" id="stepup-cancel">Cancel</button>
+          <button type="button" class="btn" id="stepup-ok">Confirm</button>
+        </div>
+      </form>`;
+    document.body.appendChild(dlg);
+    const input = dlg.querySelector('#stepup-code');
+
+    /**
+     * Resolve from the buttons, not from the dialog's `close` event.
+     *
+     * `close` is the obvious hook and it is not dependable: it did not fire at
+     * all in one browser this was driven in, even for a bare dialog with a
+     * method="dialog" form. The dialog shut, returnValue was set, and the
+     * promise never settled — so the step-up prompt closed and the action it
+     * was guarding simply never happened, with nothing shown to say why.
+     * Explicit handlers settle it exactly once, wherever it runs.
+     */
+    let settled = false;
+    const done = (value) => {
+      if (settled) return;
+      settled = true;
+      if (dlg.open) dlg.close();
+      dlg.remove();
+      resolve(value);
+    };
+    dlg.querySelector('#stepup-ok').addEventListener('click', (e) => {
+      e.preventDefault();
+      done(input.value.trim() || null);
+    });
+    dlg.querySelector('#stepup-cancel').addEventListener('click', (e) => {
+      e.preventDefault();
+      done(null);
+    });
+    // Escape, which the platform gives us for free and must not hang either.
+    dlg.addEventListener('cancel', (e) => { e.preventDefault(); done(null); });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); done(input.value.trim() || null); }
+    });
+
+    dlg.showModal();
+    input.focus();
+  });
 }
 
 const usd = (m) => {
@@ -933,6 +1012,109 @@ const PANELS = {
               <td>${p.retention_days}d</td>
             </tr>`))
         : empty('No explicit policies.', 'Every effect type is using the safe defaults.')));
+    } catch (err) { failed(err); }
+  },
+
+  /**
+   * Two-factor for operator actions.
+   *
+   * No QR code, deliberately. The content security policy is img-src 'self',
+   * so a QR from an external service would not render, and generating one here
+   * would mean vendoring an encoder into a directory that has no build step —
+   * against the licence policy this project just wrote down. Every
+   * authenticator app accepts a typed setup key, so the key is what this shows,
+   * grouped so it can be read without losing your place.
+   */
+  async security() {
+    loading();
+    try {
+      const m = await api('/console/mfa');
+      const head = `<div style="padding:1.25rem 1.25rem 0">
+        <p class="small dim" style="max-width:70ch">A second factor on the actions that
+        change what agents may do — policy, keys, containment, webhooks, billing. Reading
+        is never gated. Verifying once unlocks those actions for 15 minutes, in this
+        browser only.</p></div>`;
+
+      if (!m.enabled) {
+        panel(`${head}<div style="padding:1.25rem">
+          <div class="card" style="max-width:56ch">
+            <h3 style="margin-top:0">Two-factor is off</h3>
+            <p class="small dim">Anyone holding a console session can change policy,
+            issue keys, or close a circuit breaker.</p>
+            <div id="mfa-result"></div>
+            <button class="btn" id="mfa-start">Turn it on</button>
+          </div></div>`);
+
+        $('mfa-start').addEventListener('click', async () => {
+          try {
+            const e = await api('/console/mfa/enrol', { method: 'POST' });
+            const grouped = e.secret.replace(/(.{4})/g, '$1 ').trim();
+            $('mfa-result').innerHTML = `
+              <p class="small" style="margin:.9rem 0 .35rem"><strong>1.</strong> Add this
+                key to your authenticator app — 1Password, Aegis, Bitwarden, or any other.</p>
+              <div class="secret" style="letter-spacing:.14em">${esc(grouped)}</div>
+              <p class="small faint" style="margin:.35rem 0 .9rem">
+                On this device you can instead
+                <a href="${esc(e.otpauth_uri)}">open it directly in an app</a>.</p>
+              <p class="small" style="margin:0 0 .35rem"><strong>2.</strong> Enter the
+                six digits it shows.</p>
+              <div class="fb-row">
+                <input id="mfa-code" inputmode="numeric" autocomplete="one-time-code"
+                       placeholder="123456" aria-label="Code from your authenticator"
+                       style="letter-spacing:.2em;font-family:var(--mono)">
+                <button class="btn" id="mfa-activate">Turn on</button>
+              </div>`;
+            $('mfa-activate').addEventListener('click', async () => {
+              try {
+                const r = await api('/console/mfa/activate',
+                  { method: 'POST', body: { code: $('mfa-code').value.trim() } });
+                $('mfa-result').innerHTML = `
+                  <div class="notice good" style="margin:.9rem 0 .6rem">Two-factor is on.
+                    Save these recovery codes somewhere that is not the device holding your
+                    authenticator. Each works once, and they are not shown again.</div>
+                  <div class="secret" style="line-height:1.9">${
+                    r.recovery_codes.map(esc).join('<br>')}</div>`;
+              } catch (err) {
+                $('mfa-result').insertAdjacentHTML('beforeend',
+                  `<div class="notice bad">${esc(err.message)}</div>`);
+              }
+            });
+          } catch (err) { failed(err); }
+        });
+        return;
+      }
+
+      panel(`${head}<div style="padding:1.25rem">
+        <div class="card" style="max-width:56ch">
+          <h3 style="margin-top:0"><span class="pill go">on</span> Two-factor</h3>
+          <p class="small dim">Enabled ${when(m.enabled_at)}.
+            ${m.recovery_codes_remaining} recovery code(s) unused.</p>
+          ${m.recovery_codes_remaining <= 2 ? `<div class="notice">Only
+            ${m.recovery_codes_remaining} recovery code(s) left. Turning two-factor off and
+            on again issues a fresh set.</div>` : ''}
+          ${m.locked_until ? `<div class="notice bad">Locked after too many incorrect
+            codes. Try again ${when(m.locked_until)}.</div>` : ''}
+          <div id="mfa-result"></div>
+          <div class="fb-row" style="margin-top:1rem">
+            <input id="mfa-off-code" inputmode="numeric" autocomplete="one-time-code"
+                   placeholder="123456" aria-label="Code to turn two-factor off"
+                   style="letter-spacing:.2em;font-family:var(--mono)">
+            <button class="btn secondary" id="mfa-off">Turn off</button>
+          </div>
+          <p class="small faint" style="margin:.5rem 0 0">Turning it off needs a current
+            code — otherwise it would not be a second factor.</p>
+        </div></div>`);
+
+      $('mfa-off').addEventListener('click', async () => {
+        if (!confirm('Turn off two-factor?\n\nOperator actions will need only a console session.')) return;
+        try {
+          await api('/console/mfa', { method: 'DELETE',
+            body: { code: $('mfa-off-code').value.trim() } });
+          await PANELS.security();
+        } catch (err) {
+          $('mfa-result').innerHTML = `<div class="notice bad">${esc(err.message)}</div>`;
+        }
+      });
     } catch (err) { failed(err); }
   },
 

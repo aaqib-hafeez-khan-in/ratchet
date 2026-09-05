@@ -1886,3 +1886,19 @@ table.grid td.good { color: var(--accent); }
    Raising them re-tightens every figure's spacing, so the collision check that
    caught the overlapping day labels applies here too.
    ───────────────────────────────────────────────────────────────────────── */
+
+/* ------------------------------------------------- step-up confirmation */
+/* A <dialog>, not a bespoke overlay: it gets focus trapping, Escape, and the
+   top layer from the platform, which a hand-rolled div gets wrong quietly. */
+dialog.stepup {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-raised); color: var(--text);
+  padding: 1.35rem; max-width: 30rem; width: calc(100% - 2rem);
+}
+dialog.stepup::backdrop { background: rgb(0 0 0 / 0.55); }
+dialog.stepup input {
+  width: 100%; padding: 0.6rem 0.7rem; border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-sunk); color: var(--text);
+}
+dialog.stepup input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
