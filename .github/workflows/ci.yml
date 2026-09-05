@@ -76,6 +76,12 @@ jobs:
         # map, because that is how a build stops reproducing for anybody else.
         run: npm run verify:build
 
+      - name: Every file says who owns it and under what licence
+        # REUSE 3.3. The per-file headers were added by hand once; without a
+        # check the next file added simply would not have one, and the badge
+        # would be describing a past state of the repository.
+        run: pipx run 'reuse[charset-normalizer]' lint
+
       - name: Production dependency audit
         # A vulnerable production dependency should fail the build; a vulnerable
         # dev tool should not stop a release at midnight.

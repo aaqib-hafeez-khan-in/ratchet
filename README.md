@@ -7,6 +7,7 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/thearchitect0x-glitch/ratchet/badge)](https://scorecard.dev/viewer/?uri=github.com/thearchitect0x-glitch/ratchet)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14440/badge)](https://www.bestpractices.dev/projects/14440)
 [![NIST SSDF](https://img.shields.io/badge/NIST%20SSDF-conformance-informational)](docs/SSDF.md)
+[![REUSE](https://api.reuse.software/badge/github.com/thearchitect0x-glitch/ratchet)](https://api.reuse.software/info/github.com/thearchitect0x-glitch/ratchet)
 
 **An effect gate for AI agents.** Your agent asks before it does anything it cannot take back —
 charge a card, ship a deploy, publish a package, send the email — and gets a durable decision, so

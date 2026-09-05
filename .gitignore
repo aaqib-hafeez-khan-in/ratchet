@@ -20,3 +20,7 @@ backups/
 *.age
 env.enc
 .claude/launch.json
+
+# Python bytecode, from running the example locally
+__pycache__/
+*.pyc
