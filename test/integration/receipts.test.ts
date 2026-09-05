@@ -94,7 +94,10 @@ describe('chain audit', () => {
     await begin(`chain-${Date.now()}`);
     await chainPendingReceipts();
     const r = await auditChain(getPool(), ws.workspaceId);
-    assert.equal(r.ok, true, r.reason);
+    // reason is only set when the audit fails, so it is string | undefined.
+    // Passing it straight through printed "undefined" on the one occasion the
+    // message would actually be read.
+    assert.equal(r.ok, true, r.reason ?? 'the chain did not verify, and gave no reason');
     assert.ok(r.checked > 0);
   });
 
