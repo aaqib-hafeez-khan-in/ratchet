@@ -10,13 +10,13 @@ import { stricterThan } from '../rate-limit.js';
  * acting, which is the failure we cannot see from here.
  */
 import type { FastifyInstance } from 'fastify';
-import { recordRun, reconciliationStatus } from '../../domain/reconciliation.js';
+import { recordRun, reconciliationStatus, coverage } from '../../domain/reconciliation.js';
 import { getPool } from '../../db/pool.js';
 import { config } from '../../lib/config.js';
 import { wsOf } from '../plugins/auth.js';
 import { receiptsFor, auditChain, receiptPublicKey, currentKid, knownKeys,
          RECEIPT_VERSION } from '../../domain/receipts.js';
-import { errorResponses, reconciliationStatusSchema } from '../schemas.js';
+import { errorResponses, reconciliationStatusSchema, coverageSchema } from '../schemas.js';
 
 /**
  * Registered at the ORIGIN root, not under /v1.
@@ -220,6 +220,50 @@ export default async function receiptRoutes(app: FastifyInstance) {
         ? 'Every action you listed went through the gate.'
         : `${ungated.length} action(s) reached the vendor without ever asking Ratchet. `
           + 'Those code paths are unprotected: a retry there can act twice.',
+    };
+  });
+
+  /**
+   * Coverage: how much of what really happened came through the gate.
+   *
+   * `/reconcile/status` answers "what is overdue". This answers "what do we have
+   * any evidence about at all", over the effect types actually in traffic rather
+   * than the ones somebody configured — because `getPolicy` defaults without
+   * inserting a row, so an unconfigured type was previously absent from every
+   * report, and that is where an ungated path is most likely to be.
+   *
+   * A type never compared reports `coverage: null`, never 100%.
+   */
+  app.get('/coverage', {
+    preHandler: [app.requireConsole('effects:read'), app.requireCapability('reconciliation')],
+    schema: {
+      tags: ['Receipts'], operationId: 'coverage',
+      summary: 'How much of what really happened came through the gate',
+      description:
+        'Per effect type present in your traffic — not merely the ones you configured. '
+        + '`coverage` is the proportion of vendor-observed actions that asked Ratchet first, '
+        + 'from the most recent comparison. A type never compared reports `null` and a status '
+        + 'of `unknown`, and is never counted as covered: an unknown outcome stays unknown, '
+        + 'the same rule the effect state machine follows. `configured: false` means no policy '
+        + 'row exists, so no cadence can be set and no reminder will ever fire for it.',
+      response: { 200: coverageSchema, ...errorResponses },
+    },
+  }, async (req) => {
+    const rows = await coverage(getPool(), wsOf(req));
+    return {
+      effect_types: rows.map((r) => ({
+        effect_type: r.effectType,
+        gated_effects: r.gatedEffects,
+        configured: r.configured,
+        every_hours: r.everyHours,
+        last_run_at: r.lastRunAt,
+        checked: r.checked,
+        gated: r.gated,
+        ungated: r.ungated,
+        coverage: r.coverage,
+        status: r.status,
+      })),
+      unknown_types: rows.filter((r) => r.status === 'unknown').length,
     };
   });
 

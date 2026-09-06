@@ -68,6 +68,39 @@ because signatures are checked against stored bytes verbatim.
 a path in the customer's own system that never called us. They send references,
 never credentials — we still hold no vendor access.
 
+## Coverage — `GET /v1/coverage`
+
+Reconciliation answers "which of these actions went through the gate". Coverage
+answers the prior question: **which effect types do we have any evidence about
+at all.**
+
+The distinction was not academic. `reconciliationStatus` reads
+`FROM effect_policies`, and `getPolicy` returns `DEFAULT_POLICY` *without
+inserting a row* — so a type could be gated thousands of times and never appear
+in that table. Worse, `createWorkspace` seeds policies for exactly two types,
+`email.send` and `payment.charge`. Every other effect type a customer actually
+ran was absent from every reconciliation report: not overdue, not
+never-reconciled — **absent**. A type nobody configured is precisely where an
+ungated path hides, so the report was blindest where the risk was highest.
+
+`coverage()` is therefore computed over the **union of traffic and
+configuration, traffic first**.
+
+**Never compared means unknown, never complete.** A type with no run reports
+`coverage: null` and `status: "unknown"`, and is never counted as covered. That
+is the same rule the state machine applies to an expired lease: an unknown
+outcome stays unknown, and is not resolved to the pleasant answer because the
+pleasant answer displays better. `configured: false` says no policy row exists,
+so no cadence can be set and no reminder will ever fire for it.
+
+Sits behind the same `reconciliation` capability as `POST /v1/reconcile`.
+
+**Open product question:** free and pro plans do not carry that capability, so
+the customers most likely to have unknown coverage cannot see that they do.
+Reporting "unknown" to them is both the honest answer and the strongest possible
+upgrade argument. Gating it was chosen for consistency with `/reconcile`, not
+because it is obviously right.
+
 ## Known gaps
 
 - Nothing pushes callers to declare `estimated_cost_micros`, so most workspaces

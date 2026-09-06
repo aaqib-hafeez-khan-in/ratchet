@@ -208,3 +208,100 @@ export const withPool = {
 };
 
 export const _internals = { GRACE_HOURS };
+
+/**
+ * Coverage: how much of what really happened came through the gate.
+ *
+ * `reconciliationStatus` answers "which configured types are overdue for a
+ * check". This answers a different and less comfortable question: of the effect
+ * types this workspace actually runs, how much of the real world do we have
+ * any evidence about at all.
+ *
+ * The distinction is not cosmetic. `getPolicy` returns DEFAULT_POLICY without
+ * inserting a row, so a type can be gated thousands of times and never appear in
+ * `effect_policies`. The status report reads from that table, so those types
+ * were not "never reconciled" in it — they were absent. A type nobody thought
+ * hard enough about to configure is exactly where an ungated path hides, and the
+ * report was blindest precisely there.
+ *
+ * So coverage is computed over the union of traffic and configuration, and
+ * traffic comes first.
+ *
+ * **Never reconciled means unknown, never complete.** A type with no run gets
+ * `coverage: null` and `status: 'unknown'`, and it is never counted as covered.
+ * That is the same rule the state machine follows for an expired lease: an
+ * unknown outcome stays unknown, and is not resolved to the happy answer because
+ * the happy answer is more pleasant to display.
+ */
+export interface Coverage {
+  effectType: string;
+  /** Effects Ratchet gated. NOT the number of real-world actions — that is the point. */
+  gatedEffects: number;
+  /** Whether a policy row exists. Without one, no cadence and no reminder is possible. */
+  configured: boolean;
+  everyHours: number | null;
+  lastRunAt: string | null;
+  checked: number | null;
+  gated: number | null;
+  ungated: number | null;
+  /** gated / checked from the most recent comparison. `null` when never compared. */
+  coverage: number | null;
+  status: 'measured' | 'unknown';
+}
+
+export async function coverage(db: Db, workspaceId: string): Promise<Coverage[]> {
+  const { rows } = await db.query<{
+    effect_type: string; gated_effects: string; configured: boolean;
+    every_hours: number | null; last_run_at: Date | null;
+    checked: number | null; gated: number | null; ungated: number | null;
+  }>(
+    `WITH traffic AS (
+       SELECT effect_type, count(*) AS gated_effects
+         FROM effects WHERE workspace_id = $1 GROUP BY effect_type
+     ),
+     latest AS (
+       SELECT DISTINCT ON (effect_type) effect_type, created_at, checked, gated, ungated
+         FROM reconciliation_runs WHERE workspace_id = $1
+        ORDER BY effect_type, created_at DESC
+     ),
+     -- Traffic first, configuration second. A type that has run without ever
+     -- being configured is the case this whole function exists for.
+     types AS (
+       SELECT effect_type FROM traffic
+       UNION
+       SELECT effect_type FROM effect_policies WHERE workspace_id = $1
+     )
+     SELECT t.effect_type,
+            COALESCE(tr.gated_effects, 0)  AS gated_effects,
+            (p.effect_type IS NOT NULL)    AS configured,
+            p.reconcile_every_hours        AS every_hours,
+            l.created_at                   AS last_run_at,
+            l.checked, l.gated, l.ungated
+       FROM types t
+       LEFT JOIN traffic tr          ON tr.effect_type = t.effect_type
+       LEFT JOIN effect_policies p   ON p.effect_type = t.effect_type AND p.workspace_id = $1
+       LEFT JOIN latest l            ON l.effect_type = t.effect_type
+      ORDER BY t.effect_type`,
+    [workspaceId],
+  );
+
+  return rows.map((r) => {
+    const checked = r.checked === null ? null : Number(r.checked);
+    const gated = r.gated === null ? null : Number(r.gated);
+    // Dividing by a zero-length comparison would report 0% coverage for a check
+    // that examined nothing. Nothing examined is nothing known.
+    const known = checked !== null && checked > 0 && gated !== null;
+    return {
+      effectType: r.effect_type,
+      gatedEffects: Number(r.gated_effects),
+      configured: r.configured,
+      everyHours: r.every_hours,
+      lastRunAt: r.last_run_at?.toISOString() ?? null,
+      checked,
+      gated,
+      ungated: r.ungated === null ? null : Number(r.ungated),
+      coverage: known ? Number((gated! / checked!).toFixed(4)) : null,
+      status: known ? 'measured' as const : 'unknown' as const,
+    };
+  });
+}

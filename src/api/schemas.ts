@@ -357,6 +357,41 @@ export const runListSchema = {
   },
 } as const;
 
+/**
+ * Coverage is reported per effect type present in *traffic*, not per effect type
+ * somebody configured. `coverage: null` with `status: "unknown"` is the honest
+ * answer for a type never compared, and is never rendered as complete.
+ */
+export const coverageSchema = {
+  type: 'object',
+  properties: {
+    effect_types: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          effect_type: { type: 'string' },
+          gated_effects: { type: 'integer',
+            description: 'Effects Ratchet gated. Not the number of real-world actions.' },
+          configured: { type: 'boolean',
+            description: 'False means no policy row, so no cadence and no reminder is possible.' },
+          every_hours: { type: ['integer', 'null'] },
+          last_run_at: { type: ['string', 'null'], format: 'date-time' },
+          checked: { type: ['integer', 'null'] },
+          gated: { type: ['integer', 'null'] },
+          ungated: { type: ['integer', 'null'] },
+          coverage: { type: ['number', 'null'],
+            description: 'gated / checked from the last comparison. Null means never compared — '
+              + 'which is unknown, not complete.' },
+          status: { type: 'string', enum: ['measured', 'unknown'] },
+        },
+      },
+    },
+    unknown_types: { type: 'integer',
+      description: 'How many effect types carry traffic with no evidence at all.' },
+  },
+} as const;
+
 export const reconciliationStatusSchema = {
   type: 'object',
   properties: {
