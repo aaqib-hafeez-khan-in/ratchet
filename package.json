@@ -54,7 +54,8 @@
     "coverage": "bash scripts/test.sh --coverage",
     "fuzz": "FUZZ_RUNS=${FUZZ_RUNS:-25000} tsx --test test/unit/fuzz-*.test.ts",
     "verify:build": "bash scripts/verify-reproducible.sh",
-    "licenses": "bash scripts/check-licenses.sh"
+    "licenses": "bash scripts/check-licenses.sh",
+    "publish:registry": "bash scripts/publish-registry.sh"
   },
   "dependencies": {
     "@fastify/cookie": "11.1.2",
