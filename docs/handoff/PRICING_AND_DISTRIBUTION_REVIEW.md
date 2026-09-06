@@ -399,7 +399,7 @@ Acted on immediately after the review was accepted:
 
 | Item | Status |
 |---|---|
-| P0 — enforce rate limits per plan | **Done.** Limiter reads the workspace plan via a 60s per-key cache; 4 tests, including one asserting the published limit equals the enforced limit |
+| P0 — enforce rate limits per plan | **Done.** Limiter reads the workspace plan via a 60s per-key cache; 4 tests in `test/e2e/limits.test.ts`, including one asserting the published limit equals the enforced limit |
 | P0 — failure-mode contract | **Done.** `docs/FAILURE_MODES.md`: fail-open vs fail-closed, client requirements, partial-failure matrix, honest availability posture |
 | P1 — recalibrate plans | **Done.** Free 1,000; Pro $29 / 25,000 / $1.50 per 1,000; `starter` and `scale` collapsed into `pro` by migration `002` |
 | P2 — credit pack sizes | **Done.** $25 / $100 / $500; smallest pack now loses 3.9% to processing, not 5.9% |

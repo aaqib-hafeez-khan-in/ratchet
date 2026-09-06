@@ -203,7 +203,7 @@ flyctl ssh console -a ratchet-gate-pg --machine <id> \
 
 **Done and verified:** 3-node HA with tested failover · verified nightly backups
 · WAL archiving · worker liveness · surge containment · shared rate limiting ·
-scoped agent keys at signup · 442 tests · security probe 47/47 · npm published ·
+scoped agent keys at signup · over 1000 tests · security probe 47/47 · npm published ·
 MCP registry v0.2.0.
 
 **Open:**
