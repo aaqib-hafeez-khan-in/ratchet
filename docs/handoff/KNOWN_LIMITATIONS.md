@@ -469,10 +469,32 @@ the same thing as one word for monitors that only read a status page.
 
 ---
 
-## 13. No coverage measurement
+## ~~13. No coverage measurement~~ — measured since 3 Sep 2026
 
-673 tests pass across unit, integration, and e2e. No coverage tool is configured, so **no coverage
-percentage is claimed anywhere.** The VALIDATION_REPORT lists what is actually covered, by name.
+**This section was stale and had become the most dangerous kind of stale: it
+contradicted a published claim.** It said no percentage was claimed anywhere
+while the OpenSSF badge claimed 90.87% statement coverage. Whichever a reader
+believed, the project was wrong somewhere.
+
+Measured 5 Sep 2026 by `npm run coverage` over all three suites against a
+disposable database:
+
+| | |
+|---|---|
+| Statements | **91.1%** (17343/19036) |
+| Branches | **81.88%** (2210/2699) |
+| Functions | **92.13%** (457/496) |
+| Lines | **91.1%** |
+| Tests | **1102** across unit, integration and e2e — the 673 above was also stale |
+
+Floors are enforced in CI at 90/78/90/88 and all four are set explicitly, because
+c8 defaults `lines` to 90 and the rest to 0 — an unset threshold is not a neutral
+choice. The statements floor sits at 90 deliberately: the badge answer claims
+90%, and a floor beneath a published claim lets that claim quietly become false.
+
+What the figure counts took two corrections in opposite directions, both
+invisible from the summary line — see CLAUDE.md §8. The VALIDATION_REPORT still
+lists what is covered by name, which remains more useful than the percentage.
 
 ---
 
